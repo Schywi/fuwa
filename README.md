@@ -30,6 +30,25 @@
   the *tenant* — the sandboxed preview shell the compiled `.fuwa` app runs
   inside.
 
+  ## Architecture
+
+  The runtime folds a full web stack into a single browser tab across three
+  isolation boundaries — main thread, Web Worker (Lua + SQLite-WASM), and a
+  sandboxed tenant iframe — that talk only over typed `postMessage` contracts.
+
+  See **[docs/architecture.md](docs/architecture.md)** for the full breakdown,
+  including system, execution-mode, and persistence-loop diagrams.
+
+  ```mermaid
+  flowchart LR
+      FUWA[".fuwa source"] --> COMPILER["compiler<br/>→ Lua"]
+      COMPILER --> WORKER["Web Worker<br/>Wasmoon + SQLite-WASM"]
+      WORKER -->|set_html| SHELL["PhoneShell<br/>iframe host"]
+      SHELL -->|postMessage| TENANT["tenant iframe<br/>petite-vue · htmx · UnoCSS"]
+      TENANT -->|XHR → request| SHELL
+      SHELL --> WORKER
+  ```
+
   ## Why
 
   The original platform proves the `.fuwa → Lua` pipeline works. This shell
