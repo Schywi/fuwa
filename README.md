@@ -7,6 +7,8 @@
   > What you're looking at is the `.fuwa` application layer, rebuilt to stand on
   its own.
 
+  <img src="docs/images/fuwakoto-explore-blank-cover.png" alt="Fuwa runtime cover" width="100%">
+
   ## What this is
 
   A `.fuwa`-authored app runs entirely from files like `app.fuwa`,
