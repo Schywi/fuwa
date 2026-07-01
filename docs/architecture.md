@@ -1,4 +1,4 @@
-# Fuwa Runtime — Architecture
+# Fuwa Runtime — Architecture (production svelte version)
 
 The Fuwa runtime is a **full web stack folded into a single browser tab**. There is no
 server. A `.fuwa` app is compiled to Lua, executed in a Web Worker, rendered into a
