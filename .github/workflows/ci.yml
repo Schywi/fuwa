@@ -25,22 +25,19 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
 
       - name: Lint Markdown
-        run: npx --yes markdownlint-cli@0.39.0 README.md docs/**/*.md
+        run: npx --yes markdownlint-cli@0.39.0 README.md docs/architecture.md
 
-      - name: Run npm tests when a package manifest exists
-        run: |
-          if [ -f package.json ]; then
-            if [ -f package-lock.json ]; then
-              npm ci
-            else
-              npm install
-            fi
-            npm test
-          else
-            echo "No package.json found yet; skipping npm-based tests."
-          fi
+      - name: Typecheck
+        run: npm run check
+
+      - name: Run tests
+        run: npm test
 
       - name: Validate diff formatting
         run: git diff --check

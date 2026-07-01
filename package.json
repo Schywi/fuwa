@@ -1,0 +1,23 @@
+{
+  "name": "fuwa",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/dev.ts",
+    "start": "tsx src/dev.ts",
+    "test": "tsx --test tests/*.test.ts",
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chokidar": "^4.0.3",
+    "gsap": "^3.14.2",
+    "petite-vue": "^0.4.1",
+    "wasmoon": "^1.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.3"
+  }
+}
