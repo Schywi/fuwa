@@ -4,8 +4,34 @@
 	// The shell swaps #shell-content with htmx, so remount on every swap.
 	const ROOT_SELECTOR = '[data-editor-root]';
 	const mounted_roots = new WeakMap();
+	let codemirror_modules = null;
 
-	function mount(root) {
+	function loadCodeMirror() {
+		if (!codemirror_modules) {
+			codemirror_modules = Promise.all([import('@codemirror/state'), import('@codemirror/view')]).then(
+				function ([state_module, view_module]) {
+					return {
+						EditorState: state_module.EditorState,
+						EditorView: view_module.EditorView
+					};
+				}
+			);
+		}
+
+		return codemirror_modules;
+	}
+
+	function findTextarea(root) {
+		const form = root.closest('form');
+		if (!(form instanceof HTMLFormElement)) {
+			return null;
+		}
+
+		const textarea = form.querySelector('textarea[name="contents"]');
+		return textarea instanceof HTMLTextAreaElement ? textarea : null;
+	}
+
+	async function mount(root) {
 		if (!(root instanceof Element)) {
 			return null;
 		}
@@ -15,17 +41,99 @@
 			return existing;
 		}
 
-		root.setAttribute('data-widget-state', 'mounted');
-		root.setAttribute('data-widget-kind', 'editor');
+		const textarea = findTextarea(root);
+		if (!(textarea instanceof HTMLTextAreaElement)) {
+			root.setAttribute('data-widget-state', 'error');
+			return null;
+		}
 
-		const cleanup = () => {
-			root.removeAttribute('data-widget-state');
-			root.removeAttribute('data-widget-kind');
-			mounted_roots.delete(root);
-		};
+		const host = document.createElement('div');
+		host.style.height = '100%';
+		root.replaceChildren(host);
 
-		mounted_roots.set(root, cleanup);
-		return cleanup;
+		try {
+			const { EditorState, EditorView } = await loadCodeMirror();
+			const syncTextarea = function (view) {
+				textarea.value = view.state.doc.toString();
+			};
+			const editor_view = new EditorView({
+				state: EditorState.create({
+					doc: textarea.value,
+					extensions: [
+						EditorView.lineWrapping,
+						EditorView.updateListener.of(function (update) {
+							if (update.docChanged) {
+								syncTextarea(update.view);
+							}
+						}),
+						EditorView.theme(
+							{
+								'&': {
+									height: '100%',
+									backgroundColor: '#fdfcf9',
+									color: '#1f2937',
+									fontSize: '14px',
+									lineHeight: '1.55'
+								},
+								'.cm-content': {
+									fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+									padding: '16px'
+								},
+								'.cm-scroller': {
+									fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+								},
+								'.cm-focused': {
+									outline: 'none'
+								}
+							},
+							{ dark: false }
+						)
+					]
+				}),
+				parent: host
+			});
+			const form = textarea.form;
+			const handleSubmit = function () {
+				syncTextarea(editor_view);
+			};
+
+			if (form instanceof HTMLFormElement) {
+				form.addEventListener('submit', handleSubmit);
+			}
+
+			textarea.hidden = true;
+			textarea.setAttribute('aria-hidden', 'true');
+			root.setAttribute('data-widget-state', 'mounted');
+			root.setAttribute('data-widget-kind', 'editor');
+
+			const cleanup = function () {
+				if (form instanceof HTMLFormElement) {
+					form.removeEventListener('submit', handleSubmit);
+				}
+				editor_view.destroy();
+				textarea.hidden = false;
+				textarea.removeAttribute('aria-hidden');
+				root.removeAttribute('data-widget-state');
+				root.removeAttribute('data-widget-kind');
+				mounted_roots.delete(root);
+			};
+
+			mounted_roots.set(root, cleanup);
+			return cleanup;
+		} catch (error) {
+			root.setAttribute('data-widget-state', 'error');
+			root.setAttribute('data-widget-kind', 'editor');
+			root.textContent = 'CodeMirror failed to load: ' + String(error && error.message ? error.message : error);
+
+			const cleanup = function () {
+				root.removeAttribute('data-widget-state');
+				root.removeAttribute('data-widget-kind');
+				mounted_roots.delete(root);
+			};
+
+			mounted_roots.set(root, cleanup);
+			return cleanup;
+		}
 	}
 
 	function unmount(root) {
@@ -43,11 +151,11 @@
 		const target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
 
 		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
-			mount(target);
+			void mount(target);
 		}
 
 		for (const root of target.querySelectorAll(ROOT_SELECTOR)) {
-			mount(root);
+			void mount(root);
 		}
 	}
 

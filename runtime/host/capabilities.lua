@@ -1,4 +1,6 @@
 local trace = require("runtime.trace")
+local package_web = require("runtime.stdlib.compiler.package_web")
+local compiler_diagnostics = require("runtime.stdlib.compiler.diagnostics")
 
 local M = {}
 
@@ -105,6 +107,26 @@ end
 
 local function payload_file_path(payload_root, payload_id, relative_path)
 	return payload_dir(payload_root, payload_id) .. "/" .. relative_path
+end
+
+local function count_entries(map)
+	local total = 0
+	for _ in pairs(map or {}) do
+		total = total + 1
+	end
+	return total
+end
+
+local function collect_payload_sources(instance, payload_id)
+	local root = payload_dir(instance.__payload_root, payload_id)
+	local source_files = {}
+	for _, relative_path in ipairs(list_files(root)) do
+		local contents = read_all(root .. "/" .. relative_path)
+		if contents ~= nil then
+			source_files[relative_path] = contents
+		end
+	end
+	return source_files
 end
 
 local function build_preview_frame(slot, payload_id, src)
@@ -239,6 +261,57 @@ local function describe_payload(instance, payload_id)
 	}
 end
 
+local function compile_payload(instance, payload_id)
+	return trace.span("host.compile_payload", {
+		payload_id = payload_id,
+	}, function(span)
+		local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+		if normalized_id == nil then
+			span:set("ok", false)
+			span:set("result", "invalid_payload_id")
+			return {
+				ok = false,
+				err = {
+					kind = "invalid_payload_id",
+					message = "Invalid payload id",
+				},
+			}
+		end
+
+		local build = package_web.build(collect_payload_sources(instance, normalized_id))
+		local has_errors = compiler_diagnostics.has_errors(build.diagnostics)
+		local output_lines = {
+			"$ package_web.build " .. normalized_id,
+		}
+
+		if has_errors then
+			output_lines[#output_lines + 1] = "Build failed"
+			output_lines[#output_lines + 1] = compiler_diagnostics.format(build.diagnostics)
+		else
+			output_lines[#output_lines + 1] = "Build ok"
+			output_lines[#output_lines + 1] = "Run files: " .. tostring(count_entries(build.run_files))
+			output_lines[#output_lines + 1] = "Preview route: /payload/" .. normalized_id .. "/"
+		end
+
+		span:set("ok", not has_errors)
+		span:set("result", has_errors and "diagnostics" or "ok")
+		span:set("diagnostics", #build.diagnostics)
+		span:set("run_files", count_entries(build.run_files))
+
+		return {
+			ok = true,
+			value = {
+				payload_id = normalized_id,
+				success = not has_errors,
+				status = has_errors and "error" or "ok",
+				run_files = build.run_files,
+				diagnostics = build.diagnostics,
+				output = table.concat(output_lines, "\n"),
+			},
+		}
+	end)
+end
+
 function M.new(opts)
 	opts = opts or {}
 	local script_source = debug.getinfo(1, "S").source
@@ -283,6 +356,10 @@ function M.new(opts)
 
 	function instance.describe_payload(payload_id)
 		return describe_payload(instance, payload_id)
+	end
+
+	function instance.compile_payload(payload_id)
+		return compile_payload(instance, payload_id)
 	end
 
 	return instance

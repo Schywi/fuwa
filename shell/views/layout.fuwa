@@ -5,6 +5,19 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="htmx-config" content='{"historyEnabled":false,"selfRequestsOnly":false,"allowScriptTags":false}' />
     <title>&title</title>
+    <link rel="stylesheet" href="/vendor/xterm/xterm-6.0.0.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "@codemirror/state": "/vendor/codemirror/state-6.6.0.js",
+          "@codemirror/view": "/vendor/codemirror/view-6.43.0.js",
+          "@marijn/find-cluster-break": "/vendor/codemirror/find-cluster-break-1.0.2.js",
+          "crelt": "/vendor/codemirror/crelt-1.0.6.js",
+          "style-mod": "/vendor/codemirror/style-mod-4.1.3.js",
+          "w3c-keyname": "/vendor/codemirror/w3c-keyname-2.2.8.js"
+        }
+      }
+    </script>
     <script src="/vendor/htmx/htmx-1.9.12.min.js"></script>
     <script defer src="/vendor/petite-vue/petite-vue-0.4.1.iife.js"></script>
     <script defer src="/shell/hooks/editor.js"></script>
@@ -376,6 +389,20 @@
         border-style: solid;
       }
 
+      .shell-widget-shell[data-widget-kind="editor"] {
+        min-height: 340px;
+        padding: 0;
+        overflow: hidden;
+      }
+
+      .shell-widget-shell[data-widget-kind="terminal"] {
+        min-height: 240px;
+        padding: 0;
+        overflow: hidden;
+        background: #09090b;
+        border-style: solid;
+      }
+
       .shell-widget-placeholder {
         margin: 0;
         color: var(--muted);
@@ -393,6 +420,10 @@
         color: var(--ink);
         line-height: 1.55;
         resize: vertical;
+      }
+
+      .shell-editor textarea[hidden] {
+        display: none;
       }
 
       .shell-editor-actions {
@@ -420,6 +451,43 @@
       .shell-terminal {
         display: grid;
         gap: 12px;
+      }
+
+      .shell-terminal-meta {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+
+      .shell-status-pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        padding: 0 12px;
+        border-radius: 999px;
+        font-size: 0.82rem;
+        font-weight: 800;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        background: rgba(31, 41, 55, 0.08);
+        color: var(--muted);
+      }
+
+      .shell-status-pill[data-status="ok"] {
+        background: rgba(18, 120, 88, 0.14);
+        color: #0f766e;
+      }
+
+      .shell-status-pill[data-status="error"] {
+        background: rgba(190, 24, 93, 0.14);
+        color: #be185d;
+      }
+
+      .shell-status-pill[data-status="idle"] {
+        background: rgba(31, 41, 55, 0.08);
+        color: var(--muted);
       }
 
       @media (max-width: 1080px) {

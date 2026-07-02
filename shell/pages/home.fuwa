@@ -24,6 +24,8 @@ end
 
 action save(req) do
   saved = host.write_payload_file(req.params.payload_id, req.form.path, req.form.contents or "")?
-  dashboard = Dashboard.build(host, req.params.payload_id, req.form.path)
+  run = host.compile_payload(req.params.payload_id)?
+  run.output = "$ save " .. saved.path .. "\n" .. run.output
+  dashboard = Dashboard.build(host, req.params.payload_id, req.form.path, run)
   return ShellViews.render_fragment("home", { dashboard = dashboard, saved = saved })
 end

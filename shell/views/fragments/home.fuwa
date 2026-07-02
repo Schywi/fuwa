@@ -102,18 +102,18 @@
           <div class="shell-panel-head">
             <p class="shell-kicker">Edit panel</p>
             <h3>&dashboard.active.selected_file_name</h3>
-            <p>Changes save directly back into the active payload root.</p>
+            <p>Changes save directly back into the active payload root, then compile the payload and refresh the preview mount.</p>
           </div>
 
           <div class="shell-widget-shell" data-editor-root data-file-path="&dashboard.active.selected_file" aria-label="CodeMirror editor mount point">
             <p class="shell-widget-placeholder">CodeMirror mounts here.</p>
           </div>
 
-          <textarea name="contents" spellcheck="false">&dashboard.active.selected_file_source</textarea>
+          <textarea data-editor-fallback name="contents" spellcheck="false">&dashboard.active.selected_file_source</textarea>
 
           <div class="shell-editor-actions">
             <span class="shell-editor-note">Editing <code>&dashboard.active.selected_file</code></span>
-            <button type="submit" class="shell-button shell-button-primary">Save file</button>
+            <button type="submit" class="shell-button shell-button-primary">Save + run</button>
           </div>
         </form>
       </div>
@@ -122,12 +122,19 @@
         <div class="shell-panel-head">
           <p class="shell-kicker">Terminal</p>
           <h3>xterm output</h3>
-          <p>Placeholder root for terminal logs. The runtime bridge comes later.</p>
+          <p>Each save returns the latest compile result here, so the shell shows the run loop without adding a second host framework.</p>
         </div>
 
-        <div class="shell-widget-shell" data-terminal-root data-terminal-session="&dashboard.active.id" aria-label="xterm terminal mount point">
+        <div class="shell-terminal-meta">
+          <span class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
+          <span class="shell-editor-note">Session <code>&dashboard.active.id</code></span>
+        </div>
+
+        <div class="shell-widget-shell" data-terminal-root data-terminal-session="&dashboard.active.id" data-terminal-status="&dashboard.active.terminal_status" aria-label="xterm terminal mount point">
           <p class="shell-widget-placeholder">xterm mounts here.</p>
         </div>
+
+        <pre hidden data-terminal-seed>&dashboard.active.terminal_output</pre>
       </section>
     </section>
   </section>

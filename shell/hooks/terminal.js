@@ -4,8 +4,35 @@
 	// The terminal root remounts after shell fragment swaps, matching the editor hook.
 	const ROOT_SELECTOR = '[data-terminal-root]';
 	const mounted_roots = new WeakMap();
+	let xterm_modules = null;
 
-	function mount(root) {
+	function loadTerminalModules() {
+		if (!xterm_modules) {
+			xterm_modules = Promise.all([
+				import('/vendor/xterm/xterm-6.0.0.mjs'),
+				import('/vendor/xterm/addon-fit-0.11.0.mjs')
+			]).then(function ([xterm_module, fit_module]) {
+				return {
+					Terminal: xterm_module.Terminal,
+					FitAddon: fit_module.FitAddon
+				};
+			});
+		}
+
+		return xterm_modules;
+	}
+
+	function readSeed(root) {
+		const panel = root.closest('.shell-terminal');
+		if (!(panel instanceof Element)) {
+			return '';
+		}
+
+		const seed = panel.querySelector('[data-terminal-seed]');
+		return seed instanceof Element ? seed.textContent || '' : '';
+	}
+
+	async function mount(root) {
 		if (!(root instanceof Element)) {
 			return null;
 		}
@@ -15,17 +42,68 @@
 			return existing;
 		}
 
-		root.setAttribute('data-widget-state', 'mounted');
-		root.setAttribute('data-widget-kind', 'terminal');
+		const host = document.createElement('div');
+		host.style.height = '100%';
+		root.replaceChildren(host);
 
-		const cleanup = () => {
-			root.removeAttribute('data-widget-state');
-			root.removeAttribute('data-widget-kind');
-			mounted_roots.delete(root);
-		};
+		try {
+			const { Terminal, FitAddon } = await loadTerminalModules();
+			const fit_addon = new FitAddon();
+			const terminal = new Terminal({
+				fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+				fontSize: 12,
+				lineHeight: 1.25,
+				cursorBlink: false,
+				convertEol: true,
+				theme: {
+					background: '#09090b',
+					foreground: '#f4f4f5',
+					cursor: '#f59e0b',
+					cursorAccent: '#09090b'
+				}
+			});
+			let resize_observer = null;
 
-		mounted_roots.set(root, cleanup);
-		return cleanup;
+			terminal.loadAddon(fit_addon);
+			terminal.open(host);
+			fit_addon.fit();
+			terminal.write(readSeed(root));
+
+			if (typeof ResizeObserver === 'function') {
+				resize_observer = new ResizeObserver(function () {
+					fit_addon.fit();
+				});
+				resize_observer.observe(host);
+			}
+
+			root.setAttribute('data-widget-state', 'mounted');
+			root.setAttribute('data-widget-kind', 'terminal');
+
+			const cleanup = function () {
+				resize_observer?.disconnect();
+				fit_addon.dispose();
+				terminal.dispose();
+				root.removeAttribute('data-widget-state');
+				root.removeAttribute('data-widget-kind');
+				mounted_roots.delete(root);
+			};
+
+			mounted_roots.set(root, cleanup);
+			return cleanup;
+		} catch (error) {
+			root.setAttribute('data-widget-state', 'error');
+			root.setAttribute('data-widget-kind', 'terminal');
+			root.textContent = 'xterm failed to load: ' + String(error && error.message ? error.message : error);
+
+			const cleanup = function () {
+				root.removeAttribute('data-widget-state');
+				root.removeAttribute('data-widget-kind');
+				mounted_roots.delete(root);
+			};
+
+			mounted_roots.set(root, cleanup);
+			return cleanup;
+		}
 	}
 
 	function unmount(root) {
@@ -43,11 +121,11 @@
 		const target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
 
 		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
-			mount(target);
+			void mount(target);
 		}
 
 		for (const root of target.querySelectorAll(ROOT_SELECTOR)) {
-			mount(root);
+			void mount(root);
 		}
 	}
 

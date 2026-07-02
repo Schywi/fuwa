@@ -86,7 +86,23 @@ local function build_payload_card(host, payload_id, selected_file)
 	}
 end
 
-function M.build(host, payload_id, requested_file)
+local function build_terminal_state(run_result)
+	if type(run_result) == "table" and type(run_result.output) == "string" and run_result.output ~= "" then
+		return {
+			output = run_result.output,
+			status = run_result.status or (run_result.success == false and "error" or "ok"),
+			label = run_result.success == false and "Build failed" or "Build ok",
+		}
+	end
+
+	return {
+		output = "No run yet.\nSave a file to compile and refresh the preview.",
+		status = "idle",
+		label = "Idle",
+	}
+end
+
+function M.build(host, payload_id, requested_file, run_result)
 	payload_id = tostring(payload_id or "current")
 
 	local payloads = {}
@@ -124,14 +140,20 @@ function M.build(host, payload_id, requested_file)
 		}
 	end
 
+	local terminal = build_terminal_state(run_result)
+	active.terminal_output = terminal.output
+	active.terminal_status = terminal.status
+	active.terminal_label = terminal.label
+
 	return {
 		eyebrow = "Privileged shell",
 		title = "Fuwa Shell",
-		summary = "The host shell now mounts a payload through a route-backed iframe, shows the payload file tree, and exposes a small edit surface.",
+		summary = "The host shell mounts a payload through a route-backed iframe, exposes a single-file editor, and reports compile output in the terminal panel.",
 		chips = {
 			"Same compiler, same render stack",
 			"Route-backed iframe mount",
 			"Tenant stays sandboxed",
+			"Save + run loop",
 		},
 		preview_heading = "Mounted tenant",
 		preview_note = "Route-backed tenant document",
