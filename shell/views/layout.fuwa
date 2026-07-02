@@ -1,0 +1,205 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script type="module">
+      import { createApp } from "https://unpkg.com/petite-vue?module"
+      createApp().mount()
+    </script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f5f1e8;
+        --panel: rgba(255, 255, 255, 0.74);
+        --ink: #1f2937;
+        --muted: #5b6472;
+        --line: rgba(31, 41, 55, 0.12);
+        --accent: #c47d33;
+        --accent-soft: rgba(196, 125, 51, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(196, 125, 51, 0.16), transparent 26%),
+          radial-gradient(circle at 85% 20%, rgba(31, 41, 55, 0.08), transparent 24%),
+          var(--bg);
+        color: var(--ink);
+        font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+      }
+
+      .shell-stage {
+        min-height: 100vh;
+        padding: 28px;
+        display: grid;
+        place-items: center;
+      }
+
+      .shell-frame {
+        width: min(1120px, 100%);
+        border: 1px solid var(--line);
+        border-radius: 32px;
+        background: var(--panel);
+        backdrop-filter: blur(18px);
+        box-shadow: 0 28px 90px rgba(31, 41, 55, 0.14);
+        overflow: hidden;
+      }
+
+      .shell-topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 16px;
+        padding: 20px 24px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.48);
+      }
+
+      .shell-brand {
+        display: grid;
+        gap: 4px;
+      }
+
+      .shell-kicker {
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.72rem;
+        color: var(--accent);
+        font-weight: 800;
+      }
+
+      .shell-topbar h1 {
+        margin: 0;
+        font-size: 1.05rem;
+        letter-spacing: 0.02em;
+      }
+
+      .shell-badge {
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: #8a4f14;
+        font-size: 0.8rem;
+        font-weight: 700;
+        white-space: nowrap;
+      }
+
+      .shell-main {
+        display: grid;
+        grid-template-columns: minmax(0, 1.6fr) minmax(240px, 0.8fr);
+        gap: 0;
+      }
+
+      .shell-hero {
+        padding: 56px 48px 48px;
+        display: grid;
+        gap: 24px;
+      }
+
+      .shell-eyebrow {
+        display: inline-flex;
+        width: max-content;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: rgba(31, 41, 55, 0.06);
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        font-size: 0.72rem;
+        font-weight: 700;
+      }
+
+      .shell-title {
+        margin: 0;
+        max-width: 14ch;
+        font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-size: clamp(3rem, 6vw, 5.6rem);
+        line-height: 0.93;
+        letter-spacing: -0.05em;
+      }
+
+      .shell-summary {
+        margin: 0;
+        max-width: 52ch;
+        color: var(--muted);
+        line-height: 1.65;
+        font-size: 1.04rem;
+      }
+
+      .shell-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
+      .shell-chip {
+        padding: 10px 14px;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.74);
+        border: 1px solid var(--line);
+        color: var(--ink);
+        font-size: 0.85rem;
+        font-weight: 650;
+      }
+
+      .shell-rail {
+        padding: 48px 24px 48px 0;
+        display: grid;
+        align-content: start;
+        gap: 14px;
+      }
+
+      .shell-card {
+        padding: 20px 18px;
+        border-radius: 24px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.66);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+      }
+
+      .shell-card h2 {
+        margin: 0 0 8px;
+        font-size: 0.84rem;
+        text-transform: uppercase;
+        letter-spacing: 0.14em;
+        color: var(--accent);
+      }
+
+      .shell-card p {
+        margin: 0;
+        line-height: 1.6;
+        color: var(--muted);
+      }
+
+      @media (max-width: 860px) {
+        .shell-main {
+          grid-template-columns: 1fr;
+        }
+
+        .shell-hero {
+          padding: 36px 24px 24px;
+        }
+
+        .shell-rail {
+          padding: 0 24px 28px;
+        }
+
+        .shell-title {
+          max-width: 100%;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell-stage">
+      <include src="views/home.fuwa" />
+    </main>
+  </body>
+</html>

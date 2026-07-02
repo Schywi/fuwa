@@ -24,8 +24,9 @@ client stack:
 - **Lua**: main language
 
 None of these are compiled into the host app. They are runtime
-dependencies of the *tenant*: the sandboxed preview shell the compiled
-`.fuwa` app runs inside.
+dependencies of the `.fuwa` shell and tenant: the same render stack is
+used on both sides of the boundary, with the host shell and preview
+payload sharing the same language and runtime pieces.
 
 ## Architecture
 

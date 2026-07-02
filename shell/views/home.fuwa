@@ -1,0 +1,32 @@
+<section class="shell-frame">
+  <div class="shell-topbar">
+    <div class="shell-brand">
+      <p class="shell-kicker">&eyebrow</p>
+      <h1>Fuwa host shell</h1>
+    </div>
+    <div class="shell-badge">Same compiler, same render stack</div>
+  </div>
+
+  <div class="shell-main">
+    <section class="shell-hero">
+      <h1 class="shell-title">&title</h1>
+      <p class="shell-summary">&summary</p>
+      <div class="shell-chips">
+        <span class="shell-chip">Rendered from shell/view.fuwa</span>
+        <span class="shell-chip">No compiler special cases</span>
+        <span class="shell-chip">Phase 1 hero surface</span>
+      </div>
+    </section>
+
+    <aside class="shell-rail">
+      <article class="shell-card">
+        <h2>&rail_title</h2>
+        <p>&rail_body</p>
+      </article>
+      <article class="shell-card">
+        <h2>What this proves</h2>
+        <p>The host shell can be authored as a `.fuwa` app, compiled by the existing engine, and rendered through the same stack as the tenant payload.</p>
+      </article>
+    </aside>
+  </div>
+</section>
