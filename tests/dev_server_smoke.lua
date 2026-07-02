@@ -56,12 +56,12 @@ local function test_http_request()
 
 	assert_true(output:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected HTTP 200")
 	assert_true(output:find("<!DOCTYPE html>", 1, true) ~= nil, "expected doctype")
-	assert_true(output:find("Fuwa host shell", 1, true) ~= nil, "expected rendered shell")
-	assert_true(output:find("data-host-slot=\"preview\"", 1, true) ~= nil, "expected preview slot")
-	assert_true(output:find('src="/payload/current/"', 1, true) ~= nil, "expected routed iframe")
-	assert_true(output:find('sandbox="allow-scripts allow-forms allow-same-origin"', 1, true) ~= nil, "expected same-origin sandbox")
+	assert_true(output:find("Fuwa Shell", 1, true) ~= nil, "expected rendered shell")
+	assert_true(output:find("srcdoc=", 1, true) ~= nil, "expected host-owned iframe bootstrap")
+	assert_true(output:find("tenant-bridge.js", 1, true) ~= nil, "expected tenant bridge hook")
 	assert_true(output:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected shell switch button")
-	assert_true(output:find("EventSource('/__dev/reload')", 1, true) ~= nil, "expected reload script")
+	assert_true(output:find('hx-post="/save/current"', 1, true) ~= nil, "expected shell save button")
+	assert_true(output:find('hx-target="#shell-content"', 1, true) ~= nil, "expected shell fragment target")
 end
 
 local function test_response_builder()
@@ -72,16 +72,10 @@ local function test_response_builder()
 	assert_true(response.status == 200, "expected build_response to succeed")
 	assert_true(response.body:find("<!DOCTYPE html>", 1, true) == 1, "expected doctype first")
 	assert_true(response.headers["Content-Type"] == "text/html; charset=utf-8", "expected HTML content type")
-	assert_true(response.body:find("Fuwa host shell", 1, true) ~= nil, "expected shell response")
-	assert_true(response.body:find("data-host-slot=\"preview\"", 1, true) ~= nil, "expected preview slot")
-	assert_true(response.body:find('src="/payload/current/"', 1, true) ~= nil, "expected routed iframe")
-	assert_true(response.body:find('sandbox="allow-scripts allow-forms allow-same-origin"', 1, true) ~= nil, "expected same-origin sandbox")
-
-	local script_pos = response.body:find("EventSource('/__dev/reload')", 1, true)
-	local body_pos = response.body:find("</body>", 1, true)
-	assert_true(script_pos ~= nil, "expected reload script")
-	assert_true(body_pos ~= nil, "expected closing body tag")
-	assert_true(script_pos < body_pos, "expected reload script before </body>")
+	assert_true(response.body:find("Host-owned srcdoc bootstrap", 1, true) ~= nil, "expected shell response")
+	assert_true(response.body:find("srcdoc=", 1, true) ~= nil, "expected host-owned iframe bootstrap")
+	assert_true(response.body:find("tenant-bridge.js", 1, true) ~= nil, "expected shell bridge hook")
+	assert_true(response.body:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected switch button")
 end
 
 local function test_shell_switch_route()
@@ -90,8 +84,10 @@ local function test_shell_switch_route()
 	})
 
 	assert_true(response.status == 200, "expected switch route to succeed")
-	assert_true(response.body:find('src="/payload/lesson/"', 1, true) ~= nil, "expected switched payload route")
-	assert_true(response.body:find('data-host-slot="primary"', 1, true) ~= nil, "expected primary slot")
+	assert_true(response.body:find('id="shell-content"', 1, true) ~= nil, "expected shell workspace fragment")
+	assert_true(response.body:find('hx-post="/save/lesson"', 1, true) ~= nil, "expected lesson save action")
+	assert_true(response.body:find('hx-get="/inspect/lesson?file=', 1, true) ~= nil, "expected lesson file inspection links")
+	assert_true(response.body:find("<include", 1, true) == nil, "expected rendered HTML, not literal include tags")
 end
 
 local function test_payload_route_request()
@@ -101,13 +97,28 @@ local function test_payload_route_request()
 
 	assert_true(output:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected payload route 200")
 	assert_true(output:find("Fuwa Dev", 1, true) ~= nil, "expected payload body")
-	assert_true(output:find('hx-post="counter"', 1, true) ~= nil, "expected relative payload action")
+	assert_true(output:find('script src="browser.js"', 1, true) ~= nil, "expected payload browser asset tag")
 
 	local post_output = run_command(
 		"printf 'POST /payload/current/counter HTTP/1.1\\r\\nHost: localhost\\r\\nContent-Length: 0\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
 	)
 
-	assert_true(post_output:find("Clicks: 1", 1, true) ~= nil, "expected payload counter route to work")
+	assert_true(post_output:find("Clicks:", 1, true) ~= nil, "expected payload counter route to work")
+	assert_true(post_output:find('hx-post="counter"', 1, true) ~= nil, "expected counter fragment markup")
+end
+
+local function test_raw_asset_requests()
+	local browser_js = run_command(
+		"printf 'GET /payload/current/browser.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(browser_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected browser asset to respond")
+	assert_true(browser_js:find("fuwaBrowser", 1, true) ~= nil, "expected browser.js contents")
+
+	local bridge_js = run_command(
+		"printf 'GET /shell/hooks/tenant-bridge.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(bridge_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected bridge asset to respond")
+	assert_true(bridge_js:find("payloadUrl", 1, true) ~= nil, "expected bridge script contents")
 end
 
 local function test_current_payload_interaction()
@@ -117,8 +128,9 @@ local function test_current_payload_interaction()
 		})
 		assert_true(response.body:find('hx-post="counter"', 1, true) ~= nil, "expected htmx button")
 		assert_true(response.body:find('v-scope="{ pressed: false }"', 1, true) ~= nil, "expected petite-vue scope")
-		assert_true(response.body:find("https://unpkg.com/htmx.org", 1, true) ~= nil, "expected htmx script")
-		assert_true(response.body:find("https://unpkg.com/petite-vue?module", 1, true) ~= nil, "expected petite-vue script")
+		assert_true(response.body:find('script src="browser.js"', 1, true) ~= nil, "expected browser.js asset")
+		assert_true(response.body:find("https://unpkg.com/htmx.org", 1, true) == nil, "expected no payload-local htmx loader")
+		assert_true(response.body:find("https://unpkg.com/petite-vue?module", 1, true) == nil, "expected no inline petite-vue loader")
 		assert_true(response.body:find("bg-emerald-500", 1, true) ~= nil, "expected utility-style classes")
 
 		local first = dev.build_response("payloads/current", "POST", "/counter", "", {
@@ -174,6 +186,7 @@ test_http_request()
 test_response_builder()
 test_shell_switch_route()
 test_payload_route_request()
+test_raw_asset_requests()
 test_current_payload_interaction()
 test_db_helper()
 
