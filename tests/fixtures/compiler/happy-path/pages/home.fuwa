@@ -1,0 +1,9 @@
+module Home
+
+action index(req) do
+  render "home", title: "Happy Path"
+end
+
+action bounce(req) do
+  redirect "/"
+end

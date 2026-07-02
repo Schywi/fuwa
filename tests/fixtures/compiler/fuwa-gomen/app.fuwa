@@ -1,0 +1,17 @@
+module App
+
+import
+  Gomen "pages/gomen"
+end
+
+routes do
+  GET "/" Gomen.index
+  GET "/poke" Gomen.poke
+  GET "/cooldown" Gomen.cooldown
+  GET "/buy/onigiri" Gomen.buy_onigiri
+  GET "/buy/ramen" Gomen.buy_ramen
+  GET "/buy/takoyaki" Gomen.buy_takoyaki
+  GET "/buy/sushi" Gomen.buy_sushi
+  GET "/calm" Gomen.calm
+  GET "/reset" Gomen.reset
+end

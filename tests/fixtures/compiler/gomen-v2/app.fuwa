@@ -1,0 +1,12 @@
+module App
+
+import
+  Gomen "pages/gomen"
+end
+
+-- The original gomen game is a single client-heavy page. It needs only a root
+-- route to render; all interaction lives in the hooks/browser.js client layer,
+-- not in server actions.
+routes do
+  GET "/" Gomen.index
+end

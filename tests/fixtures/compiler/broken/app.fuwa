@@ -1,0 +1,4 @@
+module Broken
+
+routes do
+  GET "/" Broken.index
