@@ -56,6 +56,25 @@ local function test_response_builder()
 	assert_true(script_pos < body_pos, "expected reload script before </body>")
 end
 
+local function test_current_payload_interaction()
+	write_file(".fuwa-dev/state.lua", "return {}\n")
+
+	local response = dev.build_response("payloads/current", "GET", "/", "")
+	assert_true(response.body:find('hx-post="/counter"', 1, true) ~= nil, "expected htmx button")
+	assert_true(response.body:find('v-scope="{ pressed: false }"', 1, true) ~= nil, "expected petite-vue scope")
+	assert_true(response.body:find("https://unpkg.com/htmx.org", 1, true) ~= nil, "expected htmx script")
+	assert_true(response.body:find("https://unpkg.com/petite-vue?module", 1, true) ~= nil, "expected petite-vue script")
+	assert_true(response.body:find("bg-emerald-500", 1, true) ~= nil, "expected utility-style classes")
+
+	local first = dev.build_response("payloads/current", "POST", "/counter", "")
+	assert_true(first.body:find("Clicks: 1", 1, true) ~= nil, "expected first counter increment")
+	assert_true(first.body:find("EventSource('/__dev/reload')", 1, true) == nil, "expected fragment response without reload script")
+
+	local second = dev.build_response("payloads/current", "POST", "/counter", "")
+	assert_true(second.body:find("Clicks: 2", 1, true) ~= nil, "expected persisted counter increment")
+	assert_true(second.body:find("EventSource('/__dev/reload')", 1, true) == nil, "expected fragment response without reload script")
+end
+
 local function test_db_helper()
 	local state_path = os.tmpname()
 	local lock_path = state_path .. ".lock"
@@ -93,6 +112,7 @@ end
 
 test_http_request()
 test_response_builder()
+test_current_payload_interaction()
 test_db_helper()
 
 print("dev server smoke checks passed")

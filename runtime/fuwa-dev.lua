@@ -529,7 +529,10 @@ function M.build_response(root, method, path, body)
 	load_chunk(assert(build.run_files["main.lua"], "missing main.lua"), "main.lua")
 	local handle_request = assert(_G.handle_request, "main.lua did not define handle_request")
 	local html = handle_request(method, path, body or "")
-	html = render_reload_script(tostring(html or captured.value or ""))
+	html = tostring(html or captured.value or "")
+	if method == "GET" then
+		html = render_reload_script(html)
+	end
 
 	return {
 		status = 200,

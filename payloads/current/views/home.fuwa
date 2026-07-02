@@ -1,3 +1,7 @@
 <main class="phone-screen">
-  <h1>&title</h1>
+  <section class="card">
+    <h1>&title</h1>
+    <p>HTMX drives the server round-trip. petite-vue keeps one tiny local toggle. The counter uses utility-style classes for the visible state change.</p>
+    <include src="views/fragments/counter.fuwa" />
+  </section>
 </main>

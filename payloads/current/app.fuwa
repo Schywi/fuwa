@@ -6,4 +6,5 @@ end
 
 routes do
   GET "/" Home.index
+  POST "/counter" Home.bump
 end
