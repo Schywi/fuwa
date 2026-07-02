@@ -24,15 +24,6 @@ possible proof that `.fuwa` is a real language is that **the host/IDE is built i
 itself. That is the credibility flex: show, on itch.io / open source, that `.fuwa`
 built its own IDE and lessons.
 
-This document deliberately separates two horizons:
-
-- the **north star** architecture: host and tenant are symmetric `.fuwa` apps,
-  separated only by capability grants
-- the **next implementation step**: a smaller privileged host shell that proves
-  the model before we commit to full dual-worker symmetry
-
-The first is the destination. The second is how we avoid overreaching.
-
 ## The core reframe: there is no god wrapper
 
 The host UI is **just another `.fuwa` app** — same compiler, same runtime, same
@@ -61,14 +52,14 @@ worth stealing from Evan You's progressive-framework / petite-vue work:
    `.agent/rules/02-project-conventions.md`. If you find yourself adding a
    host-specific feature *to the language*, stop: that is the `/IDE` context bleed
    you are fleeing.
-4. **No sockets.** When the browser topology lands, the "server" is a local
-   Web Worker in the same tab. htmx request/response over `postMessage` gives
-   LiveView ergonomics with the socket deleted (see below).
+4. **No sockets.** The "server" is a local Web Worker in the same tab. htmx
+   request/response over `postMessage` gives LiveView ergonomics with the socket
+   deleted (see below).
 5. **YAGNI all the way in.** Start with the smallest capability surface and the
    smallest converted screen. The non-goals fence at the end lists what we refuse
    to build.
 
-## North-star runtime topology
+## Runtime topology
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
@@ -99,29 +90,6 @@ The host runs in its **own privileged worker**, symmetric with the tenant. The
 main thread is a dumb courier: it boots workers, owns the DOM, runs the
 htmx/petite-vue render layer, and routes `postMessage`. It is not something you
 author application logic in. Full symmetry = no special-casing = no god wrapper.
-
-This is the **destination architecture**, not necessarily the first code we
-should write in this repo.
-
-## Immediate implementation stance
-
-The no-god-wrapper model is the right north star, but it is too ambitious to
-treat as the first implementation move.
-
-What we should prove first is smaller:
-
-1. a host shell can be authored as a `.fuwa` app
-2. it can render host chrome through the same stack as a payload
-3. it can call a thin capability seam
-4. the compiler does not need to know the host exists
-
-Only after those are proven do we need to decide whether the host must run in
-its own privileged worker immediately, or whether an interim privileged host
-runtime is enough for the first shell conversion.
-
-So this plan keeps the worker-symmetric topology as the direction of travel, but
-the phased rollout below starts with the **minimal privileged shell** rather than
-assuming the full topology lands in one jump.
 
 ## The three buckets and the one seam
 
@@ -211,13 +179,6 @@ Request/response, ~zero latency same-tab. LiveView's ergonomics — server holds
 state, sends rendered fragments — with the socket deleted. This is the *same* loop
 payloads already use; the host just uses it too.
 
-For the immediate host-shell proof, the exact transport/runtime placement can be
-simpler as long as the architectural seam stays the same:
-
-- host screens are `.fuwa`
-- substrate stays substrate
-- capability resolution stays runtime-owned
-
 ## Naming and layout
 
 The host `.fuwa` app lives in **`shell/`** (sibling of `payloads/`). Rationale:
@@ -266,12 +227,10 @@ README change). No code.
 ### Phase 1 — proof of life: the host renders itself
 
 Stand up `shell/` with **one** self-contained screen (recommended: the **hero**
-or **lesson nav**), rendered through the *same* stack as a payload. **No
-capabilities yet.** The implementation may use the smallest privileged host
-runtime that proves the model; it does **not** need full worker symmetry yet.
-
-Success = the host renders its own chrome from `.fuwa`, not Svelte. This proves
-the render stack works for the host.
+or **lesson nav**), running in a privileged worker, rendered through the *same*
+reload loop as a payload. **No capabilities yet.** Success = the host renders its
+own chrome from `.fuwa`, not Svelte. This proves the render stack works for the
+host.
 
 ### Phase 2 — the capability seam: the host hosts a tenant
 
@@ -286,16 +245,7 @@ Add `host.switch_payload` (and `list_payloads` only if nav needs it). Build nav 
 `.fuwa` that switches the mounted payload via the no-sockets loop. Success = a
 lesson/app switcher, entirely `.fuwa`-authored, running the tenant it switches.
 
-### Phase 4 — worker symmetry, if still justified
-
-Once phases 1–3 are proven, decide whether the host should move into its own
-privileged worker for full symmetry with the tenant. This is where the
-north-star topology becomes an implementation step rather than an aspiration.
-
-Do this only if it is still buying clarity and reducing special cases. Do not
-pay the complexity cost early just because the end-state diagram looks clean.
-
-### Phase 5 — progressive conversion
+### Phase 4 — progressive conversion
 
 Convert remaining chrome (editor panels, settings, phone shell frame) to `.fuwa`
 one surface at a time, applying the bucket rule. Substrate shrinks as `.fuwa`
@@ -327,36 +277,34 @@ The shell model is proven, for MVP, when:
 
 1. `shell/` is a `.fuwa` app that compiles through the existing compiler with **no
    compiler changes** (proves capability-agnosticism).
-2. The host renders its own chrome from `.fuwa` through the same render stack as
-   a payload, without compiler changes (Phase 1).
+2. The host runs in its own privileged worker and renders its own chrome from
+   `.fuwa` (Phase 1).
 3. `host.mount_payload` boots a sandboxed tenant and displays a `.fuwa` payload
    inside the `.fuwa` host (Phase 2).
 4. A tenant payload that writes `use host` **fails to resolve the capability**
    (verified by a test asserting the sandbox denies it), while the host resolves
    it — proving the boundary is real.
 5. Payload switching works end-to-end through the no-sockets htmx loop (Phase 3).
-6. If Phase 4 is taken, the host can move into its own privileged worker without
-   changing compiler semantics or capability resolution rules.
-7. The README's "not compiled into the host app" note is updated to reflect the
+6. The README's "not compiled into the host app" note is updated to reflect the
    unified render stack.
-8. Comprehensive unit/acceptance tests cover: `shell/` compilation, capability
+7. Comprehensive unit/acceptance tests cover: `shell/` compilation, capability
    resolution in the host runtime, capability *denial* in the tenant runtime,
    `mount_payload`, and `switch_payload` (per the `AGENTS.md` testing note).
 
 ## Open decisions (confirm in Phase 0)
 
 1. **Name** — `shell/` (recommended) vs `ui/` vs `web/`.
-2. **Where the host runs first** — minimal privileged host runtime
-   (recommended, phased) vs its own privileged worker immediately.
+2. **Where the host runs** — its own privileged worker (recommended, symmetric)
+   vs a Lua runtime on the main thread.
 3. **First surface to convert** — hero vs lesson nav.
 4. **README change** — accept that host adopts petite-vue/htmx/UnoCSS.
 
 ## Risks
 
-- **Bootstrapping.** If/when the host moves into its own worker, the host worker
-  needs the runtime/compiler available to run `shell/`. Keep the boot order
-  explicit: main thread boots the host worker → host worker loads the engine +
-  `shell/` → host mounts tenants. Do not let host boot depend on a tenant.
+- **Bootstrapping.** The host worker needs the runtime/compiler available to run
+  `shell/`. Keep the boot order explicit: main thread boots the host worker → host
+  worker loads the engine + `shell/` → host mounts tenants. Do not let host boot
+  depend on a tenant.
 - **Expressiveness gap.** A host screen may need something `.fuwa` can't yet
   express. The pressure valve is the bucket rule: leave it in substrate until the
   language earns it. **Never** relieve the pressure by adding host-specific
@@ -364,12 +312,9 @@ The shell model is proven, for MVP, when:
 - **Capability leak.** A tenant must be physically unable to resolve `host`. Test
   denial explicitly (acceptance criterion 4); rely on both module-resolver
   absence *and* iframe isolation (defense in depth).
-- **Premature symmetry.** Forcing the host into its own worker too early may add
-  complexity before the shell/capability model is proven. Mitigation: treat
-  worker symmetry as a later phase, not as the first milestone.
 - **Two-worker overhead.** Host + tenant workers cost memory and boot time.
-  Acceptable if the symmetry win still matters once phases 1–3 are proven;
-  revisit only if it measurably hurts.
+  Acceptable for the debuggability/symmetry win; revisit only if it measurably
+  hurts.
 - **README/doc drift.** The unified render stack contradicts current README
   wording. Update it in Phase 1 so the public story stays coherent.
 ```
