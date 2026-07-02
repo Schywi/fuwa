@@ -2,6 +2,7 @@ package.path = "./?.lua;./?/init.lua;./?/?.lua;" .. package.path
 
 local compiler = require("runtime.stdlib.compiler")
 local package_web = require("runtime.stdlib.compiler.package_web")
+local host_caps = require("runtime.host.capabilities")
 
 local function read_file(path)
 	local file = assert(io.open(path, "r"))
@@ -48,6 +49,7 @@ local html
 package.loaded["app"] = nil
 package.loaded["view"] = nil
 package.loaded["pages.home"] = nil
+package.loaded["host"] = nil
 _G.__fuwa_print = function() end
 _G.__fuwa_db_op = function()
 	error("shell proof should not touch the database")
@@ -57,6 +59,9 @@ _G.set_html = function(value)
 end
 _G.__fuwa_is_request = false
 
+package.preload["host"] = function()
+	return host_caps.new({ root_dir = "." })
+end
 package.preload["app"] = function()
 	return load_module_source(build_result.run_files["app.lua"], "app.lua")
 end
@@ -69,6 +74,9 @@ end
 
 assert(load(build_result.run_files["main.lua"], "@main.lua"))()
 assert_true(type(html) == "string" and html:find("Fuwa host shell", 1, true) ~= nil, "shell should render host branding")
-assert_true(html:find("Phase 1 proof", 1, true) ~= nil, "shell should render phase 1 proof copy")
+assert_true(html:find("Phase 2 proof", 1, true) ~= nil, "shell should render phase 2 proof copy")
+assert_true(html:find("data-host-slot=\"preview\"", 1, true) ~= nil, "shell should render a preview slot")
+assert_true(html:find("sandbox=\"allow-scripts allow-forms\"", 1, true) ~= nil, "shell should sandbox the mounted payload")
+assert_true(html:find("Fuwa Dev", 1, true) ~= nil, "shell should mount the current payload")
 
 print("shell smoke checks passed")

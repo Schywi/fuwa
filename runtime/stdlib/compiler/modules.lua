@@ -16,6 +16,7 @@ local function new_context(filename, source)
 		out = {},
 		diagnostics = {},
 		imports = {},
+		uses = {},
 		imports_emitted = false,
 		action_bootstrap_emitted = false,
 		has_actions = false,
@@ -45,6 +46,14 @@ local function compile_module_source(source, filename)
 			else
 				local use_name = trimmed:match("^use%s+([A-Za-z_][A-Za-z0-9_]*)$")
 				if use_name then
+					if not ctx.uses[use_name] then
+						ctx.uses[use_name] = true
+						ctx.out[#ctx.out + 1] = string.format(
+							"local %s = require(%s)",
+							use_name,
+							strings.quote_lua_string(use_name)
+						)
+					end
 					i = i + 1
 				elseif trimmed == "import" then
 					i = imports.parse_import_block(ctx, i + 1)

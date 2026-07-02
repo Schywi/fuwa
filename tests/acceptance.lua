@@ -38,7 +38,8 @@ function t.falsy(value, label)
 end
 
 local modules = {
-	"current_payload"
+	"current_payload",
+	"shell_host"
 }
 
 for _, name in ipairs(modules) do

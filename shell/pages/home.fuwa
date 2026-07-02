@@ -1,5 +1,9 @@
 module Home
 
+use host
+
 action index(req) do
-  render "home", eyebrow: "Privileged shell", title: "Fuwa Shell", summary: "The host is now a Fuwa app. It compiles through the same Lua engine and uses the same view stack. The compiler stays unaware that this screen belongs to the host.", rail_title: "Phase 1 proof", rail_body: "The host shell is authored in .fuwa before any capability seam lands. That keeps the render path honest and the model symmetric from day one."
+  preview_html = host.mount_payload("preview", "current")
+
+  render "home", eyebrow: "Privileged shell", title: "Fuwa Shell", summary: "The host is now a Fuwa app. It compiles through the same Lua engine and uses the same view stack. The current payload is mounted into a sandboxed preview slot through a host capability.", rail_title: "Phase 2 proof", rail_body: "The host shell is authored in .fuwa and resolves the host capability at runtime while staying compiler-agnostic.", preview_html: preview_html
 end

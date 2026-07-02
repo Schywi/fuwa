@@ -40,6 +40,22 @@ end
 		)
 	end)
 
+	t.test("compile_module_source lowers use statements to requires", function()
+		local result = helper.compile_module([[
+module Shell
+
+use host
+
+action index(req) do
+  render "home", title: "hello"
+end
+]], "shell/pages/home.fuwa")
+
+		t.eq(#result.diagnostics, 0)
+		t.contains(result.lua, 'local host = require("host")')
+		t.contains(result.lua, "function M.index(req)")
+	end)
+
 	t.test("compile_runtime_files keeps good modules and reports broken ones", function()
 		local result = compiler.compile_runtime_files({
 			["app.fuwa"] = [[

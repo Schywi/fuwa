@@ -178,6 +178,47 @@
         color: var(--muted);
       }
 
+      .shell-preview-shell {
+        display: grid;
+        gap: 14px;
+        padding: 0 48px 48px;
+      }
+
+      .shell-preview-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: end;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .shell-preview-head h2 {
+        margin: 0;
+        font-size: 1.35rem;
+        letter-spacing: -0.03em;
+      }
+
+      .shell-preview-note {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .shell-preview-stage {
+        padding: 16px;
+        border-radius: 28px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.82);
+      }
+
+      .shell-preview-frame {
+        display: block;
+        width: 100%;
+        min-height: 620px;
+        border: 0;
+        border-radius: 20px;
+        background: #fff;
+      }
+
       @media (max-width: 860px) {
         .shell-main {
           grid-template-columns: 1fr;
@@ -188,6 +229,10 @@
         }
 
         .shell-rail {
+          padding: 0 24px 28px;
+        }
+
+        .shell-preview-shell {
           padding: 0 24px 28px;
         }
 

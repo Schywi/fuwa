@@ -14,7 +14,7 @@
       <div class="shell-chips">
         <span class="shell-chip">Rendered from shell/view.fuwa</span>
         <span class="shell-chip">No compiler special cases</span>
-        <span class="shell-chip">Phase 1 hero surface</span>
+        <span class="shell-chip">Host capability resolved at runtime</span>
       </div>
     </section>
 
@@ -29,4 +29,18 @@
       </article>
     </aside>
   </div>
+
+  <section class="shell-preview-shell">
+    <div class="shell-preview-head">
+      <div>
+        <p class="shell-kicker">Preview slot</p>
+        <h2>Mounted tenant</h2>
+      </div>
+      <div class="shell-preview-note">Sandboxed iframe, host-owned mount seam</div>
+    </div>
+
+    <div class="shell-preview-stage">
+      &unsafe preview_html
+    </div>
+  </section>
 </section>
