@@ -1,9 +1,8 @@
 name: CI
 
+# Runs on every push (regression gate for working branches) and every PR.
 on:
   push:
-    branches:
-      - main
   pull_request:
 
 permissions:
@@ -14,33 +13,90 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  docs-and-tests:
+  # ── STAGE 0 · GATEKEEPER ──────────────────────────────────────────────
+  # Cheap rejects that run first: leaked secrets, conflict markers, docs.
+  gatekeeper:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
         with:
-          node-version: 20
+          fetch-depth: 0 # full history so the secret scan sees every commit
+
+      - name: Scan for committed secrets (gitleaks)
+        run: |
+          VERSION=8.18.4
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks detect --source . --redact --exit-code 1
+
+      - name: Reject merge-conflict markers
+        run: |
+          if git grep -nE '^(<<<<<<<|=======|>>>>>>>)' -- . ':!.github/workflows/ci.yml'; then
+            echo "::error::merge-conflict markers found"; exit 1
+          fi
+
+      - name: Validate whitespace / diff formatting
+        run: |
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            git diff --check HEAD~1 HEAD
+          else
+            git diff --check
+          fi
 
       - name: Lint Markdown
         run: npx --yes markdownlint-cli@0.39.0 README.md docs/**/*.md
 
-      - name: Run npm tests when a package manifest exists
-        run: |
-          if [ -f package.json ]; then
-            if [ -f package-lock.json ]; then
-              npm ci
-            else
-              npm install
-            fi
-            npm test
-          else
-            echo "No package.json found yet; skipping npm-based tests."
-          fi
+  # ── STAGE 1 · BUILD ───────────────────────────────────────────────────
+  # "Does it even parse?" — fails in seconds if the Lua is malformed.
+  build:
+    needs: gatekeeper
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Compile-check every Lua file
+        run: make compile-check
 
-      - name: Validate diff formatting
-        run: git diff --check
+  # ── STAGE 2 · LINT ────────────────────────────────────────────────────
+  # Static analysis. ADVISORY for now (continue-on-error) — flip to a hard
+  # gate once the tree is luacheck-clean.
+  lint:
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install luacheck
+        run: sudo apt-get update && sudo apt-get install -y lua5.4 luarocks && sudo luarocks install luacheck
+      - name: Static analysis
+        run: make lint
+
+  # ── STAGE 3 · UNIT + SMOKE + ACCEPTANCE ───────────────────────────────
+  # The regression gate. Fast, isolated. python3 is preinstalled and backs
+  # the sqlite_local provider used by the db suite.
+  unit:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Unit suites
+        run: make test-unit
+      - name: Smoke checks
+        run: make test-smoke
+      - name: Acceptance suites
+        run: make test-acceptance
+
+  # ── STAGE 5 · INTEGRATION ─────────────────────────────────────────────
+  # Boots the dev server end-to-end. Heavier, so it runs after unit passes.
+  integration:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Integration smoke
+        run: make test-integration
