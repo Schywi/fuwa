@@ -5,7 +5,7 @@
         <p class="shell-kicker">&dashboard.eyebrow</p>
         <h1>&dashboard.title</h1>
       </div>
-      <div class="shell-badge">Host-owned srcdoc bootstrap</div>
+      <div class="shell-badge">Route-backed tenant iframe</div>
     </div>
 
     <div class="shell-main">
@@ -21,7 +21,7 @@
           <div class="shell-switcher-copy">
             <p class="shell-kicker">Lesson navigation</p>
             <h2>Switch the mounted payload</h2>
-            <p>Buttons call host.switch_payload through htmx, but the shell stays in `.fuwa` and the payload stays sandboxed.</p>
+            <p>Buttons call host.switch_payload through htmx, but the shell stays in `.fuwa` and the payload stays in its own route-backed iframe.</p>
           </div>
 
           <div class="shell-switcher-actions">

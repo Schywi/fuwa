@@ -6,6 +6,10 @@ local function dirname(path)
 	return (path and path:match("^(.*)/[^/]*$")) or "."
 end
 
+local function shell_quote(value)
+	return "'" .. tostring(value):gsub("'", [['"'"']]) .. "'"
+end
+
 local function escape_html(value)
 	local text = tostring(value or "")
 	text = text:gsub("&", "&amp;")
@@ -37,13 +41,79 @@ local function validate_payload_id(payload_id)
 	return nil
 end
 
-local function build_preview_frame(slot, payload_id)
+local function humanize_payload_id(payload_id)
+	local text = tostring(payload_id or "current"):gsub("_", " "):gsub("%-", " ")
+	return text:gsub("^%l", string.upper)
+end
+
+local function list_files(root)
+	local command = string.format("find %s -type f | sort", shell_quote(root))
+	local pipe = io.popen(command, "r")
+	if not pipe then
+		return {}
+	end
+
+	local files = {}
+	local prefix = root .. "/"
+	for path in pipe:lines() do
+		files[#files + 1] = path:sub(#prefix + 1)
+	end
+	pipe:close()
+	return files
+end
+
+local function read_all(path)
+	local file = io.open(path, "rb")
+	if not file then
+		return nil
+	end
+
+	local contents = file:read("*a")
+	file:close()
+	return contents
+end
+
+local function write_all(path, contents)
+	local file = assert(io.open(path, "wb"))
+	file:write(contents or "")
+	file:close()
+end
+
+local function validate_relative_path(relative_path)
+	if type(relative_path) ~= "string" or relative_path == "" then
+		return nil
+	end
+
+	if relative_path:sub(1, 1) == "/" then
+		return nil
+	end
+
+	if relative_path:find("%.%.", 1, true) then
+		return nil
+	end
+
+	if not relative_path:match("^[%w_%.%-%/]+$") then
+		return nil
+	end
+
+	return relative_path
+end
+
+local function payload_dir(payload_root, payload_id)
+	return payload_root .. "/" .. payload_id
+end
+
+local function payload_file_path(payload_root, payload_id, relative_path)
+	return payload_dir(payload_root, payload_id) .. "/" .. relative_path
+end
+
+local function build_preview_frame(slot, payload_id, src)
 	return table.concat({
 		'<iframe class="shell-preview-frame"',
 		' data-host-slot="' .. escape_html(slot) .. '"',
 		' sandbox="allow-scripts allow-forms allow-same-origin"',
-		' title="Payload preview"',
-		' src="/payload/' .. escape_html(payload_id) .. '/"',
+		' title="' .. escape_html(humanize_payload_id(payload_id)) .. '"',
+		' src="' .. escape_html(src) .. '"',
 		'></iframe>',
 	}, "")
 end
@@ -59,10 +129,6 @@ local function error_frame(slot, payload_id, message)
 	}, "")
 end
 
-local function payload_path(payload_root, payload_id)
-	return payload_root .. "/" .. payload_id
-end
-
 local function render_mount(instance, slot, payload_id)
 	return trace.span("host.mount_payload", {
 		slot = slot,
@@ -76,7 +142,8 @@ local function render_mount(instance, slot, payload_id)
 			return error_frame(slot, tostring(payload_id or ""), "Invalid payload id")
 		end
 
-		local app_path = payload_path(instance.__payload_root, normalized_id) .. "/app.fuwa"
+		local payload_root = payload_dir(instance.__payload_root, normalized_id)
+		local app_path = payload_root .. "/app.fuwa"
 		if not file_exists(app_path) then
 			span:set("status", 404)
 			span:set("ok", false)
@@ -85,14 +152,91 @@ local function render_mount(instance, slot, payload_id)
 			return error_frame(slot, normalized_id, "Payload not found")
 		end
 
+		local payload_url = "/payload/" .. normalized_id .. "/"
 		instance.__active_slot = slot
 		instance.__active_payload_id = normalized_id
 		span:set("status", 200)
 		span:set("ok", true)
 		span:set("result", "ok")
-		span:set("route", "/payload/" .. normalized_id .. "/")
-		return build_preview_frame(slot, normalized_id)
+		span:set("bootstrap", "route")
+		span:set("route", payload_url)
+		return build_preview_frame(slot, normalized_id, payload_url)
 	end)
+end
+
+local function list_payload_files(instance, payload_id)
+	local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+	if normalized_id == nil then
+		return nil
+	end
+
+	return list_files(payload_dir(instance.__payload_root, normalized_id))
+end
+
+local function read_payload_file(instance, payload_id, relative_path)
+	local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+	local normalized_path = validate_relative_path(relative_path)
+	if normalized_id == nil or normalized_path == nil then
+		return nil
+	end
+
+	return read_all(payload_file_path(instance.__payload_root, normalized_id, normalized_path))
+end
+
+local function write_payload_file(instance, payload_id, relative_path, contents)
+	local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+	local normalized_path = validate_relative_path(relative_path)
+	if normalized_id == nil then
+		return {
+			ok = false,
+			err = {
+				kind = "invalid_payload_id",
+				message = "Invalid payload id",
+			},
+		}
+	end
+
+	if normalized_path == nil then
+		return {
+			ok = false,
+			err = {
+				kind = "invalid_path",
+				message = "Invalid payload file path",
+			},
+		}
+	end
+
+	local path = payload_file_path(instance.__payload_root, normalized_id, normalized_path)
+	os.execute("mkdir -p " .. shell_quote(dirname(path)))
+	write_all(path, contents or "")
+
+	return {
+		ok = true,
+		value = {
+			path = normalized_path,
+			payload_id = normalized_id,
+		},
+	}
+end
+
+local function describe_payload(instance, payload_id)
+	local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+	if normalized_id == nil then
+		return nil
+	end
+
+	local root = payload_dir(instance.__payload_root, normalized_id)
+	local files = list_files(root)
+
+	return {
+		id = normalized_id,
+		label = humanize_payload_id(normalized_id),
+		path = root,
+		route = "/payload/" .. normalized_id .. "/",
+		exists = file_exists(root .. "/app.fuwa"),
+		files = files,
+		file_count = #files,
+	}
 end
 
 function M.new(opts)
@@ -123,6 +267,22 @@ function M.new(opts)
 	function instance.switch_payload(payload_id)
 		payload_id = tostring(payload_id or instance.__active_payload_id or "current")
 		return render_mount(instance, "primary", payload_id)
+	end
+
+	function instance.list_payload_files(payload_id)
+		return list_payload_files(instance, payload_id)
+	end
+
+	function instance.read_payload_file(payload_id, relative_path)
+		return read_payload_file(instance, payload_id, relative_path)
+	end
+
+	function instance.write_payload_file(payload_id, relative_path, contents)
+		return write_payload_file(instance, payload_id, relative_path, contents)
+	end
+
+	function instance.describe_payload(payload_id)
+		return describe_payload(instance, payload_id)
 	end
 
 	return instance

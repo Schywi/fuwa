@@ -3,8 +3,10 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="htmx-config" content='{"historyEnabled":false,"selfRequestsOnly":false,"allowScriptTags":false}' />
+    <title>&title</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <script type="module">&unsafe browser_js</script>
+    <script src="https://unpkg.com/petite-vue"></script>
     <style>
       :root {
         color-scheme: dark;
@@ -146,5 +148,6 @@
   </head>
   <body>
     <include src="views/home.fuwa" />
+    <script src="browser.js"></script>
   </body>
 </html>

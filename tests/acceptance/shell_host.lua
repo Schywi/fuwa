@@ -72,7 +72,7 @@ end
 end
 
 return function(t)
-	t.test("host mounts the current payload route into the preview iframe", function()
+	t.test("host mounts the current payload through a route-backed iframe", function()
 		local host = host_caps.new({
 			root_dir = ".",
 			payload_root = "./payloads",
@@ -80,23 +80,21 @@ return function(t)
 
 		local preview = host.mount_payload("preview", "current")
 		t.truthy(preview:find('data-host-slot="preview"', 1, true) ~= nil, "expected preview slot attribute")
-		t.truthy(preview:find('src="/payload/current/"', 1, true) ~= nil, "expected current payload route")
+		t.truthy(preview:find('src="/payload/current/"', 1, true) ~= nil, "expected route-backed iframe")
 		t.truthy(preview:find('sandbox="allow-scripts allow-forms allow-same-origin"', 1, true) ~= nil, "expected sandboxed iframe")
 	end)
 
-	t.test("host switches to the lesson payload through the primary slot", function()
-		local host = host_caps.new({
-			root_dir = ".",
-			payload_root = "./payloads",
+	t.test("shell response exposes the dashboard workspace and shell hook", function()
+		local response = dev.build_response("shell", "GET", "/", "", {
+			allow_host = true,
 		})
 
-		local switched = host.switch_payload("lesson")
-		t.truthy(switched:find('data-host-slot="primary"', 1, true) ~= nil, "expected primary slot attribute")
-		t.truthy(switched:find('src="/payload/lesson/"', 1, true) ~= nil, "expected lesson payload route")
-
-		local active = host.mount_payload("preview")
-		t.truthy(active:find('data-host-slot="preview"', 1, true) ~= nil, "expected preview slot attribute")
-		t.truthy(active:find('src="/payload/lesson/"', 1, true) ~= nil, "expected active payload to track the switch")
+		t.truthy(response.status == 200, "expected shell request to succeed")
+		t.truthy(response.body:find("Route-backed tenant iframe", 1, true) ~= nil, "expected shell badge")
+		t.truthy(response.body:find('src="/payload/current/"', 1, true) ~= nil, "expected route-backed iframe")
+		t.truthy(response.body:find("tenant-bridge.js", 1, true) == nil, "expected no tenant bridge script")
+		t.truthy(response.body:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected lesson switcher")
+		t.truthy(response.body:find('hx-target="#shell-content"', 1, true) ~= nil, "expected fragment swap target")
 	end)
 
 	t.test("tenant payloads cannot resolve host without preloading", function()

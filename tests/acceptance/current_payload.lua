@@ -29,11 +29,20 @@ local function render_sequence(provider)
 	return get, post1, post2
 end
 
+local function run_command(command)
+	local pipe = assert(io.popen(command, "r"))
+	local output = pipe:read("*a") or ""
+	local ok, why, code = pipe:close()
+	assert(ok, string.format("command failed (%s %s): %s", tostring(why), tostring(code), command))
+	return output
+end
+
 local function assert_payload_markup(t, response)
-	t.truthy(response.body:find('hx-post="counter"', 1, true) ~= nil, "expected htmx button")
+	t.truthy(response.body:find('hx-post="/payload/current/counter"', 1, true) ~= nil, "expected htmx button")
 	t.truthy(response.body:find('v-scope="{ pressed: false }"', 1, true) ~= nil, "expected petite-vue scope")
-	t.truthy(response.body:find("https://unpkg.com/htmx.org", 1, true) ~= nil, "expected htmx script")
-	t.truthy(response.body:find("https://unpkg.com/petite-vue?module", 1, true) ~= nil, "expected petite-vue script")
+	t.truthy(response.body:find('script src="browser.js"', 1, true) ~= nil, "expected browser.js asset")
+	t.truthy(response.body:find("https://unpkg.com/htmx.org@1.9.12", 1, true) ~= nil, "expected htmx loader")
+	t.truthy(response.body:find("https://unpkg.com/petite-vue", 1, true) ~= nil, "expected petite-vue loader")
 	t.truthy(response.body:find("bg-emerald-500", 1, true) ~= nil, "expected utility-style classes")
 end
 
@@ -54,5 +63,12 @@ return function(t)
 			t.truthy(sqlite_post1.body:find("EventSource('/__dev/reload')", 1, true) == nil, "expected fragment response without reload script")
 			t.truthy(sqlite_post2.body:find("EventSource('/__dev/reload')", 1, true) == nil, "expected fragment response without reload script")
 		end)
+	end)
+
+	t.test("current payload browser asset is served raw", function()
+		local body = run_command("printf 'GET /payload/current/browser.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua")
+
+		t.truthy(body:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected browser asset to respond")
+		t.truthy(body:find("fuwaBrowser", 1, true) ~= nil, "expected browser.js contents")
 	end)
 end

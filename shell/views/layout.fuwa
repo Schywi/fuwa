@@ -200,7 +200,7 @@
         transform: translateY(-1px);
       }
 
-      .shell-button[data-active="true"] {
+      .shell-button[data-active=true] {
         color: #fff;
         background: linear-gradient(135deg, var(--accent), var(--accent-strong));
         border-color: transparent;
@@ -338,7 +338,7 @@
         cursor: pointer;
       }
 
-      .shell-file-item[data-selected="true"] {
+      .shell-file-item[data-selected=true] {
         border-color: rgba(196, 125, 51, 0.4);
         background: rgba(196, 125, 51, 0.08);
         box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
