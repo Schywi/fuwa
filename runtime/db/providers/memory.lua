@@ -1,5 +1,5 @@
 local provider = require("runtime.db.provider")
-local log = require("runtime.log")
+local trace = require("runtime.trace")
 
 local M = {}
 
@@ -87,158 +87,135 @@ function M.new(opts)
 	function instance:op(command)
 		command = command or {}
 
-		if not provider.is_valid_collection_name(command.collection) then
-			return response_invalid_collection(command.collection)
-		end
-
-		local collection = ensure_collection(state, command.collection)
-		local op = command.op
-
-		if op == "all" then
-			local rows = collection_rows(collection)
-			local response = provider.ok(provider.filter_rows(rows, nil, command.order, command.limit))
-			log.log("db", "memory", {
-				collection = command.collection,
-				op = op,
-				rows = #response.value,
-			})
-			return response
-		end
-
-		if op == "find" then
-			local row = row_by_id(collection, command.id)
-			if row == nil then
-				return response_not_found(command.collection, command.id)
-			end
-			local response = provider.ok(provider.clone(row))
-			log.log("db", "memory", {
-				collection = command.collection,
-				id = row.id,
-				op = op,
-				rows = collection_size(collection),
-			})
-			return response
-		end
-
-		if op == "find_by" then
-			if not provider.is_record(command.where) then
-				return response_invalid_command("Missing where clause")
+		return trace.span("db.memory", {
+			collection = command.collection,
+			op = command.op,
+		}, function(span)
+			if not provider.is_valid_collection_name(command.collection) then
+				return response_invalid_collection(command.collection)
 			end
 
-			local row = provider.first_row(collection_rows(collection), command.where, command.order)
-			if row == nil then
-				return response_not_found(command.collection, "(where)")
-			end
-			local response = provider.ok(row)
-			log.log("db", "memory", {
-				collection = command.collection,
-				op = op,
-				rows = 1,
-			})
-			return response
-		end
+			local collection = ensure_collection(state, command.collection)
+			local op = command.op
 
-		if op == "where" then
-			if not provider.is_record(command.where) then
-				return response_invalid_command("Missing where clause")
-			end
-
-			local rows = collection_rows(collection)
-			local response = provider.ok(provider.filter_rows(rows, command.where, command.order, command.limit))
-			log.log("db", "memory", {
-				collection = command.collection,
-				op = op,
-				rows = #response.value,
-			})
-			return response
-		end
-
-		if op == "create" or op == "insert" then
-			if not provider.is_record(command.data) then
-				return response_invalid_command("Missing data payload")
-			end
-
-			local data = provider.strip_reserved_fields(command.data)
-			local id = normalize_id(command.data.id) or provider.generate_id()
-			if collection[id] ~= nil then
-				return provider.err("already_exists", string.format("Document already exists in %s", command.collection), {
-					collection = command.collection,
-					id = id
+			if op == "all" then
+				local rows = collection_rows(collection)
+				local response = provider.ok(provider.filter_rows(rows, nil, command.order, command.limit))
+				span:log("result", {
+					rows = #response.value,
 				})
+				return response
 			end
 
-			local timestamp = provider.now_iso(now)
-			local row = {
-				id = id,
-				created_at = timestamp,
-				updated_at = timestamp
-			}
-			for key, value in pairs(data) do
-				row[key] = provider.clone(value)
+			if op == "find" then
+				local row = row_by_id(collection, command.id)
+				if row == nil then
+					return response_not_found(command.collection, command.id)
+				end
+				span:log("hit", {
+					id = row.id,
+				})
+				return provider.ok(provider.clone(row))
 			end
 
-			collection[id] = row
-			local response = provider.ok(provider.clone(row))
-			log.log("db", "memory", {
-				collection = command.collection,
-				id = id,
-				op = op,
-				rows = collection_size(collection),
-				saved = true,
-			})
-			return response
-		end
+			if op == "find_by" then
+				if not provider.is_record(command.where) then
+					return response_invalid_command("Missing where clause")
+				end
 
-		if op == "update" then
-			local id = normalize_id(command.id)
-			if id == nil or not provider.is_record(command.data) then
-				return response_invalid_command("Missing id or data payload")
+				local row = provider.first_row(collection_rows(collection), command.where, command.order)
+				if row == nil then
+					return response_not_found(command.collection, "(where)")
+				end
+				span:log("hit", {
+					id = row.id,
+				})
+				return provider.ok(row)
 			end
 
-			local row = collection[id]
-			if row == nil then
-				return response_not_found(command.collection, id)
+			if op == "where" then
+				if not provider.is_record(command.where) then
+					return response_invalid_command("Missing where clause")
+				end
+
+				local rows = collection_rows(collection)
+				local response = provider.ok(provider.filter_rows(rows, command.where, command.order, command.limit))
+				span:log("result", {
+					rows = #response.value,
+				})
+				return response
 			end
 
-			local payload = provider.strip_reserved_fields(command.data)
-			for key, value in pairs(payload) do
-				row[key] = provider.clone(value)
+			if op == "create" or op == "insert" then
+				if not provider.is_record(command.data) then
+					return response_invalid_command("Missing data payload")
+				end
+
+				local data = provider.strip_reserved_fields(command.data)
+				local id = normalize_id(command.data.id) or provider.generate_id()
+				if collection[id] ~= nil then
+					return provider.err("already_exists", string.format("Document already exists in %s", command.collection), {
+						collection = command.collection,
+						id = id
+					})
+				end
+
+				local timestamp = provider.now_iso(now)
+				local row = {
+					id = id,
+					created_at = timestamp,
+					updated_at = timestamp
+				}
+				for key, value in pairs(data) do
+					row[key] = provider.clone(value)
+				end
+
+				collection[id] = row
+				span:set("saved", true)
+				span:set("rows", collection_size(collection))
+				return provider.ok(provider.clone(row))
 			end
-			row.updated_at = provider.now_iso(now)
 
-			local response = provider.ok(provider.clone(row))
-			log.log("db", "memory", {
-				collection = command.collection,
-				id = id,
-				op = op,
-				rows = collection_size(collection),
-				saved = true,
-			})
-			return response
-		end
+			if op == "update" then
+				local id = normalize_id(command.id)
+				if id == nil or not provider.is_record(command.data) then
+					return response_invalid_command("Missing id or data payload")
+				end
 
-		if op == "delete" then
-			local id = normalize_id(command.id)
-			if id == nil then
-				return response_invalid_command("Missing document id")
+				local row = collection[id]
+				if row == nil then
+					return response_not_found(command.collection, id)
+				end
+
+				local payload = provider.strip_reserved_fields(command.data)
+				for key, value in pairs(payload) do
+					row[key] = provider.clone(value)
+				end
+				row.updated_at = provider.now_iso(now)
+
+				span:set("saved", true)
+				span:set("rows", collection_size(collection))
+				return provider.ok(provider.clone(row))
 			end
 
-			if collection[id] == nil then
-				return response_not_found(command.collection, id)
+			if op == "delete" then
+				local id = normalize_id(command.id)
+				if id == nil then
+					return response_invalid_command("Missing document id")
+				end
+
+				if collection[id] == nil then
+					return response_not_found(command.collection, id)
+				end
+
+				collection[id] = nil
+				span:set("saved", true)
+				span:set("rows", collection_size(collection))
+				return provider.ok(true)
 			end
 
-			collection[id] = nil
-			log.log("db", "memory", {
-				collection = command.collection,
-				id = id,
-				op = op,
-				rows = collection_size(collection),
-				saved = true,
-			})
-			return provider.ok(true)
-		end
-
-		return response_invalid_command("Unsupported op " .. tostring(op))
+			return response_invalid_command("Unsupported op " .. tostring(op))
+		end)
 	end
 
 	return instance

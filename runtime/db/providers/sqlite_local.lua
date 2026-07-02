@@ -1,5 +1,5 @@
 local provider = require("runtime.db.provider")
-local log = require("runtime.log")
+local trace = require("runtime.trace")
 
 local M = {}
 
@@ -110,62 +110,62 @@ function M.new(opts)
 
 	function instance:op(command)
 		command = command or {}
-		log.log("db", "sqlite_local", {
+
+		return trace.span("db.sqlite_local", {
 			collection = command.collection,
 			op = command.op,
 			path = db_path,
-		})
+		}, function(span)
+			if not provider.is_valid_collection_name(command.collection) then
+				local response = provider.err("invalid_command", "Invalid collection name", {
+					collection = command.collection
+				})
+				span:set("kind", response.err.kind)
+				return response
+			end
 
-		if not provider.is_valid_collection_name(command.collection) then
-			local response = provider.err("invalid_command", "Invalid collection name", {
-				collection = command.collection
-			})
-			log.log("db", "sqlite_local_err", {
-				collection = command.collection,
-				kind = response.err.kind,
-				op = command.op,
+			ensure_parent_dir(db_path)
+
+			local command_path = os.tmpname()
+			write_all(command_path, encode_json(command))
+			span:log("helper dispatch", {
 				path = db_path,
 			})
+
+			local helper_command = table.concat({
+				shell_quote(python_bin),
+				shell_quote(helper_path),
+				shell_quote(db_path),
+				shell_quote(command_path)
+			}, " ")
+
+			local pipe = assert(io.popen(helper_command, "r"))
+			local output = pipe:read("*a") or ""
+			pipe:close()
+			os.remove(command_path)
+
+			local response_chunk, err = load("return " .. output, "@sqlite-local-response", "t", {})
+			assert(response_chunk, err)
+			local response = response_chunk()
+
+			if response and response.ok then
+				if command.op == "create" or command.op == "insert" or command.op == "update" or command.op == "delete" then
+					span:set("saved", true)
+				end
+				span:log("helper return", {
+					ok = true,
+				})
+			else
+				local response_err = response and response.err or {}
+				span:set("kind", response_err.kind)
+				span:log("helper return", {
+					ok = false,
+					kind = response_err.kind,
+				})
+			end
+
 			return response
-		end
-
-		ensure_parent_dir(db_path)
-
-		local command_path = os.tmpname()
-		write_all(command_path, encode_json(command))
-
-		local helper_command = table.concat({
-			shell_quote(python_bin),
-			shell_quote(helper_path),
-			shell_quote(db_path),
-			shell_quote(command_path)
-		}, " ")
-
-		local pipe = assert(io.popen(helper_command, "r"))
-		local output = pipe:read("*a") or ""
-		pipe:close()
-		os.remove(command_path)
-
-		local response_chunk, err = load("return " .. output, "@sqlite-local-response", "t", {})
-		assert(response_chunk, err)
-		local response = response_chunk()
-		if response and response.ok then
-			log.log("db", "sqlite_local_ok", {
-				collection = command.collection,
-				id = type(response.value) == "table" and response.value.id or nil,
-				op = command.op,
-				path = db_path,
-			})
-		else
-			local response_err = response and response.err or {}
-			log.log("db", "sqlite_local_err", {
-				collection = command.collection,
-				kind = response_err.kind,
-				op = command.op,
-				path = db_path,
-			})
-		end
-		return response
+		end)
 	end
 
 	return instance

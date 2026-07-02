@@ -1,5 +1,6 @@
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local modules = require("runtime.stdlib.compiler.modules")
+local trace = require("runtime.trace")
 
 local M = {}
 
@@ -18,38 +19,57 @@ function M.compile_runtime_files(source_files)
 
 	table.sort(names)
 
-	for _, file_name in ipairs(names) do
-		local source = source_files[file_name]
-		if file_name:sub(-5) == ".fuwa" then
-			local result
-			if file_name == "view.fuwa" then
-				result = modules.compile_view_source(source, source_files, file_name)
-			elseif file_name:match("^views/.+%.fuwa$") then
-				result = {
-					lua = nil,
-					diagnostics = {}
-				}
-			else
-				result = modules.compile_module_source(source, file_name)
-			end
+	return trace.span("compile", {
+		files = #names,
+	}, function(span)
+		span:log("scanning source", {
+			files = #names,
+		})
 
-			if result.diagnostics then
-				for _, entry in ipairs(result.diagnostics) do
-					diagnostics_out[#diagnostics_out + 1] = entry
+		for _, file_name in ipairs(names) do
+			local source = source_files[file_name]
+			if file_name:sub(-5) == ".fuwa" then
+				local result
+				if file_name == "view.fuwa" then
+					result = modules.compile_view_source(source, source_files, file_name)
+				elseif file_name:match("^views/.+%.fuwa$") then
+					result = {
+						lua = nil,
+						diagnostics = {}
+					}
+				else
+					result = modules.compile_module_source(source, file_name)
+				end
+
+				if result.diagnostics then
+					for _, entry in ipairs(result.diagnostics) do
+						diagnostics_out[#diagnostics_out + 1] = entry
+					end
+				end
+
+				if result.lua ~= nil then
+					local target_name = file_name:gsub("%.fuwa$", ".lua")
+					modules_out[target_name] = result.lua
 				end
 			end
-
-			if result.lua ~= nil then
-				local target_name = file_name:gsub("%.fuwa$", ".lua")
-				modules_out[target_name] = result.lua
-			end
 		end
-	end
 
-	return {
-		diagnostics = diagnostics_out,
-		modules = modules_out
-	}
+		local module_count = 0
+		for _ in pairs(modules_out) do
+			module_count = module_count + 1
+		end
+
+		span:set("modules", module_count)
+		span:set("diagnostics", #diagnostics_out)
+		span:log("emitted modules", {
+			count = module_count
+		})
+
+		return {
+			diagnostics = diagnostics_out,
+			modules = modules_out
+		}
+	end)
 end
 
 return M

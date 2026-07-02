@@ -156,6 +156,7 @@ package.path = root_dir .. "/?.lua;" .. root_dir .. "/?/init.lua;" .. root_dir .
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local package_web = require("runtime.stdlib.compiler.package_web")
 local runtime_db = require("runtime.db")
+local trace = require("runtime.trace")
 local log = require("runtime.log")
 
 local runtime_preloads = {
@@ -170,6 +171,40 @@ os.execute("mkdir -p " .. shell_quote(dev_dir))
 ensure_path(state_path, "return {}\n")
 ensure_path(lock_path, "")
 ensure_path(reload_token_path, "")
+
+local function dev_trace_sink(event)
+	if type(event) ~= "table" then
+		return
+	end
+
+	if event.kind == "request" then
+		local status = event.status
+		if status == nil and event.failed then
+			status = 500
+		end
+
+		local parts = {
+			"◀ request",
+			tostring(event.method or "-"),
+			tostring(event.path or "-"),
+			"status=" .. tostring(status or "unknown"),
+			"trace=" .. tostring(event.trace_id or "-"),
+			string.format("%.1fms", tonumber(event.duration_ms or 0) or 0),
+		}
+
+		if event.failed then
+			parts[#parts + 1] = "error=" .. log.serialize(event.error)
+		end
+
+		io.stderr:write(table.concat(parts, " "), "\n")
+		io.stderr:flush()
+		return
+	end
+
+	log.pretty_sink(event)
+end
+
+trace.set_sink(dev_trace_sink)
 
 local function register_runtime_preloads()
 	for module_name, relative_path in pairs(runtime_preloads) do
@@ -481,78 +516,80 @@ end
 function M.build_response(root, method, path, body, opts)
 	local db_provider = resolve_db_provider(opts)
 	runtime_db.set_provider(db_provider)
-	log.log("dev", "request", {
+
+	return trace.span("request", {
 		method = method,
 		path = path,
-		provider = db_provider.__name or "custom",
-		db_path = db_provider.__path,
-	})
-	register_runtime_preloads()
+	}, function(request_span)
+		register_runtime_preloads()
 
-	local source_files = M.collect_payload_files(root or payload_root)
-	local build = package_web.build(source_files)
+		local source_files = M.collect_payload_files(root or payload_root)
+		local build = package_web.build(source_files)
 
-	if diagnostics.has_errors(build.diagnostics) then
-		log.log("dev", "compile_error", {
+		if diagnostics.has_errors(build.diagnostics) then
+			local message = diagnostics.format(build.diagnostics)
+			request_span:set("status", 500)
+			request_span:set("errors", #build.diagnostics)
+			return {
+				status = 500,
+				headers = {
+					["Content-Type"] = "text/plain; charset=utf-8",
+					["Content-Length"] = tostring(#message),
+					["Connection"] = "close",
+				},
+				body = message,
+			}
+		end
+
+		local compiled_modules = {}
+		for name, source in pairs(build.run_files) do
+			if name:sub(-4) == ".lua" then
+				compiled_modules[name:sub(1, -5):gsub("/", ".")] = source
+			end
+		end
+
+		for module_name, source in pairs(compiled_modules) do
+			package.preload[module_name] = function()
+				return load_chunk(source, module_name)
+			end
+		end
+
+		local captured, set_html = make_set_html_capture()
+		_G.__fuwa_is_request = true
+		_G.__fuwa_print = function(...)
+			return ...
+		end
+		_G.__fuwa_db_op = make_db_bridge
+		_G.set_html = set_html
+
+		local html = trace.span("render", {
 			method = method,
 			path = path,
-			errors = #build.diagnostics,
-		})
+		}, function(render_span)
+			load_chunk(assert(build.run_files["main.lua"], "missing main.lua"), "main.lua")
+			local handle_request = assert(_G.handle_request, "main.lua did not define handle_request")
+			local rendered = handle_request(method, path, body or "")
+			local output = tostring(rendered or captured.value or "")
+			if method == "GET" then
+				output = render_reload_script(output)
+			end
+			render_span:set("bytes", #output)
+			return output
+		end)
+
+		request_span:set("status", 200)
+		request_span:set("bytes", #html)
+
 		return {
-			status = 500,
+			status = 200,
 			headers = {
-				["Content-Type"] = "text/plain; charset=utf-8",
-				["Content-Length"] = tostring(#diagnostics.format(build.diagnostics)),
+				["Content-Type"] = "text/html; charset=utf-8",
+				["Content-Length"] = tostring(#html),
 				["Connection"] = "close",
 			},
-			body = diagnostics.format(build.diagnostics),
+			body = html,
 		}
-	end
-
-	local compiled_modules = {}
-	for name, source in pairs(build.run_files) do
-		if name:sub(-4) == ".lua" then
-			compiled_modules[name:sub(1, -5):gsub("/", ".")] = source
-		end
-	end
-
-	for module_name, source in pairs(compiled_modules) do
-		package.preload[module_name] = function()
-			return load_chunk(source, module_name)
-		end
-	end
-
-	local captured, set_html = make_set_html_capture()
-	_G.__fuwa_is_request = true
-	_G.__fuwa_print = function(...)
-		return ...
-	end
-	_G.__fuwa_db_op = make_db_bridge
-	_G.set_html = set_html
-
-	load_chunk(assert(build.run_files["main.lua"], "missing main.lua"), "main.lua")
-	local handle_request = assert(_G.handle_request, "main.lua did not define handle_request")
-	local html = handle_request(method, path, body or "")
-	html = tostring(html or captured.value or "")
-	if method == "GET" then
-		html = render_reload_script(html)
-	end
-	log.log("dev", "response", {
-		bytes = #html,
-		method = method,
-		path = path,
-		status = 200,
-	})
-
-	return {
-		status = 200,
-		headers = {
-			["Content-Type"] = "text/html; charset=utf-8",
-			["Content-Length"] = tostring(#html),
-			["Connection"] = "close",
-		},
-		body = html,
-	}
+	end)
 end
 
 local function read_request()
@@ -670,10 +707,6 @@ function M.run()
 	if not request then
 		return
 	end
-	log.log("dev", "serve", {
-		method = request.method,
-		path = request.path,
-	})
 
 	if request.path == "/__dev/reload" then
 		handle_reload_request()

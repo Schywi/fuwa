@@ -1,5 +1,5 @@
 local memory = require("runtime.db.providers.memory")
-local log = require("runtime.log")
+local trace = require("runtime.trace")
 
 local M = {}
 
@@ -9,47 +9,35 @@ local current_provider_name = current_provider.__name or "memory"
 function M.set_provider(provider)
 	current_provider = assert(provider, "DB provider is required")
 	current_provider_name = current_provider.__name or "custom"
-	log.log("db", "provider", {
-		provider = current_provider_name,
-	})
 end
 
 function M.reset()
 	current_provider = memory.new()
 	current_provider_name = current_provider.__name or "memory"
-	log.log("db", "provider", {
-		provider = current_provider_name,
-	})
 end
 
 function M.db_op(command)
 	command = command or {}
-	log.log("db", "dispatch", {
+
+	return trace.span("db.dispatch", {
 		collection = command.collection,
 		op = command.op,
 		provider = current_provider_name,
-	})
+	}, function(span)
+		local response = current_provider:op(command)
+		if response and response.ok then
+			span:set("ok", true)
+			if type(response.value) == "table" then
+				span:set("id", response.value.id)
+			end
+		else
+			local err = response and response.err or {}
+			span:set("ok", false)
+			span:set("kind", err.kind)
+		end
 
-	local response = current_provider:op(command)
-	if response and response.ok then
-		local result = response.value
-		log.log("db", "ok", {
-			collection = command.collection,
-			id = type(result) == "table" and result.id or nil,
-			op = command.op,
-			provider = current_provider_name,
-		})
-	else
-		local err = response and response.err or {}
-		log.log("db", "err", {
-			collection = command.collection,
-			kind = err.kind,
-			op = command.op,
-			provider = current_provider_name,
-		})
-	end
-
-	return response
+		return response
+	end)
 end
 
 function M.new(provider_name, opts)
