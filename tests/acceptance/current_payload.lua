@@ -40,9 +40,9 @@ end
 local function assert_payload_markup(t, response)
 	t.truthy(response.body:find('hx-post="/payload/current/counter"', 1, true) ~= nil, "expected htmx button")
 	t.truthy(response.body:find('v-scope="{ pressed: false }"', 1, true) ~= nil, "expected petite-vue scope")
-	t.truthy(response.body:find('script src="browser.js"', 1, true) ~= nil, "expected browser.js asset")
-	t.truthy(response.body:find("https://unpkg.com/htmx.org@1.9.12", 1, true) ~= nil, "expected htmx loader")
-	t.truthy(response.body:find("https://unpkg.com/petite-vue", 1, true) ~= nil, "expected petite-vue loader")
+	t.truthy(response.body:find('script defer src="browser.js"', 1, true) ~= nil, "expected browser.js asset")
+	t.truthy(response.body:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected htmx loader")
+	t.truthy(response.body:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected petite-vue loader")
 	t.truthy(response.body:find("bg-emerald-500", 1, true) ~= nil, "expected utility-style classes")
 end
 

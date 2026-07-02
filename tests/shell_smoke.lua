@@ -78,6 +78,8 @@ assert_true(html:find("<!DOCTYPE html>", 1, true) == 1, "shell should start with
 assert_true(html:find("Route-backed tenant iframe", 1, true) ~= nil, "shell should render the route-backed badge")
 assert_true(html:find('src="/payload/current/"', 1, true) ~= nil, "shell should mount the tenant route")
 assert_true(html:find("tenant-bridge.js", 1, true) == nil, "shell should not include the tenant bridge")
+assert_true(html:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "shell should load local htmx")
+assert_true(html:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "shell should load local petite-vue")
 assert_true(html:find('hx-post="/switch/lesson"', 1, true) ~= nil, "shell should expose a payload switch button")
 assert_true(html:find('hx-target="#shell-content"', 1, true) ~= nil, "shell should target the workspace fragment")
 assert_true(html:find('hx-post="/save/current"', 1, true) ~= nil, "shell should expose a save action")

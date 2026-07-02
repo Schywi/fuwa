@@ -59,6 +59,8 @@ local function test_http_request()
 	assert_true(output:find("Fuwa Shell", 1, true) ~= nil, "expected rendered shell")
 	assert_true(output:find('src="/payload/current/"', 1, true) ~= nil, "expected route-backed iframe")
 	assert_true(output:find("tenant-bridge.js", 1, true) == nil, "expected no tenant bridge hook")
+	assert_true(output:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected local htmx asset")
+	assert_true(output:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected local petite-vue asset")
 	assert_true(output:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected shell switch button")
 	assert_true(output:find('hx-post="/save/current"', 1, true) ~= nil, "expected shell save button")
 	assert_true(output:find('hx-target="#shell-content"', 1, true) ~= nil, "expected shell fragment target")
@@ -75,6 +77,8 @@ local function test_response_builder()
 	assert_true(response.body:find("Route-backed tenant iframe", 1, true) ~= nil, "expected shell response")
 	assert_true(response.body:find('src="/payload/current/"', 1, true) ~= nil, "expected route-backed iframe")
 	assert_true(response.body:find("tenant-bridge.js", 1, true) == nil, "expected no shell bridge hook")
+	assert_true(response.body:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected local htmx asset")
+	assert_true(response.body:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected local petite-vue asset")
 	assert_true(response.body:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected switch button")
 end
 
@@ -97,9 +101,9 @@ local function test_payload_route_request()
 
 	assert_true(output:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected payload route 200")
 	assert_true(output:find("Fuwa Dev", 1, true) ~= nil, "expected payload body")
-	assert_true(output:find('script src="browser.js"', 1, true) ~= nil, "expected payload browser asset tag")
-	assert_true(output:find('https://unpkg.com/htmx.org@1.9.12', 1, true) ~= nil, "expected htmx loader")
-	assert_true(output:find('https://unpkg.com/petite-vue', 1, true) ~= nil, "expected petite-vue loader")
+	assert_true(output:find('script defer src="browser.js"', 1, true) ~= nil, "expected payload browser asset tag")
+	assert_true(output:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected htmx loader")
+	assert_true(output:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected petite-vue loader")
 
 	local post_output = run_command(
 		"printf 'POST /payload/current/counter HTTP/1.1\\r\\nHost: localhost\\r\\nContent-Length: 0\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
@@ -115,6 +119,12 @@ local function test_raw_asset_requests()
 	)
 	assert_true(browser_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected browser asset to respond")
 	assert_true(browser_js:find("fuwaBrowser", 1, true) ~= nil, "expected browser.js contents")
+
+	local vendor_js = run_command(
+		"printf 'GET /vendor/htmx/htmx-1.9.12.min.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(vendor_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected vendor asset to respond")
+	assert_true(vendor_js:find("htmx", 1, true) ~= nil, "expected htmx vendor contents")
 end
 
 local function test_current_payload_interaction()
@@ -124,9 +134,9 @@ local function test_current_payload_interaction()
 		})
 		assert_true(response.body:find('hx-post="/payload/current/counter"', 1, true) ~= nil, "expected htmx button")
 		assert_true(response.body:find('v-scope="{ pressed: false }"', 1, true) ~= nil, "expected petite-vue scope")
-		assert_true(response.body:find('script src="browser.js"', 1, true) ~= nil, "expected browser.js asset")
-		assert_true(response.body:find("https://unpkg.com/htmx.org@1.9.12", 1, true) ~= nil, "expected htmx loader")
-		assert_true(response.body:find("https://unpkg.com/petite-vue", 1, true) ~= nil, "expected petite-vue loader")
+		assert_true(response.body:find('script defer src="browser.js"', 1, true) ~= nil, "expected browser.js asset")
+		assert_true(response.body:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected htmx loader")
+		assert_true(response.body:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected petite-vue loader")
 		assert_true(response.body:find("bg-emerald-500", 1, true) ~= nil, "expected utility-style classes")
 
 		local first = dev.build_response("payloads/current", "POST", "/counter", "", {
