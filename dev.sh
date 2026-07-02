@@ -2,6 +2,12 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
+# Export values from repo-local env files if present.
+set -a
+[ -f .env ] && . ./.env
+[ -f .env.local ] && . ./.env.local
+set +a
+
 PORT="${PORT:-8080}"
 LUA_BIN="${LUA_BIN:-lua5.4}"
 
