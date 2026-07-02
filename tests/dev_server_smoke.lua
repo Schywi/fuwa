@@ -1,6 +1,7 @@
 package.path = "./?.lua;./?/init.lua;./?/?.lua;" .. package.path
 
 local dev = require("runtime.fuwa-dev")
+local db = require("runtime.db")
 
 local function assert_true(condition, message)
 	if not condition then
@@ -23,6 +24,21 @@ local function read_file(path)
 	local contents = file:read("*a")
 	file:close()
 	return contents
+end
+
+local function cleanup_temp_db(path)
+	os.remove(path)
+	os.remove(path .. "-journal")
+	os.remove(path .. "-wal")
+	os.remove(path .. "-shm")
+end
+
+local function with_temp_sqlite_provider(fn)
+	local path = os.tmpname() .. ".sqlite"
+	local provider = db.new("sqlite_local", { path = path })
+	local ok, err = pcall(fn, provider)
+	cleanup_temp_db(path)
+	assert_true(ok, err)
 end
 
 local function run_command(command)
@@ -57,22 +73,28 @@ local function test_response_builder()
 end
 
 local function test_current_payload_interaction()
-	write_file(".fuwa-dev/state.lua", "return {}\n")
+	with_temp_sqlite_provider(function(provider)
+		local response = dev.build_response("payloads/current", "GET", "/", "", {
+			db_provider = provider
+		})
+		assert_true(response.body:find('hx-post="/counter"', 1, true) ~= nil, "expected htmx button")
+		assert_true(response.body:find('v-scope="{ pressed: false }"', 1, true) ~= nil, "expected petite-vue scope")
+		assert_true(response.body:find("https://unpkg.com/htmx.org", 1, true) ~= nil, "expected htmx script")
+		assert_true(response.body:find("https://unpkg.com/petite-vue?module", 1, true) ~= nil, "expected petite-vue script")
+		assert_true(response.body:find("bg-emerald-500", 1, true) ~= nil, "expected utility-style classes")
 
-	local response = dev.build_response("payloads/current", "GET", "/", "")
-	assert_true(response.body:find('hx-post="/counter"', 1, true) ~= nil, "expected htmx button")
-	assert_true(response.body:find('v-scope="{ pressed: false }"', 1, true) ~= nil, "expected petite-vue scope")
-	assert_true(response.body:find("https://unpkg.com/htmx.org", 1, true) ~= nil, "expected htmx script")
-	assert_true(response.body:find("https://unpkg.com/petite-vue?module", 1, true) ~= nil, "expected petite-vue script")
-	assert_true(response.body:find("bg-emerald-500", 1, true) ~= nil, "expected utility-style classes")
+		local first = dev.build_response("payloads/current", "POST", "/counter", "", {
+			db_provider = provider
+		})
+		assert_true(first.body:find("Clicks: 1", 1, true) ~= nil, "expected first counter increment")
+		assert_true(first.body:find("EventSource('/__dev/reload')", 1, true) == nil, "expected fragment response without reload script")
 
-	local first = dev.build_response("payloads/current", "POST", "/counter", "")
-	assert_true(first.body:find("Clicks: 1", 1, true) ~= nil, "expected first counter increment")
-	assert_true(first.body:find("EventSource('/__dev/reload')", 1, true) == nil, "expected fragment response without reload script")
-
-	local second = dev.build_response("payloads/current", "POST", "/counter", "")
-	assert_true(second.body:find("Clicks: 2", 1, true) ~= nil, "expected persisted counter increment")
-	assert_true(second.body:find("EventSource('/__dev/reload')", 1, true) == nil, "expected fragment response without reload script")
+		local second = dev.build_response("payloads/current", "POST", "/counter", "", {
+			db_provider = provider
+		})
+		assert_true(second.body:find("Clicks: 2", 1, true) ~= nil, "expected persisted counter increment")
+		assert_true(second.body:find("EventSource('/__dev/reload')", 1, true) == nil, "expected fragment response without reload script")
+	end)
 end
 
 local function test_db_helper()

@@ -66,7 +66,8 @@ end
 local modules = {
 	"provider",
 	"init",
-	"memory"
+	"memory",
+	"sqlite_local"
 }
 
 for _, name in ipairs(modules) do

@@ -21,6 +21,10 @@ function M.new(provider_name, opts)
 		return memory.new(opts)
 	end
 
+	if provider_name == "sqlite_local" then
+		return require("runtime.db.providers.sqlite_local").new(opts)
+	end
+
 	error("Unknown DB provider: " .. tostring(provider_name))
 end
 

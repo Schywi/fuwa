@@ -2,7 +2,7 @@
 -- Native Lua dev server for fuwa.
 -- Public helpers:
 --   collect_payload_files(root_dir) -> RuntimeFiles table
---   build_response(root_dir, method, path, body) -> { status, headers, body }
+--   build_response(root_dir, method, path, body, opts?) -> { status, headers, body }
 --   run() -> serves one HTTP request from stdin/stdout
 --   db_helper_main(state_path, command_path) -> flock-guarded DB helper mode
 
@@ -148,12 +148,14 @@ local dev_dir = root_dir .. "/.fuwa-dev"
 local state_path = dev_dir .. "/state.lua"
 local lock_path = state_path .. ".lock"
 local reload_token_path = dev_dir .. "/reload-token"
+local default_db_path = dev_dir .. "/sqlite-local.db"
 local lua_bin = os.getenv("LUA_BIN") or "lua5.4"
 
 package.path = root_dir .. "/?.lua;" .. root_dir .. "/?/init.lua;" .. root_dir .. "/?/?.lua;" .. package.path
 
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local package_web = require("runtime.stdlib.compiler.package_web")
+local runtime_db = require("runtime.db")
 
 local runtime_preloads = {
 	["runtime.stdlib.db"] = "runtime/stdlib/db.lua",
@@ -219,6 +221,21 @@ local function load_chunk(source, name)
 	local chunk, err = load(source, "@" .. name)
 	assert(chunk, err)
 	return chunk()
+end
+
+local function resolve_db_provider(opts)
+	opts = opts or {}
+	if opts.db_provider ~= nil then
+		return opts.db_provider
+	end
+
+	local provider_name = opts.db_provider_name or "sqlite_local"
+	local provider_opts = deep_copy(opts.db_provider_opts or {})
+	if provider_name == "sqlite_local" and provider_opts.path == nil and os.getenv("FUWA_DB_PATH") == nil then
+		provider_opts.path = default_db_path
+	end
+
+	return runtime_db.new(provider_name, provider_opts)
 end
 
 local function load_state(path)
@@ -444,34 +461,7 @@ end
 local function make_db_bridge(command)
 	return {
 		await = function()
-			ensure_path(state_path, "return {}\n")
-			ensure_path(lock_path, "")
-
-			local command_path = os.tmpname()
-			write_all(command_path, "return " .. serialize_lua(command))
-
-			local helper_command = table.concat({
-				"flock",
-				shell_quote(lock_path),
-				shell_quote(lua_bin),
-				shell_quote(script_path),
-				"--db-op",
-				shell_quote(state_path),
-				shell_quote(command_path),
-			}, " ")
-
-			local pipe = assert(io.popen(helper_command, "r"))
-			local output = pipe:read("*a") or ""
-			local ok, why, code = pipe:close()
-			os.remove(command_path)
-
-			if not ok then
-				error(string.format("DB helper failed (%s %s): %s", tostring(why), tostring(code), output))
-			end
-
-			local response_chunk, err = load("return " .. output, "@db-response", "t", {})
-			assert(response_chunk, err)
-			return response_chunk()
+			return runtime_db.db_op(command)
 		end
 	}
 end
@@ -487,7 +477,9 @@ function M.collect_payload_files(root)
 	return collect_find_output(root or payload_root)
 end
 
-function M.build_response(root, method, path, body)
+function M.build_response(root, method, path, body, opts)
+	local db_provider = resolve_db_provider(opts)
+	runtime_db.set_provider(db_provider)
 	register_runtime_preloads()
 
 	local source_files = M.collect_payload_files(root or payload_root)
