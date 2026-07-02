@@ -143,7 +143,8 @@ local script_source = debug.getinfo(1, "S").source
 local script_path = script_source:sub(1, 1) == "@" and script_source:sub(2) or script_source
 local runtime_dir = dirname(script_path)
 local root_dir = dirname(runtime_dir)
-local payload_root = root_dir .. "/payloads/current"
+local payloads_root = root_dir .. "/payloads"
+local payload_root = payloads_root .. "/current"
 local dev_dir = root_dir .. "/.fuwa-dev"
 local state_path = dev_dir .. "/state.lua"
 local lock_path = state_path .. ".lock"
@@ -254,6 +255,20 @@ local function render_reload_script(html)
 	end
 
 	return html .. script
+end
+
+local function split_payload_route(path)
+	local payload_id, inner_path = path:match("^/payload/([^/]+)(/.*)$")
+	if payload_id then
+		return payload_id, inner_path
+	end
+
+	payload_id = path:match("^/payload/([^/]+)/?$")
+	if payload_id then
+		return payload_id, "/"
+	end
+
+	return nil, nil
 end
 
 local function load_chunk(source, name)
@@ -517,7 +532,9 @@ function M.collect_payload_files(root)
 end
 
 function M.build_response(root, method, path, body, opts)
+	opts = opts or {}
 	local db_provider = resolve_db_provider(opts)
+	local allow_host = opts.allow_host == true
 	runtime_db.set_provider(db_provider)
 
 	return trace.span("request", {
@@ -554,11 +571,15 @@ function M.build_response(root, method, path, body, opts)
 		local original_host_loaded = package.loaded["host"]
 		local original_host_preloaded = package.preload["host"]
 		package.loaded["host"] = nil
-		package.preload["host"] = function()
-			return host_caps.new({
-				root_dir = root_dir,
-				db_provider = db_provider,
-			})
+		if allow_host then
+			package.preload["host"] = function()
+				return host_caps.new({
+					root_dir = root_dir,
+					db_provider = db_provider,
+				})
+			end
+		else
+			package.preload["host"] = nil
 		end
 
 		local original_loaded = {}
@@ -746,7 +767,42 @@ function M.run()
 		return
 	end
 
-	local response = M.build_response(shell_root, request.method, request.path, request.body)
+	local response
+	if request.path:match("^/payload/") then
+		local payload_id, inner_path = split_payload_route(request.path)
+		if payload_id then
+			if request.path:match("^/payload/[^/]+$") and request.method == "GET" then
+				write_http_response({
+					status = 302,
+					headers = {
+						["Location"] = request.path .. "/",
+						["Connection"] = "close",
+					},
+					body = "",
+				})
+				return
+			end
+
+			response = M.build_response(
+				payloads_root .. "/" .. payload_id,
+				request.method,
+				inner_path,
+				request.body,
+				{
+					db_provider_name = "sqlite_local",
+				}
+			)
+		else
+			response = M.build_response(shell_root, request.method, request.path, request.body, {
+				allow_host = true,
+			})
+		end
+	else
+		response = M.build_response(shell_root, request.method, request.path, request.body, {
+			allow_host = true,
+		})
+	end
+
 	write_http_response(response)
 end
 

@@ -29,7 +29,7 @@ action bump(req) do
     string.format([[    <span class="counter-pill">Clicks: %d</span>]], count),
     string.format([[    <span class="counter-tone">Tone: %s</span>]], tone),
     [[  </div>]],
-    [[  <button type="button" class="counter-button px-4 py-3 rounded-full text-slate-900 bg-white" hx-post="/counter" hx-target="#counter" hx-swap="outerHTML" @click="pressed = !pressed" :class="pressed ? 'scale-95 ring-2 ring-offset-2' : ''">]],
+    [[  <button type="button" class="counter-button px-4 py-3 rounded-full text-slate-900 bg-white" hx-post="counter" hx-target="#counter" hx-swap="outerHTML" @click="pressed = !pressed" :class="pressed ? 'scale-95 ring-2 ring-offset-2' : ''">]],
     [[    Ping the stack]],
     [[  </button>]],
     [[  <p class="counter-note">HTMX posts server state. petite-vue flips pressed locally.</p>]],
