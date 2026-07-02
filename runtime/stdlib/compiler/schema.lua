@@ -89,7 +89,7 @@ end
 
 local function emit_schema(ctx, schema)
 	imports.emit_imports(ctx)
-	ctx.out[#ctx.out + 1] = "local schema = require(\"fuwa.runtime.schema\")"
+	ctx.out[#ctx.out + 1] = "local schema = require(\"runtime.stdlib.schema\")"
 	ctx.out[#ctx.out + 1] = ""
 	ctx.out[#ctx.out + 1] = string.format(
 		"return schema.model(%s, %s, {",

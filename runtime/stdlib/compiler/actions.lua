@@ -20,7 +20,7 @@ local function action_bootstrap(ctx)
 	end
 
 	imports.emit_imports(ctx)
-	ctx.out[#ctx.out + 1] = "local web = require(\"fuwa.runtime.web\")"
+	ctx.out[#ctx.out + 1] = "local web = require(\"runtime.stdlib.web\")"
 	ctx.out[#ctx.out + 1] = "local render = web.render"
 	ctx.out[#ctx.out + 1] = "local redirect = web.redirect"
 	ctx.out[#ctx.out + 1] = "local fail = web.fail"

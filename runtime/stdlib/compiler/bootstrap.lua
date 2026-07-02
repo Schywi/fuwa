@@ -4,7 +4,7 @@ function M.build_main_bootstrap()
 	return table.concat({
 		'local app = require("app")',
 		'local view = require("view")',
-		'local web = require("fuwa.runtime.web")',
+		'local web = require("runtime.stdlib.web")',
 		"",
 		"local function render_response(resp, depth)",
 		"  depth = depth or 0",

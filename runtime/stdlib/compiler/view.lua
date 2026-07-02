@@ -6,8 +6,8 @@ function M.compile_view_module(template_source)
 	local quoted_template = strings.quote_lua_string(template_source or "")
 
 	return table.concat({
-		'local view = require("fuwa.runtime.view")',
-		'local web = require("fuwa.runtime.web")',
+		'local view = require("runtime.stdlib.view")',
+		'local web = require("runtime.stdlib.web")',
 		"",
 		"local M = {}",
 		"",

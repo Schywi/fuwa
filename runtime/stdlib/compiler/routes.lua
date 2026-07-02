@@ -16,7 +16,7 @@ function M.compile_routes_block(ctx, index)
 			i = i + 1
 		elseif line == "end" then
 			imports.emit_imports(ctx)
-			ctx.out[#ctx.out + 1] = "local web = require(\"fuwa.runtime.web\")"
+			ctx.out[#ctx.out + 1] = "local web = require(\"runtime.stdlib.web\")"
 			ctx.out[#ctx.out + 1] = ""
 			ctx.out[#ctx.out + 1] = "return web.app({"
 			for _, route in ipairs(routes) do
