@@ -105,6 +105,10 @@
             <p>Changes save directly back into the active payload root.</p>
           </div>
 
+          <div class="shell-widget-shell" data-editor-root data-file-path="&dashboard.active.selected_file" aria-label="CodeMirror editor mount point">
+            <p class="shell-widget-placeholder">CodeMirror mounts here.</p>
+          </div>
+
           <textarea name="contents" spellcheck="false">&dashboard.active.selected_file_source</textarea>
 
           <div class="shell-editor-actions">
@@ -113,6 +117,18 @@
           </div>
         </form>
       </div>
+
+      <section class="shell-panel shell-terminal">
+        <div class="shell-panel-head">
+          <p class="shell-kicker">Terminal</p>
+          <h3>xterm output</h3>
+          <p>Placeholder root for terminal logs. The runtime bridge comes later.</p>
+        </div>
+
+        <div class="shell-widget-shell" data-terminal-root data-terminal-session="&dashboard.active.id" aria-label="xterm terminal mount point">
+          <p class="shell-widget-placeholder">xterm mounts here.</p>
+        </div>
+      </section>
     </section>
   </section>
 </section>

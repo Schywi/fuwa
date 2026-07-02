@@ -61,6 +61,8 @@ local function test_http_request()
 	assert_true(output:find("tenant-bridge.js", 1, true) == nil, "expected no tenant bridge hook")
 	assert_true(output:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected local htmx asset")
 	assert_true(output:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected local petite-vue asset")
+	assert_true(output:find('/shell/hooks/editor.js', 1, true) ~= nil, "expected editor hook asset")
+	assert_true(output:find('/shell/hooks/terminal.js', 1, true) ~= nil, "expected terminal hook asset")
 	assert_true(output:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected shell switch button")
 	assert_true(output:find('hx-post="/save/current"', 1, true) ~= nil, "expected shell save button")
 	assert_true(output:find('hx-target="#shell-content"', 1, true) ~= nil, "expected shell fragment target")
@@ -79,6 +81,8 @@ local function test_response_builder()
 	assert_true(response.body:find("tenant-bridge.js", 1, true) == nil, "expected no shell bridge hook")
 	assert_true(response.body:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected local htmx asset")
 	assert_true(response.body:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected local petite-vue asset")
+	assert_true(response.body:find('/shell/hooks/editor.js', 1, true) ~= nil, "expected editor hook asset")
+	assert_true(response.body:find('/shell/hooks/terminal.js', 1, true) ~= nil, "expected terminal hook asset")
 	assert_true(response.body:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected switch button")
 end
 
@@ -120,11 +124,49 @@ local function test_raw_asset_requests()
 	assert_true(browser_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected browser asset to respond")
 	assert_true(browser_js:find("fuwaBrowser", 1, true) ~= nil, "expected browser.js contents")
 
+	local editor_js = run_command(
+		"printf 'GET /shell/hooks/editor.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(editor_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected editor hook to respond")
+	assert_true(editor_js:find("window.FuwaShellEditor", 1, true) ~= nil, "expected editor hook contract")
+	assert_true(editor_js:find("data-editor-root", 1, true) ~= nil, "expected editor mount selector")
+
+	local terminal_js = run_command(
+		"printf 'GET /shell/hooks/terminal.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(terminal_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected terminal hook to respond")
+	assert_true(terminal_js:find("window.FuwaShellTerminal", 1, true) ~= nil, "expected terminal hook contract")
+	assert_true(terminal_js:find("data-terminal-root", 1, true) ~= nil, "expected terminal mount selector")
+
 	local vendor_js = run_command(
 		"printf 'GET /vendor/htmx/htmx-1.9.12.min.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
 	)
 	assert_true(vendor_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected vendor asset to respond")
 	assert_true(vendor_js:find("htmx", 1, true) ~= nil, "expected htmx vendor contents")
+
+	local gsap_js = run_command(
+		"printf 'GET /vendor/gsap/gsap-3.15.0.min.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(gsap_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected gsap vendor asset to respond")
+	assert_true(gsap_js:find("gsap", 1, true) ~= nil, "expected gsap vendor contents")
+
+	local unocss_js = run_command(
+		"printf 'GET /vendor/unocss/runtime-mini-66.7.0.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(unocss_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected unocss vendor asset to respond")
+	assert_true(unocss_js:find("__unocss_runtime", 1, true) ~= nil, "expected unocss runtime contents")
+
+	local xterm_css = run_command(
+		"printf 'GET /vendor/xterm/xterm-6.0.0.css HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(xterm_css:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected xterm css asset to respond")
+	assert_true(xterm_css:find(".xterm", 1, true) ~= nil, "expected xterm css contents")
+
+	local codemirror_state = run_command(
+		"printf 'GET /vendor/codemirror/state-6.6.0.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(codemirror_state:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected codemirror vendor asset to respond")
+	assert_true(codemirror_state:find("class Text", 1, true) ~= nil, "expected codemirror state contents")
 end
 
 local function test_current_payload_interaction()

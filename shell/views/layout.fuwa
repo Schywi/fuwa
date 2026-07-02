@@ -7,6 +7,8 @@
     <title>&title</title>
     <script src="/vendor/htmx/htmx-1.9.12.min.js"></script>
     <script defer src="/vendor/petite-vue/petite-vue-0.4.1.iife.js"></script>
+    <script defer src="/shell/hooks/editor.js"></script>
+    <script defer src="/shell/hooks/terminal.js"></script>
     <style>
       :root {
         color-scheme: light;
@@ -360,6 +362,27 @@
         gap: 12px;
       }
 
+      .shell-widget-shell {
+        display: grid;
+        align-items: center;
+        min-height: 112px;
+        padding: 14px 16px;
+        border: 1px dashed rgba(31, 41, 55, 0.14);
+        border-radius: 20px;
+        background: rgba(31, 41, 55, 0.03);
+      }
+
+      .shell-widget-shell[data-widget-state="mounted"] {
+        border-style: solid;
+      }
+
+      .shell-widget-placeholder {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.5;
+        font-size: 0.88rem;
+      }
+
       .shell-editor textarea {
         width: 100%;
         min-height: 340px;
@@ -392,6 +415,11 @@
         border: 0;
         border-radius: 22px;
         background: #fff;
+      }
+
+      .shell-terminal {
+        display: grid;
+        gap: 12px;
       }
 
       @media (max-width: 1080px) {
