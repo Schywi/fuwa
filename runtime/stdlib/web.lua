@@ -3,6 +3,15 @@
 
 local M = {}
 
+local function url_decode(value)
+  value = tostring(value or "")
+  value = value:gsub("+", " ")
+  value = value:gsub("%%(%x%x)", function(hex)
+    return string.char(tonumber(hex, 16))
+  end)
+  return value
+end
+
 -- ── response helpers (imported by compiled action modules) ───────────────────
 
 function M.render(view, data)
@@ -94,19 +103,19 @@ function M.app(routes)
 
     -- parse body as form (key=value&key2=value2)
     local form = {}
-    if body then
-      for k, v in (body .. "&"):gmatch("([^=&]+)=([^&]*)&") do
-        form[k] = v
-      end
+  if body then
+    for k, v in (body .. "&"):gmatch("([^=&]+)=([^&]*)&") do
+      form[url_decode(k)] = url_decode(v)
     end
+  end
 
     -- parse query params
     local query = {}
-    if query_string and query_string ~= "" then
-      for k, v in (query_string .. "&"):gmatch("([^=&]+)=([^&]*)&") do
-        query[k] = v
-      end
+  if query_string and query_string ~= "" then
+    for k, v in (query_string .. "&"):gmatch("([^=&]+)=([^&]*)&") do
+      query[url_decode(k)] = url_decode(v)
     end
+  end
 
     for _, route_def in ipairs(routes) do
       if route_def.method == method then

@@ -1,5 +1,6 @@
 # Local refactoring notes that should stay out of the public repo
 docs/refactoring/htmx-rewrite-notes.local.md
+docs/refactoring/
 .fuwa-dev/
 .agent
 AGENTS.md

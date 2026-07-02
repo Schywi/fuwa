@@ -33,6 +33,39 @@ local function write_all(path, contents)
 	file:close()
 end
 
+local function status_line(status)
+	if status == 302 then
+		return "HTTP/1.1 302 Found"
+	end
+	if status == 404 then
+		return "HTTP/1.1 404 Not Found"
+	end
+	if status == 500 then
+		return "HTTP/1.1 500 Internal Server Error"
+	end
+	return "HTTP/1.1 200 OK"
+end
+
+local function content_type_for(path)
+	local lower = tostring(path or ""):lower()
+	if lower:match("%.js$") then
+		return "application/javascript; charset=utf-8"
+	end
+	if lower:match("%.css$") then
+		return "text/css; charset=utf-8"
+	end
+	if lower:match("%.json$") then
+		return "application/json; charset=utf-8"
+	end
+	if lower:match("%.svg$") then
+		return "image/svg+xml"
+	end
+	if lower:match("%.txt$") then
+		return "text/plain; charset=utf-8"
+	end
+	return "text/plain; charset=utf-8"
+end
+
 local function file_exists(path)
 	local file = io.open(path, "rb")
 	if file then
@@ -269,6 +302,24 @@ local function split_payload_route(path)
 	end
 
 	return nil, nil
+end
+
+local function serve_static_asset(path)
+	local contents = read_all(path)
+	if contents == nil then
+		return nil
+	end
+
+	return {
+		status = 200,
+		headers = {
+			["Content-Type"] = content_type_for(path),
+			["Content-Length"] = tostring(#contents),
+			["Cache-Control"] = "no-cache",
+			["Connection"] = "close",
+		},
+		body = contents,
+	}
 end
 
 local function load_chunk(source, name)
@@ -695,8 +746,7 @@ local function read_request()
 end
 
 local function write_http_response(response)
-	local status_line = response.status == 500 and "HTTP/1.1 500 Internal Server Error" or "HTTP/1.1 200 OK"
-	io.stdout:write(status_line, "\r\n")
+	io.stdout:write(status_line(response.status), "\r\n")
 	for name, value in pairs(response.headers or {}) do
 		io.stdout:write(name, ": ", value, "\r\n")
 	end
@@ -762,6 +812,45 @@ function M.run()
 		return
 	end
 
+	if request.path:match("^/shell/hooks/") then
+		local relative_path = request.path:gsub("^/shell/", "", 1)
+		local asset = serve_static_asset(shell_root .. "/" .. relative_path)
+		if asset then
+			write_http_response(asset)
+		else
+			write_http_response({
+				status = 404,
+				headers = {
+					["Content-Type"] = "text/plain; charset=utf-8",
+					["Content-Length"] = "9",
+					["Connection"] = "close",
+				},
+				body = "Not found",
+			})
+		end
+		return
+	end
+
+	local payload_id, inner_path = split_payload_route(request.path)
+	if payload_id and inner_path and inner_path ~= "/" and inner_path:match("%.[^/]+$") and not inner_path:match("%.fuwa$") then
+		local asset_path = payloads_root .. "/" .. payload_id .. inner_path
+		local asset = serve_static_asset(asset_path)
+		if asset then
+			write_http_response(asset)
+		else
+			write_http_response({
+				status = 404,
+				headers = {
+					["Content-Type"] = "text/plain; charset=utf-8",
+					["Content-Length"] = "9",
+					["Connection"] = "close",
+				},
+				body = "Not found",
+			})
+		end
+		return
+	end
+
 	if request.path == "/__dev/reload" then
 		handle_reload_request()
 		return
@@ -769,8 +858,8 @@ function M.run()
 
 	local response
 	if request.path:match("^/payload/") then
-		local payload_id, inner_path = split_payload_route(request.path)
-		if payload_id then
+		local payload_id2, inner_path2 = split_payload_route(request.path)
+		if payload_id2 then
 			if request.path:match("^/payload/[^/]+$") and request.method == "GET" then
 				write_http_response({
 					status = 302,
@@ -784,9 +873,9 @@ function M.run()
 			end
 
 			response = M.build_response(
-				payloads_root .. "/" .. payload_id,
+				payloads_root .. "/" .. payload_id2,
 				request.method,
-				inner_path,
+				inner_path2,
 				request.body,
 				{
 					db_provider_name = "sqlite_local",
