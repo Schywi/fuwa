@@ -33,6 +33,12 @@ local function cleanup_temp_db(path)
 	os.remove(path .. "-shm")
 end
 
+local function encode_form_component(value)
+	return (tostring(value or ""):gsub("\n", "\r\n"):gsub("([^%w%-%._~])", function(char)
+		return string.format("%%%02X", char:byte())
+	end))
+end
+
 local function with_temp_sqlite_provider(fn)
 	local path = os.tmpname() .. ".sqlite"
 	local provider = db.new("sqlite_local", { path = path })
@@ -61,8 +67,10 @@ local function test_http_request()
 	assert_true(output:find("tenant-bridge.js", 1, true) == nil, "expected no tenant bridge hook")
 	assert_true(output:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected local htmx asset")
 	assert_true(output:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected local petite-vue asset")
+	assert_true(output:find('/vendor/xterm/xterm-6.0.0.css', 1, true) ~= nil, "expected local xterm stylesheet")
 	assert_true(output:find('/shell/hooks/editor.js', 1, true) ~= nil, "expected editor hook asset")
 	assert_true(output:find('/shell/hooks/terminal.js', 1, true) ~= nil, "expected terminal hook asset")
+	assert_true(output:find('@codemirror/state', 1, true) ~= nil, "expected codemirror import map")
 	assert_true(output:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected shell switch button")
 	assert_true(output:find('hx-post="/save/current"', 1, true) ~= nil, "expected shell save button")
 	assert_true(output:find('hx-target="#shell-content"', 1, true) ~= nil, "expected shell fragment target")
@@ -81,8 +89,10 @@ local function test_response_builder()
 	assert_true(response.body:find("tenant-bridge.js", 1, true) == nil, "expected no shell bridge hook")
 	assert_true(response.body:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected local htmx asset")
 	assert_true(response.body:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected local petite-vue asset")
+	assert_true(response.body:find('/vendor/xterm/xterm-6.0.0.css', 1, true) ~= nil, "expected local xterm stylesheet")
 	assert_true(response.body:find('/shell/hooks/editor.js', 1, true) ~= nil, "expected editor hook asset")
 	assert_true(response.body:find('/shell/hooks/terminal.js', 1, true) ~= nil, "expected terminal hook asset")
+	assert_true(response.body:find('@codemirror/state', 1, true) ~= nil, "expected codemirror import map")
 	assert_true(response.body:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected switch button")
 end
 
@@ -95,6 +105,7 @@ local function test_shell_switch_route()
 	assert_true(response.body:find('id="shell-content"', 1, true) ~= nil, "expected shell workspace fragment")
 	assert_true(response.body:find('hx-post="/save/lesson"', 1, true) ~= nil, "expected lesson save action")
 	assert_true(response.body:find('hx-get="/inspect/lesson?file=', 1, true) ~= nil, "expected lesson file inspection links")
+	assert_true(response.body:find('Save + run', 1, true) ~= nil, "expected save and run label")
 	assert_true(response.body:find("<include", 1, true) == nil, "expected rendered HTML, not literal include tags")
 end
 
@@ -130,6 +141,8 @@ local function test_raw_asset_requests()
 	assert_true(editor_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected editor hook to respond")
 	assert_true(editor_js:find("window.FuwaShellEditor", 1, true) ~= nil, "expected editor hook contract")
 	assert_true(editor_js:find("data-editor-root", 1, true) ~= nil, "expected editor mount selector")
+	assert_true(editor_js:find("new EditorView", 1, true) ~= nil, "expected codemirror mount")
+	assert_true(editor_js:find("textarea.hidden = true", 1, true) ~= nil, "expected fallback textarea handoff")
 
 	local terminal_js = run_command(
 		"printf 'GET /shell/hooks/terminal.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
@@ -137,6 +150,7 @@ local function test_raw_asset_requests()
 	assert_true(terminal_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected terminal hook to respond")
 	assert_true(terminal_js:find("window.FuwaShellTerminal", 1, true) ~= nil, "expected terminal hook contract")
 	assert_true(terminal_js:find("data-terminal-root", 1, true) ~= nil, "expected terminal mount selector")
+	assert_true(terminal_js:find("new Terminal", 1, true) ~= nil, "expected xterm mount")
 
 	local vendor_js = run_command(
 		"printf 'GET /vendor/htmx/htmx-1.9.12.min.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
@@ -167,6 +181,12 @@ local function test_raw_asset_requests()
 	)
 	assert_true(codemirror_state:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected codemirror vendor asset to respond")
 	assert_true(codemirror_state:find("class Text", 1, true) ~= nil, "expected codemirror state contents")
+
+	local codemirror_style_mod = run_command(
+		"printf 'GET /vendor/codemirror/style-mod-4.1.3.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(codemirror_style_mod:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected codemirror style-mod asset to respond")
+	assert_true(codemirror_style_mod:find("StyleModule", 1, true) ~= nil, "expected style-mod contents")
 end
 
 local function test_current_payload_interaction()
@@ -195,6 +215,27 @@ local function test_current_payload_interaction()
 		assert_true(second.body:find("EventSource('/__dev/reload')", 1, true) == nil, "expected fragment response without reload script")
 		assert_true(second.body:find('hx-post="/payload/current/counter"', 1, true) ~= nil, "expected absolute counter route")
 	end)
+end
+
+local function test_shell_save_run_loop()
+	local path = "payloads/current/pages/home.fuwa"
+	local original = read_file(path)
+	local body = "path=" .. encode_form_component("pages/home.fuwa") .. "&contents=" .. encode_form_component(original)
+
+	local ok, err = pcall(function()
+		local response = dev.build_response("shell", "POST", "/save/current", body, {
+			allow_host = true,
+		})
+
+		assert_true(response.status == 200, "expected shell save route to succeed")
+		assert_true(response.body:find("Build ok", 1, true) ~= nil, "expected compile success status")
+		assert_true(response.body:find("$ save pages/home.fuwa", 1, true) ~= nil, "expected save line in terminal seed")
+		assert_true(response.body:find("$ package_web.build current", 1, true) ~= nil, "expected compile line in terminal seed")
+		assert_true(response.body:find('data-terminal-root', 1, true) ~= nil, "expected terminal root in fragment")
+	end)
+
+	write_file(path, original)
+	assert_true(ok, err)
 end
 
 local function test_db_helper()
@@ -238,6 +279,7 @@ test_shell_switch_route()
 test_payload_route_request()
 test_raw_asset_requests()
 test_current_payload_interaction()
+test_shell_save_run_loop()
 test_db_helper()
 
 print("dev server smoke checks passed")

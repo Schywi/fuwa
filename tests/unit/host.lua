@@ -69,7 +69,7 @@ end
 <include src="views/layout.fuwa" />
 ]])
 	write_file(root .. "/current/browser.js", "document.documentElement.dataset.fuwaBrowser = 'current'\n")
-	write_file(root .. "/current/pages/home.fuwa", "module Home\nend\n")
+	write_file(root .. "/current/pages/home.fuwa", "module Home\naction index(req) do\n  render \"home\"\nend\n")
 	write_file(root .. "/current/views/home.fuwa", "<main>Current payload</main>\n")
 	write_file(root .. "/current/views/layout.fuwa", "<html><body><include src=\"views/home.fuwa\" /><script src=\"browser.js\"></script></body></html>\n")
 
@@ -88,7 +88,7 @@ end
 <include src="views/layout.fuwa" />
 ]])
 	write_file(root .. "/lesson/browser.js", "document.documentElement.dataset.fuwaBrowser = 'lesson'\n")
-	write_file(root .. "/lesson/pages/home.fuwa", "module Home\nend\n")
+	write_file(root .. "/lesson/pages/home.fuwa", "module Home\naction index(req) do\n  render \"home\"\nend\n")
 	write_file(root .. "/lesson/views/home.fuwa", "<main>Lesson payload</main>\n")
 	write_file(root .. "/lesson/views/layout.fuwa", "<html><body><include src=\"views/home.fuwa\" /><script src=\"browser.js\"></script></body></html>\n")
 
@@ -158,6 +158,28 @@ t.test("switch_payload updates the active payload and primary slot", function()
 		local active = host.mount_payload("preview")
 		t.truthy(active:find('data-host-slot="preview"', 1, true) ~= nil, "expected preview slot to persist")
 		t.truthy(active:find("lesson", 1, true) ~= nil, "expected active payload to persist")
+	end)
+end)
+
+t.test("compile_payload reports success and diagnostics through the host seam", function()
+	with_temp_payloads(function(root)
+		local host = host_caps.new({
+			root_dir = ".",
+			payload_root = root,
+		})
+
+		local success = host.compile_payload("current")
+		t.truthy(success.ok == true, "expected compile to succeed")
+		t.truthy(success.value.success == true, "expected successful payload compile")
+		t.truthy(success.value.output:find("Build ok", 1, true) ~= nil, "expected success output")
+		t.truthy(success.value.output:find("Preview route: /payload/current/", 1, true) ~= nil, "expected preview route in output")
+
+		host.write_payload_file("current", "pages/home.fuwa", "module Home\naction index(req) do\n  render \"home\"\n")
+		local failure = host.compile_payload("current")
+		t.truthy(failure.ok == true, "expected compile result envelope")
+		t.truthy(failure.value.success == false, "expected failing payload compile")
+		t.truthy(failure.value.output:find("Build failed", 1, true) ~= nil, "expected failure output")
+		t.truthy(failure.value.output:find("Unexpected EOF while parsing action block", 1, true) ~= nil, "expected diagnostic text")
 	end)
 end)
 
