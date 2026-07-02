@@ -1,4 +1,5 @@
 local provider = require("runtime.db.provider")
+local log = require("runtime.log")
 
 local M = {}
 
@@ -15,6 +16,14 @@ local function ensure_collection(state, name)
 		state.collections[name] = collection
 	end
 	return collection
+end
+
+local function collection_size(collection)
+	local count = 0
+	for _ in pairs(collection or {}) do
+		count = count + 1
+	end
+	return count
 end
 
 local function normalize_id(value)
@@ -71,7 +80,9 @@ function M.new(opts)
 	local state = ensure_state(provider.clone(opts.state or {}))
 	local now = opts.now
 
-	local instance = {}
+	local instance = {
+		__name = "memory",
+	}
 
 	function instance:op(command)
 		command = command or {}
@@ -85,7 +96,13 @@ function M.new(opts)
 
 		if op == "all" then
 			local rows = collection_rows(collection)
-			return provider.ok(provider.filter_rows(rows, nil, command.order, command.limit))
+			local response = provider.ok(provider.filter_rows(rows, nil, command.order, command.limit))
+			log.log("db", "memory", {
+				collection = command.collection,
+				op = op,
+				rows = #response.value,
+			})
+			return response
 		end
 
 		if op == "find" then
@@ -93,7 +110,14 @@ function M.new(opts)
 			if row == nil then
 				return response_not_found(command.collection, command.id)
 			end
-			return provider.ok(provider.clone(row))
+			local response = provider.ok(provider.clone(row))
+			log.log("db", "memory", {
+				collection = command.collection,
+				id = row.id,
+				op = op,
+				rows = collection_size(collection),
+			})
+			return response
 		end
 
 		if op == "find_by" then
@@ -105,7 +129,13 @@ function M.new(opts)
 			if row == nil then
 				return response_not_found(command.collection, "(where)")
 			end
-			return provider.ok(row)
+			local response = provider.ok(row)
+			log.log("db", "memory", {
+				collection = command.collection,
+				op = op,
+				rows = 1,
+			})
+			return response
 		end
 
 		if op == "where" then
@@ -114,7 +144,13 @@ function M.new(opts)
 			end
 
 			local rows = collection_rows(collection)
-			return provider.ok(provider.filter_rows(rows, command.where, command.order, command.limit))
+			local response = provider.ok(provider.filter_rows(rows, command.where, command.order, command.limit))
+			log.log("db", "memory", {
+				collection = command.collection,
+				op = op,
+				rows = #response.value,
+			})
+			return response
 		end
 
 		if op == "create" or op == "insert" then
@@ -142,7 +178,15 @@ function M.new(opts)
 			end
 
 			collection[id] = row
-			return provider.ok(provider.clone(row))
+			local response = provider.ok(provider.clone(row))
+			log.log("db", "memory", {
+				collection = command.collection,
+				id = id,
+				op = op,
+				rows = collection_size(collection),
+				saved = true,
+			})
+			return response
 		end
 
 		if op == "update" then
@@ -162,7 +206,15 @@ function M.new(opts)
 			end
 			row.updated_at = provider.now_iso(now)
 
-			return provider.ok(provider.clone(row))
+			local response = provider.ok(provider.clone(row))
+			log.log("db", "memory", {
+				collection = command.collection,
+				id = id,
+				op = op,
+				rows = collection_size(collection),
+				saved = true,
+			})
+			return response
 		end
 
 		if op == "delete" then
@@ -176,6 +228,13 @@ function M.new(opts)
 			end
 
 			collection[id] = nil
+			log.log("db", "memory", {
+				collection = command.collection,
+				id = id,
+				op = op,
+				rows = collection_size(collection),
+				saved = true,
+			})
 			return provider.ok(true)
 		end
 

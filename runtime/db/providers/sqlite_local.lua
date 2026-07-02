@@ -1,4 +1,5 @@
 local provider = require("runtime.db.provider")
+local log = require("runtime.log")
 
 local M = {}
 
@@ -102,15 +103,30 @@ function M.new(opts)
 	local db_path = tostring(opts.path or os.getenv("FUWA_DB_PATH") or ".fuwa-dev/sqlite-local.db")
 	local python_bin = tostring(opts.python_bin or os.getenv("PYTHON_BIN") or "python3")
 
-	local instance = {}
+	local instance = {
+		__name = "sqlite_local",
+		__path = db_path,
+	}
 
 	function instance:op(command)
 		command = command or {}
+		log.log("db", "sqlite_local", {
+			collection = command.collection,
+			op = command.op,
+			path = db_path,
+		})
 
 		if not provider.is_valid_collection_name(command.collection) then
-			return provider.err("invalid_command", "Invalid collection name", {
+			local response = provider.err("invalid_command", "Invalid collection name", {
 				collection = command.collection
 			})
+			log.log("db", "sqlite_local_err", {
+				collection = command.collection,
+				kind = response.err.kind,
+				op = command.op,
+				path = db_path,
+			})
+			return response
 		end
 
 		ensure_parent_dir(db_path)
@@ -132,7 +148,24 @@ function M.new(opts)
 
 		local response_chunk, err = load("return " .. output, "@sqlite-local-response", "t", {})
 		assert(response_chunk, err)
-		return response_chunk()
+		local response = response_chunk()
+		if response and response.ok then
+			log.log("db", "sqlite_local_ok", {
+				collection = command.collection,
+				id = type(response.value) == "table" and response.value.id or nil,
+				op = command.op,
+				path = db_path,
+			})
+		else
+			local response_err = response and response.err or {}
+			log.log("db", "sqlite_local_err", {
+				collection = command.collection,
+				kind = response_err.kind,
+				op = command.op,
+				path = db_path,
+			})
+		end
+		return response
 	end
 
 	return instance

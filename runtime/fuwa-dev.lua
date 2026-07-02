@@ -156,6 +156,7 @@ package.path = root_dir .. "/?.lua;" .. root_dir .. "/?/init.lua;" .. root_dir .
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local package_web = require("runtime.stdlib.compiler.package_web")
 local runtime_db = require("runtime.db")
+local log = require("runtime.log")
 
 local runtime_preloads = {
 	["runtime.stdlib.db"] = "runtime/stdlib/db.lua",
@@ -480,12 +481,23 @@ end
 function M.build_response(root, method, path, body, opts)
 	local db_provider = resolve_db_provider(opts)
 	runtime_db.set_provider(db_provider)
+	log.log("dev", "request", {
+		method = method,
+		path = path,
+		provider = db_provider.__name or "custom",
+		db_path = db_provider.__path,
+	})
 	register_runtime_preloads()
 
 	local source_files = M.collect_payload_files(root or payload_root)
 	local build = package_web.build(source_files)
 
 	if diagnostics.has_errors(build.diagnostics) then
+		log.log("dev", "compile_error", {
+			method = method,
+			path = path,
+			errors = #build.diagnostics,
+		})
 		return {
 			status = 500,
 			headers = {
@@ -525,6 +537,12 @@ function M.build_response(root, method, path, body, opts)
 	if method == "GET" then
 		html = render_reload_script(html)
 	end
+	log.log("dev", "response", {
+		bytes = #html,
+		method = method,
+		path = path,
+		status = 200,
+	})
 
 	return {
 		status = 200,
@@ -652,6 +670,10 @@ function M.run()
 	if not request then
 		return
 	end
+	log.log("dev", "serve", {
+		method = request.method,
+		path = request.path,
+	})
 
 	if request.path == "/__dev/reload" then
 		handle_reload_request()
