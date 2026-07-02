@@ -16,6 +16,23 @@
         <span class="shell-chip">No compiler special cases</span>
         <span class="shell-chip">Host capability resolved at runtime</span>
       </div>
+
+      <section class="shell-switcher">
+        <div class="shell-switcher-copy">
+          <p class="shell-kicker">Payload switch</p>
+          <h2>Swap the mounted tenant</h2>
+          <p>One htmx post calls host.switch_payload and replaces the preview iframe in place.</p>
+        </div>
+        <button
+          type="button"
+          class="shell-button shell-button-primary"
+          hx-post="/switch/lesson"
+          hx-target="#shell-preview"
+          hx-swap="innerHTML"
+        >
+          Load lesson payload
+        </button>
+      </section>
     </section>
 
     <aside class="shell-rail">
@@ -39,7 +56,7 @@
       <div class="shell-preview-note">Sandboxed iframe, host-owned mount seam</div>
     </div>
 
-    <div class="shell-preview-stage">
+    <div id="shell-preview" class="shell-preview-stage">
       &unsafe preview_html
     </div>
   </section>

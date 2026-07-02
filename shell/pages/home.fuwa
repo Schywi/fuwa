@@ -5,5 +5,9 @@ use host
 action index(req) do
   preview_html = host.mount_payload("preview", "current")
 
-  render "home", eyebrow: "Privileged shell", title: "Fuwa Shell", summary: "The host is now a Fuwa app. It compiles through the same Lua engine and uses the same view stack. The current payload is mounted into a sandboxed preview slot through a host capability.", rail_title: "Phase 2 proof", rail_body: "The host shell is authored in .fuwa and resolves the host capability at runtime while staying compiler-agnostic.", preview_html: preview_html
+  render "home", eyebrow: "Privileged shell", title: "Fuwa Shell", summary: "The host is now a Fuwa app. It compiles through the same Lua engine and mounts a sandboxed tenant through one host capability.", rail_title: "Phase 3 proof", rail_body: "The shell stays compiler-agnostic while one htmx post replaces the mounted payload in place.", preview_html: preview_html
+end
+
+action switch(req) do
+  return host.switch_payload(req.params.payload_id)
 end

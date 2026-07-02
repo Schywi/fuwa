@@ -240,18 +240,34 @@ function M.new(opts)
 		__name = "host",
 		__root = root_dir,
 		__payload_root = payload_root,
+		__active_slot = nil,
+		__active_payload_id = nil,
 	}
 
 	function instance.mount_payload(slot, payload_id)
 		slot = tostring(slot or "preview")
-		payload_id = tostring(payload_id or "current")
+		payload_id = tostring(payload_id or instance.__active_payload_id or "current")
 
 		local html, err = render_payload(slot, root_dir, payload_root, payload_id, opts)
-		if html ~= nil then
-			return html
+		if html == nil then
+			return err
 		end
 
-		return err
+		instance.__active_slot = slot
+		instance.__active_payload_id = payload_id
+		return html
+	end
+
+	function instance.switch_payload(payload_id)
+		payload_id = tostring(payload_id or instance.__active_payload_id or "current")
+		local html, err = render_payload("primary", root_dir, payload_root, payload_id, opts)
+		if html == nil then
+			return err
+		end
+
+		instance.__active_slot = "primary"
+		instance.__active_payload_id = payload_id
+		return html
 	end
 
 	return instance

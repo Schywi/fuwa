@@ -1,4 +1,4 @@
-module Shell
+module App
 
 import
   Home "pages/home"
@@ -6,5 +6,4 @@ end
 
 routes do
   GET "/" Home.index
-  POST "/switch/:payload_id" Home.switch
 end

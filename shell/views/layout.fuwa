@@ -149,6 +149,53 @@
         font-weight: 650;
       }
 
+      .shell-switcher {
+        display: grid;
+        gap: 14px;
+        padding: 20px;
+        border-radius: 28px;
+        border: 1px solid rgba(196, 125, 51, 0.18);
+        background: rgba(255, 255, 255, 0.54);
+      }
+
+      .shell-switcher-copy {
+        display: grid;
+        gap: 8px;
+      }
+
+      .shell-switcher-copy h2 {
+        margin: 0;
+        font-size: 1.15rem;
+        letter-spacing: -0.03em;
+      }
+
+      .shell-switcher-copy p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .shell-button {
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 12px 16px;
+        font-size: 0.9rem;
+        font-weight: 750;
+        cursor: pointer;
+        transition: transform 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease;
+      }
+
+      .shell-button:hover {
+        transform: translateY(-1px);
+      }
+
+      .shell-button-primary {
+        color: #fff;
+        background: linear-gradient(135deg, #c47d33, #9f5617);
+        box-shadow: 0 12px 24px rgba(159, 86, 23, 0.18);
+        border-color: transparent;
+      }
+
       .shell-rail {
         padding: 48px 24px 48px 0;
         display: grid;

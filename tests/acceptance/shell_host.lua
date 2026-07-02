@@ -52,11 +52,22 @@ end
 return function(t)
 	t.test("host mounts the current payload into a sandboxed preview iframe", function()
 		local host = host_caps.new({ root_dir = "." })
-			local preview = host.mount_payload("preview", "current")
+		local preview = host.mount_payload("preview", "current")
 
 		t.truthy(preview:find('data-host-slot="preview"', 1, true) ~= nil, "expected preview slot attribute")
 		t.truthy(preview:find('sandbox="allow-scripts allow-forms"', 1, true) ~= nil, "expected sandboxed iframe")
 		t.truthy(preview:find("Fuwa Dev", 1, true) ~= nil, "expected mounted payload content")
+	end)
+
+	t.test("host switches to the lesson payload through the primary slot", function()
+		local host = host_caps.new({ root_dir = "." })
+
+		local switched = host.switch_payload("lesson")
+		t.truthy(switched:find('data-host-slot="primary"', 1, true) ~= nil, "expected primary slot attribute")
+		t.truthy(switched:find("Fuwa Lesson", 1, true) ~= nil, "expected lesson payload content")
+
+		local active = host.mount_payload("preview")
+		t.truthy(active:find("Fuwa Lesson", 1, true) ~= nil, "expected active payload to track the switch")
 	end)
 
 	t.test("tenant payloads cannot resolve host", function()
