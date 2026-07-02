@@ -40,6 +40,7 @@ end
 return function(t)
 	t.test("current payload renders identically with memory and sqlite_local", function()
 		local memory_get, memory_post1, memory_post2 = render_sequence(db.new("memory"))
+		t.truthy(memory_get.body:find("<!DOCTYPE html>", 1, true) == 1, "expected doctype first")
 		assert_payload_markup(t, memory_get)
 		t.truthy(memory_post1.body:find("Clicks: 1", 1, true) ~= nil, "expected first increment")
 		t.truthy(memory_post2.body:find("Clicks: 2", 1, true) ~= nil, "expected second increment")

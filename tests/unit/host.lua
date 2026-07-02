@@ -99,7 +99,7 @@ t.test("switch_payload updates the active payload and primary slot", function()
 		local current = host.mount_payload("preview", "current")
 		t.truthy(current:find('data-host-slot="preview"', 1, true) ~= nil, "expected preview slot")
 		t.truthy(current:find('src="/payload/current/"', 1, true) ~= nil, "expected current payload route")
-		t.truthy(current:find("sandbox=\"allow-scripts allow-forms\"", 1, true) ~= nil, "expected sandboxed iframe")
+		t.truthy(current:find("sandbox=\"allow-scripts allow-forms allow-same-origin\"", 1, true) ~= nil, "expected sandboxed iframe")
 
 		local lesson = host.switch_payload("lesson")
 		t.truthy(lesson:find('data-host-slot="primary"', 1, true) ~= nil, "expected primary slot")

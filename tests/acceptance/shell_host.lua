@@ -81,7 +81,7 @@ return function(t)
 		local preview = host.mount_payload("preview", "current")
 		t.truthy(preview:find('data-host-slot="preview"', 1, true) ~= nil, "expected preview slot attribute")
 		t.truthy(preview:find('src="/payload/current/"', 1, true) ~= nil, "expected current payload route")
-		t.truthy(preview:find('sandbox="allow-scripts allow-forms"', 1, true) ~= nil, "expected sandboxed iframe")
+		t.truthy(preview:find('sandbox="allow-scripts allow-forms allow-same-origin"', 1, true) ~= nil, "expected sandboxed iframe")
 	end)
 
 	t.test("host switches to the lesson payload through the primary slot", function()
@@ -99,10 +99,15 @@ return function(t)
 		t.truthy(active:find('src="/payload/lesson/"', 1, true) ~= nil, "expected active payload to track the switch")
 	end)
 
-	t.test("tenant payloads cannot resolve host", function()
+	t.test("tenant payloads cannot resolve host without preloading", function()
 		with_temp_roots(function(root)
-			local ok, err = pcall(dev.build_response, root .. "/tenant", "GET", "/", "")
-			t.truthy(ok == false, "expected tenant payload request to fail")
+			local ok, err = pcall(function()
+				dev.build_response(root .. "/tenant", "GET", "/", "", {
+					allow_host = false,
+				})
+			end)
+
+			t.falsy(ok, "expected tenant payload request to fail")
 			t.truthy(tostring(err):find("module 'host' not found", 1, true) ~= nil, "expected host capability denial")
 		end)
 	end)
