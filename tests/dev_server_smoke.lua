@@ -70,7 +70,10 @@ local function test_http_request()
 	assert_true(output:find('/vendor/xterm/xterm-6.0.0.css', 1, true) ~= nil, "expected local xterm stylesheet")
 	assert_true(output:find('/shell/hooks/editor.js', 1, true) ~= nil, "expected editor hook asset")
 	assert_true(output:find('/shell/hooks/terminal.js', 1, true) ~= nil, "expected terminal hook asset")
-	assert_true(output:find('@codemirror/state', 1, true) ~= nil, "expected codemirror import map")
+	assert_true(output:find('<script type="importmap">', 1, true) ~= nil, "expected import map")
+	assert_true(output:find('"@codemirror/state": "/vendor/codemirror/state-6.6.0.js"', 1, true) ~= nil, "expected literal codemirror import map")
+	assert_true(output:find('&quot;@codemirror/state&quot;', 1, true) == nil, "expected unescaped codemirror import map")
+	assert_true(output:find('.shell-widget-shell[data-widget-state="mounted"]', 1, true) ~= nil, "expected literal CSS selectors")
 	assert_true(output:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected shell switch button")
 	assert_true(output:find('hx-post="/save/current"', 1, true) ~= nil, "expected shell save button")
 	assert_true(output:find('hx-target="#shell-content"', 1, true) ~= nil, "expected shell fragment target")
@@ -92,7 +95,9 @@ local function test_response_builder()
 	assert_true(response.body:find('/vendor/xterm/xterm-6.0.0.css', 1, true) ~= nil, "expected local xterm stylesheet")
 	assert_true(response.body:find('/shell/hooks/editor.js', 1, true) ~= nil, "expected editor hook asset")
 	assert_true(response.body:find('/shell/hooks/terminal.js', 1, true) ~= nil, "expected terminal hook asset")
-	assert_true(response.body:find('@codemirror/state', 1, true) ~= nil, "expected codemirror import map")
+	assert_true(response.body:find('<script type="importmap">', 1, true) ~= nil, "expected import map")
+	assert_true(response.body:find('"@codemirror/state": "/vendor/codemirror/state-6.6.0.js"', 1, true) ~= nil, "expected literal codemirror import map")
+	assert_true(response.body:find('&quot;@codemirror/state&quot;', 1, true) == nil, "expected unescaped codemirror import map")
 	assert_true(response.body:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected switch button")
 end
 
@@ -151,6 +156,18 @@ local function test_raw_asset_requests()
 	assert_true(terminal_js:find("window.FuwaShellTerminal", 1, true) ~= nil, "expected terminal hook contract")
 	assert_true(terminal_js:find("data-terminal-root", 1, true) ~= nil, "expected terminal mount selector")
 	assert_true(terminal_js:find("new Terminal", 1, true) ~= nil, "expected xterm mount")
+
+	local xterm_mjs = run_command(
+		"printf 'GET /vendor/xterm/xterm-6.0.0.mjs HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(xterm_mjs:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected xterm module asset to respond")
+	assert_true(xterm_mjs:find("Content-Type: application/javascript; charset=utf-8", 1, true) ~= nil, "expected xterm module MIME type")
+
+	local xterm_fit = run_command(
+		"printf 'GET /vendor/xterm/addon-fit-0.11.0.mjs HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(xterm_fit:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected xterm addon asset to respond")
+	assert_true(xterm_fit:find("Content-Type: application/javascript; charset=utf-8", 1, true) ~= nil, "expected xterm addon MIME type")
 
 	local vendor_js = run_command(
 		"printf 'GET /vendor/htmx/htmx-1.9.12.min.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"

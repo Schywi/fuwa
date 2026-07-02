@@ -402,6 +402,11 @@ local function render_nodes(nodes, env, opts, ctx)
   return table.concat(out)
 end
 
+local raw_text_tags = {
+  script = true,
+  style = true,
+}
+
 local function parse_if_expr(expr)
   expr = trim(expr)
   local negated = expr:match("^not%s+(.+)$")
@@ -528,6 +533,22 @@ render_node = function(node, env, opts, ctx)
 
     if node.self_closing then
       return open_tag
+    end
+
+    if raw_text_tags[node.name] then
+      local raw_children = {}
+      for _, child in ipairs(node.children) do
+        if child.type ~= "text" then
+          return nil, make_error(
+            "template_error",
+            "Raw text elements only support text children.",
+            ctx,
+            node.line
+          )
+        end
+        raw_children[#raw_children + 1] = child.text
+      end
+      return open_tag .. table.concat(raw_children) .. "</" .. node.name .. ">"
     end
 
     local children_html, child_err = render_nodes(node.children, current_env, opts, ctx)

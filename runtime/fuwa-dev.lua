@@ -51,6 +51,9 @@ local function content_type_for(path)
 	if lower:match("%.js$") then
 		return "application/javascript; charset=utf-8"
 	end
+	if lower:match("%.mjs$") then
+		return "application/javascript; charset=utf-8"
+	end
 	if lower:match("%.css$") then
 		return "text/css; charset=utf-8"
 	end
