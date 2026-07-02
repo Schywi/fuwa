@@ -2,12 +2,28 @@ module Home
 
 use host
 
-action index(req) do
-  preview_html = host.mount_payload("preview", "current")
+import
+  Dashboard "runtime/host/dashboard"
+  ShellViews "runtime/host/shell_views"
+end
 
-  render "home", doctype: "<!DOCTYPE html>", eyebrow: "Privileged shell", title: "Fuwa Shell", summary: "The host is now a Fuwa app. It compiles through the same Lua engine and mounts a sandboxed tenant through one host capability.", rail_title: "Phase 3 proof", rail_body: "The shell stays compiler-agnostic while one htmx post replaces the mounted payload in place.", preview_html: preview_html
+action index(req) do
+  dashboard = Dashboard.build(host, "current", req.query.file)
+  render "home", doctype: "<!DOCTYPE html>", title: "Fuwa Shell", dashboard: dashboard
+end
+
+action inspect(req) do
+  dashboard = Dashboard.build(host, req.params.payload_id, req.query.file)
+  return ShellViews.render_fragment("home", { dashboard = dashboard })
 end
 
 action switch(req) do
-  return host.switch_payload(req.params.payload_id)
+  dashboard = Dashboard.build(host, req.params.payload_id)
+  return ShellViews.render_fragment("home", { dashboard = dashboard })
+end
+
+action save(req) do
+  saved = host.write_payload_file(req.params.payload_id, req.form.path, req.form.contents or "")?
+  dashboard = Dashboard.build(host, req.params.payload_id, req.form.path)
+  return ShellViews.render_fragment("home", { dashboard = dashboard, saved = saved })
 end

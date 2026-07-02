@@ -3,17 +3,23 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="htmx-config" content='{"historyEnabled":false,"selfRequestsOnly":false,"allowScriptTags":false}' />
+    <title>&title</title>
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+    <script defer src="https://unpkg.com/petite-vue"></script>
     <style>
       :root {
         color-scheme: light;
-        --bg: #f5f1e8;
-        --panel: rgba(255, 255, 255, 0.74);
+        --bg: #f4efe5;
+        --panel: rgba(255, 255, 255, 0.78);
+        --panel-strong: rgba(255, 255, 255, 0.92);
         --ink: #1f2937;
         --muted: #5b6472;
+        --faint: rgba(31, 41, 55, 0.08);
         --line: rgba(31, 41, 55, 0.12);
         --accent: #c47d33;
         --accent-soft: rgba(196, 125, 51, 0.12);
+        --accent-strong: #9f5617;
       }
 
       * {
@@ -24,43 +30,51 @@
         margin: 0;
         min-height: 100vh;
         background:
-          radial-gradient(circle at top left, rgba(196, 125, 51, 0.16), transparent 26%),
-          radial-gradient(circle at 85% 20%, rgba(31, 41, 55, 0.08), transparent 24%),
-          var(--bg);
+          radial-gradient(circle at top left, rgba(196, 125, 51, 0.18), transparent 24%),
+          radial-gradient(circle at 84% 18%, rgba(31, 41, 55, 0.08), transparent 22%),
+          linear-gradient(180deg, #f8f3ea 0%, var(--bg) 100%);
         color: var(--ink);
         font-family: Avenir Next, Segoe UI, system-ui, sans-serif;
+      }
+
+      a,
+      button,
+      textarea {
+        font: inherit;
       }
 
       .shell-stage {
         min-height: 100vh;
         padding: 28px;
-        display: grid;
-        place-items: center;
+      }
+
+      .shell-content {
+        width: min(1240px, 100%);
+        margin: 0 auto;
       }
 
       .shell-frame {
-        width: min(1120px, 100%);
+        display: grid;
+        gap: 24px;
+        padding: 24px;
         border: 1px solid var(--line);
-        border-radius: 32px;
+        border-radius: 34px;
         background: var(--panel);
-        backdrop-filter: blur(18px);
         box-shadow: 0 28px 90px rgba(31, 41, 55, 0.14);
-        overflow: hidden;
+        backdrop-filter: blur(18px);
       }
 
       .shell-topbar {
         display: flex;
-        justify-content: space-between;
         align-items: center;
-        gap: 16px;
-        padding: 20px 24px;
-        border-bottom: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.48);
+        justify-content: space-between;
+        gap: 18px;
+        padding: 8px 4px 0;
       }
 
       .shell-brand {
         display: grid;
-        gap: 4px;
+        gap: 6px;
       }
 
       .shell-kicker {
@@ -72,7 +86,7 @@
         font-weight: 800;
       }
 
-      .shell-topbar h1 {
+      .shell-brand h1 {
         margin: 0;
         font-size: 1.05rem;
         letter-spacing: 0.02em;
@@ -84,53 +98,40 @@
         background: var(--accent-soft);
         color: #8a4f14;
         font-size: 0.8rem;
-        font-weight: 700;
+        font-weight: 750;
         white-space: nowrap;
       }
 
       .shell-main {
         display: grid;
-        grid-template-columns: minmax(0, 1.6fr) minmax(240px, 0.8fr);
-        gap: 0;
+        grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.82fr);
+        gap: 20px;
       }
 
       .shell-hero {
-        padding: 56px 48px 48px;
         display: grid;
-        gap: 24px;
-      }
-
-      .shell-eyebrow {
-        display: inline-flex;
-        width: max-content;
-        padding: 8px 12px;
-        border-radius: 999px;
-        background: rgba(31, 41, 55, 0.06);
-        color: var(--muted);
-        text-transform: uppercase;
-        letter-spacing: 0.14em;
-        font-size: 0.72rem;
-        font-weight: 700;
+        gap: 20px;
+        padding: 10px 0 0;
       }
 
       .shell-title {
         margin: 0;
         max-width: 14ch;
         font-family: Iowan Old Style, Palatino Linotype, Georgia, serif;
-        font-size: clamp(3rem, 6vw, 5.6rem);
-        line-height: 0.93;
+        font-size: clamp(3rem, 6vw, 5.8rem);
+        line-height: 0.92;
         letter-spacing: -0.05em;
       }
 
       .shell-summary {
         margin: 0;
-        max-width: 52ch;
+        max-width: 54ch;
         color: var(--muted);
-        line-height: 1.65;
-        font-size: 1.04rem;
+        line-height: 1.68;
+        font-size: 1.05rem;
       }
 
-      .shell-chips {
+      .shell-chip-row {
         display: flex;
         flex-wrap: wrap;
         gap: 10px;
@@ -139,8 +140,8 @@
       .shell-chip {
         padding: 10px 14px;
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.74);
         border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.72);
         color: var(--ink);
         font-size: 0.85rem;
         font-weight: 650;
@@ -152,7 +153,7 @@
         padding: 20px;
         border-radius: 28px;
         border: 1px solid rgba(196, 125, 51, 0.18);
-        background: rgba(255, 255, 255, 0.54);
+        background: rgba(255, 255, 255, 0.58);
       }
 
       .shell-switcher-copy {
@@ -172,10 +173,23 @@
         line-height: 1.55;
       }
 
+      .shell-switcher-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+      }
+
       .shell-button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        min-height: 44px;
+        padding: 0 16px;
         border: 1px solid var(--line);
         border-radius: 999px;
-        padding: 12px 16px;
+        background: rgba(255, 255, 255, 0.84);
+        color: var(--ink);
         font-size: 0.9rem;
         font-weight: 750;
         cursor: pointer;
@@ -186,31 +200,45 @@
         transform: translateY(-1px);
       }
 
+      .shell-button[data-active="true"] {
+        color: #fff;
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+        border-color: transparent;
+        box-shadow: 0 14px 28px rgba(159, 86, 23, 0.18);
+      }
+
       .shell-button-primary {
         color: #fff;
-        background: linear-gradient(135deg, #c47d33, #9f5617);
-        box-shadow: 0 12px 24px rgba(159, 86, 23, 0.18);
+        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
         border-color: transparent;
+        box-shadow: 0 14px 28px rgba(159, 86, 23, 0.18);
+      }
+
+      .shell-button-meta {
+        opacity: 0.78;
+        font-size: 0.8rem;
+        font-weight: 650;
       }
 
       .shell-rail {
-        padding: 48px 24px 48px 0;
         display: grid;
         align-content: start;
         gap: 14px;
       }
 
       .shell-card {
-        padding: 20px 18px;
+        display: grid;
+        gap: 10px;
+        padding: 18px;
         border-radius: 24px;
         border: 1px solid var(--line);
-        background: rgba(255, 255, 255, 0.66);
-        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+        background: var(--panel-strong);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
       }
 
       .shell-card h2 {
-        margin: 0 0 8px;
-        font-size: 0.84rem;
+        margin: 0;
+        font-size: 0.82rem;
         text-transform: uppercase;
         letter-spacing: 0.14em;
         color: var(--accent);
@@ -218,17 +246,24 @@
 
       .shell-card p {
         margin: 0;
-        line-height: 1.6;
         color: var(--muted);
+        line-height: 1.6;
       }
 
-      .shell-preview-shell {
+      .shell-card code {
+        padding: 0.14rem 0.35rem;
+        border-radius: 0.4rem;
+        background: rgba(31, 41, 55, 0.06);
+        color: var(--ink);
+        font-size: 0.88em;
+      }
+
+      .shell-workbench {
         display: grid;
-        gap: 14px;
-        padding: 0 48px 48px;
+        gap: 16px;
       }
 
-      .shell-preview-head {
+      .shell-workbench-head {
         display: flex;
         justify-content: space-between;
         align-items: end;
@@ -236,22 +271,118 @@
         flex-wrap: wrap;
       }
 
-      .shell-preview-head h2 {
+      .shell-workbench-head h2 {
         margin: 0;
         font-size: 1.35rem;
         letter-spacing: -0.03em;
       }
 
-      .shell-preview-note {
+      .shell-workbench-note {
         color: var(--muted);
-        font-size: 0.9rem;
+        font-size: 0.92rem;
       }
 
       .shell-preview-stage {
         padding: 16px;
-        border-radius: 28px;
+        border-radius: 30px;
         border: 1px solid var(--line);
         background: rgba(255, 255, 255, 0.82);
+      }
+
+      .shell-workbench-grid {
+        display: grid;
+        grid-template-columns: minmax(0, 0.78fr) minmax(0, 1.22fr);
+        gap: 16px;
+      }
+
+      .shell-panel {
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+        border-radius: 26px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.88);
+      }
+
+      .shell-panel-head {
+        display: grid;
+        gap: 6px;
+      }
+
+      .shell-panel-head h3 {
+        margin: 0;
+        font-size: 1.05rem;
+        letter-spacing: -0.02em;
+      }
+
+      .shell-panel-head p {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .shell-file-list {
+        display: grid;
+        gap: 8px;
+      }
+
+      .shell-file-item {
+        display: grid;
+        gap: 4px;
+        width: 100%;
+        padding: 12px 14px;
+        border-radius: 18px;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.78);
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .shell-file-item[data-selected="true"] {
+        border-color: rgba(196, 125, 51, 0.4);
+        background: rgba(196, 125, 51, 0.08);
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
+      }
+
+      .shell-file-name {
+        font-size: 0.92rem;
+        font-weight: 750;
+        color: var(--ink);
+      }
+
+      .shell-file-path {
+        font-size: 0.79rem;
+        color: var(--muted);
+      }
+
+      .shell-editor {
+        display: grid;
+        gap: 12px;
+      }
+
+      .shell-editor textarea {
+        width: 100%;
+        min-height: 340px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        padding: 14px 16px;
+        background: #fdfcf9;
+        color: var(--ink);
+        line-height: 1.55;
+        resize: vertical;
+      }
+
+      .shell-editor-actions {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .shell-editor-note {
+        color: var(--muted);
+        font-size: 0.86rem;
       }
 
       .shell-preview-frame {
@@ -259,35 +390,48 @@
         width: 100%;
         min-height: 620px;
         border: 0;
-        border-radius: 20px;
+        border-radius: 22px;
         background: #fff;
       }
 
-      @media (max-width: 860px) {
-        .shell-main {
+      @media (max-width: 1080px) {
+        .shell-main,
+        .shell-workbench-grid {
           grid-template-columns: 1fr;
         }
+      }
 
-        .shell-hero {
-          padding: 36px 24px 24px;
+      @media (max-width: 860px) {
+        .shell-stage {
+          padding: 18px;
         }
 
-        .shell-rail {
-          padding: 0 24px 28px;
+        .shell-frame {
+          padding: 18px;
+          border-radius: 28px;
         }
 
-        .shell-preview-shell {
-          padding: 0 24px 28px;
+        .shell-topbar {
+          align-items: start;
+          flex-direction: column;
         }
 
         .shell-title {
           max-width: 100%;
         }
+
+        .shell-preview-stage {
+          padding: 12px;
+        }
+
+        .shell-preview-frame {
+          min-height: 520px;
+        }
       }
     </style>
   </head>
   <body>
-    <main class="shell-stage">
+      <main class="shell-stage">
       <include src="views/home.fuwa" />
     </main>
   </body>
