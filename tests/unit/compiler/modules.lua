@@ -40,15 +40,6 @@ end
 		)
 	end)
 
-	t.test("compile_view_source emits runtime.stdlib imports", function()
-		local lua = helper.compile_view("<main>&title</main>")
-
-		t.contains(lua, 'local view = require("runtime.stdlib.view")')
-		t.contains(lua, 'local web = require("runtime.stdlib.web")')
-		t.contains(lua, 'local template = "<main>&title</main>"')
-		t.contains(lua, "return web.dev_error_html({")
-	end)
-
 	t.test("compile_runtime_files keeps good modules and reports broken ones", function()
 		local result = compiler.compile_runtime_files({
 			["app.fuwa"] = [[

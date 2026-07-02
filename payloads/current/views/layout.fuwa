@@ -1,0 +1,5 @@
+<html>
+  <body>
+    <include src="views/home.fuwa" />
+  </body>
+</html>

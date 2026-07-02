@@ -109,8 +109,8 @@ function M.compile_module_source(source, filename)
 	return compile_module_source(source, filename)
 end
 
-function M.compile_view_source(source)
-	return view.compile_view_module(source)
+function M.compile_view_source(source, source_files, filename)
+	return view.compile_view_module(source, source_files, filename)
 end
 
 return M

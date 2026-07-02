@@ -33,6 +33,12 @@ local function load_module_source(source, name)
 	return assert(load(source, "@" .. name))()
 end
 
+local function clear_modules(names)
+	for _, name in ipairs(names) do
+		package.loaded[name] = nil
+	end
+end
+
 local function run_happy_fixture()
 	local files = collect_files("tests/fixtures/compiler/happy")
 	local compile_result = compiler.compile_runtime_files(files)
@@ -46,6 +52,7 @@ local function run_happy_fixture()
 	assert_true(build_result.run_files["main.lua"] ~= nil, "happy fixture should emit main.lua")
 
 	local html
+	clear_modules({ "app", "view", "pages.home" })
 	_G.__fuwa_print = function() end
 	_G.__fuwa_db_op = function()
 		error("happy fixture should not touch the database")
@@ -67,6 +74,44 @@ local function run_happy_fixture()
 
 	assert(load(build_result.run_files["main.lua"], "@main.lua"))()
 	assert_true(type(html) == "string" and html:find("hello", 1, true) ~= nil, "happy fixture should render HTML")
+end
+
+local function run_split_view_fixture()
+	local files = collect_files("tests/fixtures/compiler/split-view")
+	local compile_result = compiler.compile_runtime_files(files)
+	assert_true(#compile_result.diagnostics == 0, "split-view fixture should compile cleanly")
+	assert_true(compile_result.modules["view.lua"] ~= nil, "split-view fixture should emit view.lua")
+	assert_true(compile_result.modules["views/layout.lua"] == nil, "split-view fragments should not emit modules")
+	assert_true(compile_result.modules["views/home.lua"] == nil, "split-view fragments should not emit modules")
+
+	local build_result = package_web.build(files)
+	assert_true(#build_result.diagnostics == 0, "split-view packaging should compile cleanly")
+	assert_true(build_result.run_files["main.lua"] ~= nil, "split-view fixture should emit main.lua")
+	assert_true(build_result.run_files["view.lua"] ~= nil, "split-view fixture should emit view.lua")
+
+	local html
+	clear_modules({ "app", "view", "pages.home" })
+	_G.__fuwa_print = function() end
+	_G.__fuwa_db_op = function()
+		error("split-view fixture should not touch the database")
+	end
+	_G.set_html = function(value)
+		html = tostring(value)
+	end
+	_G.__fuwa_is_request = false
+
+	package.preload["app"] = function()
+		return load_module_source(build_result.run_files["app.lua"], "app.lua")
+	end
+	package.preload["view"] = function()
+		return load_module_source(build_result.run_files["view.lua"], "view.lua")
+	end
+	package.preload["pages.home"] = function()
+		return load_module_source(build_result.run_files["pages/home.lua"], "pages/home.lua")
+	end
+
+	assert(load(build_result.run_files["main.lua"], "@main.lua"))()
+	assert_true(type(html) == "string" and html:find("Split View", 1, true) ~= nil, "split-view fixture should render HTML")
 end
 
 local function run_payload_fixture(name)
@@ -91,6 +136,7 @@ local function run_broken_fixture()
 end
 
 run_happy_fixture()
+run_split_view_fixture()
 run_payload_fixture("fuwa-gomen")
 run_payload_fixture("gomen-v2")
 run_broken_fixture()

@@ -23,25 +23,28 @@ function M.compile_runtime_files(source_files)
 		if file_name:sub(-5) == ".fuwa" then
 			local result
 			if file_name == "view.fuwa" then
+				result = modules.compile_view_source(source, source_files, file_name)
+			elseif file_name:match("^views/.+%.fuwa$") then
 				result = {
-					lua = modules.compile_view_source(source)
+					lua = nil,
+					diagnostics = {}
 				}
 			else
 				result = modules.compile_module_source(source, file_name)
 			end
 
-				if result.diagnostics then
-					for _, entry in ipairs(result.diagnostics) do
-						diagnostics_out[#diagnostics_out + 1] = entry
-					end
-				end
-
-				if result.lua ~= nil then
-					local target_name = file_name:gsub("%.fuwa$", ".lua")
-					modules_out[target_name] = result.lua
+			if result.diagnostics then
+				for _, entry in ipairs(result.diagnostics) do
+					diagnostics_out[#diagnostics_out + 1] = entry
 				end
 			end
+
+			if result.lua ~= nil then
+				local target_name = file_name:gsub("%.fuwa$", ".lua")
+				modules_out[target_name] = result.lua
+			end
 		end
+	end
 
 	return {
 		diagnostics = diagnostics_out,

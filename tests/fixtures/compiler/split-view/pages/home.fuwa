@@ -1,0 +1,5 @@
+module Home
+
+action index(req) do
+  render "home", title: "Split View"
+end

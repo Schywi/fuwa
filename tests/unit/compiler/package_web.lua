@@ -22,6 +22,16 @@ action index(req) do
 end
 ]],
 			["view.fuwa"] = [[
+<include src="views/layout.fuwa" />
+]],
+			["views/layout.fuwa"] = [[
+<html>
+  <body>
+    <include src="views/home.fuwa" />
+  </body>
+</html>
+]],
+			["views/home.fuwa"] = [[
 <main>&title</main>
 ]],
 			["hooks/client.js"] = "console.log('hello')"
@@ -32,6 +42,8 @@ end
 		t.truthy(result.run_files["app.lua"] ~= nil)
 		t.truthy(result.run_files["pages/home.lua"] ~= nil)
 		t.truthy(result.run_files["view.lua"] ~= nil)
+		t.falsy(result.run_files["views/layout.lua"] ~= nil)
+		t.falsy(result.run_files["views/home.lua"] ~= nil)
 		t.eq(result.run_files["hooks/client.js"], "console.log('hello')")
 		t.contains(result.run_files["main.lua"], "function handle_request(method, path, body)")
 		t.contains(result.run_files["main.lua"], 'local web = require("runtime.stdlib.web")')
