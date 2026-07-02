@@ -2,6 +2,7 @@
 docs/refactoring/htmx-rewrite-notes.local.md
 docs/refactoring/
 .fuwa-dev/
+.env
 .agent
 AGENTS.md
 CLAUDE.md
