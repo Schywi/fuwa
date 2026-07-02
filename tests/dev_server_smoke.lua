@@ -55,21 +55,33 @@ local function test_http_request()
 	)
 
 	assert_true(output:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected HTTP 200")
-	assert_true(output:find("Fuwa Dev", 1, true) ~= nil, "expected rendered payload")
+	assert_true(output:find("Fuwa host shell", 1, true) ~= nil, "expected rendered shell")
+	assert_true(output:find("data-host-slot=\"preview\"", 1, true) ~= nil, "expected preview slot")
+	assert_true(output:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected shell switch button")
 	assert_true(output:find("EventSource('/__dev/reload')", 1, true) ~= nil, "expected reload script")
 end
 
 local function test_response_builder()
-	local response = dev.build_response("payloads/current", "GET", "/", "")
+	local response = dev.build_response("shell", "GET", "/", "")
 
 	assert_true(response.status == 200, "expected build_response to succeed")
 	assert_true(response.headers["Content-Type"] == "text/html; charset=utf-8", "expected HTML content type")
+	assert_true(response.body:find("Fuwa host shell", 1, true) ~= nil, "expected shell response")
+	assert_true(response.body:find("data-host-slot=\"preview\"", 1, true) ~= nil, "expected preview slot")
 
 	local script_pos = response.body:find("EventSource('/__dev/reload')", 1, true)
 	local body_pos = response.body:find("</body>", 1, true)
 	assert_true(script_pos ~= nil, "expected reload script")
 	assert_true(body_pos ~= nil, "expected closing body tag")
 	assert_true(script_pos < body_pos, "expected reload script before </body>")
+end
+
+local function test_shell_switch_route()
+	local response = dev.build_response("shell", "POST", "/switch/lesson", "")
+
+	assert_true(response.status == 200, "expected switch route to succeed")
+	assert_true(response.body:find("Fuwa Lesson", 1, true) ~= nil, "expected switched payload")
+	assert_true(response.body:find('data-host-slot="primary"', 1, true) ~= nil, "expected primary slot")
 end
 
 local function test_current_payload_interaction()
@@ -134,6 +146,7 @@ end
 
 test_http_request()
 test_response_builder()
+test_shell_switch_route()
 test_current_payload_interaction()
 test_db_helper()
 

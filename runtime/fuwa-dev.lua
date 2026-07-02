@@ -155,6 +155,7 @@ package.path = root_dir .. "/?.lua;" .. root_dir .. "/?/init.lua;" .. root_dir .
 
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local package_web = require("runtime.stdlib.compiler.package_web")
+local host_caps = require("runtime.host.capabilities")
 local runtime_db = require("runtime.db")
 local trace = require("runtime.trace")
 local log = require("runtime.log")
@@ -166,6 +167,8 @@ local runtime_preloads = {
 	["runtime.stdlib.view"] = "runtime/stdlib/view.lua",
 	["runtime.stdlib.web"] = "runtime/stdlib/web.lua",
 }
+
+local shell_root = root_dir .. "/shell"
 
 os.execute("mkdir -p " .. shell_quote(dev_dir))
 ensure_path(state_path, "return {}\n")
@@ -548,7 +551,22 @@ function M.build_response(root, method, path, body, opts)
 			end
 		end
 
+		local original_host_loaded = package.loaded["host"]
+		local original_host_preloaded = package.preload["host"]
+		package.loaded["host"] = nil
+		package.preload["host"] = function()
+			return host_caps.new({
+				root_dir = root_dir,
+				db_provider = db_provider,
+			})
+		end
+
+		local original_loaded = {}
+		local original_preloaded = {}
 		for module_name, source in pairs(compiled_modules) do
+			original_loaded[module_name] = package.loaded[module_name]
+			original_preloaded[module_name] = package.preload[module_name]
+			package.loaded[module_name] = nil
 			package.preload[module_name] = function()
 				return load_chunk(source, module_name)
 			end
@@ -566,15 +584,30 @@ function M.build_response(root, method, path, body, opts)
 			method = method,
 			path = path,
 		}, function(render_span)
-			load_chunk(assert(build.run_files["main.lua"], "missing main.lua"), "main.lua")
-			local handle_request = assert(_G.handle_request, "main.lua did not define handle_request")
-			local rendered = handle_request(method, path, body or "")
-			local output = tostring(rendered or captured.value or "")
-			if method == "GET" then
-				output = render_reload_script(output)
+			local ok, result = pcall(function()
+				load_chunk(assert(build.run_files["main.lua"], "missing main.lua"), "main.lua")
+				local handle_request = assert(_G.handle_request, "main.lua did not define handle_request")
+				local rendered = handle_request(method, path, body or "")
+				local output = tostring(rendered or captured.value or "")
+				if method == "GET" then
+					output = render_reload_script(output)
+				end
+				return output
+			end)
+
+			package.loaded["host"] = original_host_loaded
+			package.preload["host"] = original_host_preloaded
+			for module_name, _ in pairs(compiled_modules) do
+				package.loaded[module_name] = original_loaded[module_name]
+				package.preload[module_name] = original_preloaded[module_name]
 			end
-			render_span:set("bytes", #output)
-			return output
+
+			if not ok then
+				error(tostring(result), 0)
+			end
+
+			render_span:set("bytes", #result)
+			return result
 		end)
 
 		request_span:set("status", 200)
@@ -713,7 +746,7 @@ function M.run()
 		return
 	end
 
-	local response = M.build_response(payload_root, request.method, request.path, request.body)
+	local response = M.build_response(shell_root, request.method, request.path, request.body)
 	write_http_response(response)
 end
 

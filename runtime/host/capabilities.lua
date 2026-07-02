@@ -129,7 +129,7 @@ local function render_payload(slot, root_dir, payload_root, payload_id, opts)
 	end
 
 	local captured = { value = nil }
-	local payload_db = db.new(opts.db_provider_name or "memory", opts.db_provider_opts or {})
+	local payload_db = opts.db_provider or db.new(opts.db_provider_name or "memory", opts.db_provider_opts or {})
 	local payload_html, err = sandbox_modules({ "host" }, function()
 		local original_print = _G.__fuwa_print
 		local original_db_op = _G.__fuwa_db_op
