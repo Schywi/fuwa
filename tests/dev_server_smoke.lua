@@ -57,17 +57,21 @@ local function test_http_request()
 	assert_true(output:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected HTTP 200")
 	assert_true(output:find("Fuwa host shell", 1, true) ~= nil, "expected rendered shell")
 	assert_true(output:find("data-host-slot=\"preview\"", 1, true) ~= nil, "expected preview slot")
+	assert_true(output:find('src="/payload/current/"', 1, true) ~= nil, "expected routed iframe")
 	assert_true(output:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected shell switch button")
 	assert_true(output:find("EventSource('/__dev/reload')", 1, true) ~= nil, "expected reload script")
 end
 
 local function test_response_builder()
-	local response = dev.build_response("shell", "GET", "/", "")
+	local response = dev.build_response("shell", "GET", "/", "", {
+		allow_host = true,
+	})
 
 	assert_true(response.status == 200, "expected build_response to succeed")
 	assert_true(response.headers["Content-Type"] == "text/html; charset=utf-8", "expected HTML content type")
 	assert_true(response.body:find("Fuwa host shell", 1, true) ~= nil, "expected shell response")
 	assert_true(response.body:find("data-host-slot=\"preview\"", 1, true) ~= nil, "expected preview slot")
+	assert_true(response.body:find('src="/payload/current/"', 1, true) ~= nil, "expected routed iframe")
 
 	local script_pos = response.body:find("EventSource('/__dev/reload')", 1, true)
 	local body_pos = response.body:find("</body>", 1, true)
@@ -77,11 +81,29 @@ local function test_response_builder()
 end
 
 local function test_shell_switch_route()
-	local response = dev.build_response("shell", "POST", "/switch/lesson", "")
+	local response = dev.build_response("shell", "POST", "/switch/lesson", "", {
+		allow_host = true,
+	})
 
 	assert_true(response.status == 200, "expected switch route to succeed")
-	assert_true(response.body:find("Fuwa Lesson", 1, true) ~= nil, "expected switched payload")
+	assert_true(response.body:find('src="/payload/lesson/"', 1, true) ~= nil, "expected switched payload route")
 	assert_true(response.body:find('data-host-slot="primary"', 1, true) ~= nil, "expected primary slot")
+end
+
+local function test_payload_route_request()
+	local output = run_command(
+		"printf 'GET /payload/current/ HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+
+	assert_true(output:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected payload route 200")
+	assert_true(output:find("Fuwa Dev", 1, true) ~= nil, "expected payload body")
+	assert_true(output:find('hx-post="counter"', 1, true) ~= nil, "expected relative payload action")
+
+	local post_output = run_command(
+		"printf 'POST /payload/current/counter HTTP/1.1\\r\\nHost: localhost\\r\\nContent-Length: 0\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+
+	assert_true(post_output:find("Clicks: 1", 1, true) ~= nil, "expected payload counter route to work")
 end
 
 local function test_current_payload_interaction()
@@ -89,7 +111,7 @@ local function test_current_payload_interaction()
 		local response = dev.build_response("payloads/current", "GET", "/", "", {
 			db_provider = provider
 		})
-		assert_true(response.body:find('hx-post="/counter"', 1, true) ~= nil, "expected htmx button")
+		assert_true(response.body:find('hx-post="counter"', 1, true) ~= nil, "expected htmx button")
 		assert_true(response.body:find('v-scope="{ pressed: false }"', 1, true) ~= nil, "expected petite-vue scope")
 		assert_true(response.body:find("https://unpkg.com/htmx.org", 1, true) ~= nil, "expected htmx script")
 		assert_true(response.body:find("https://unpkg.com/petite-vue?module", 1, true) ~= nil, "expected petite-vue script")
@@ -147,6 +169,7 @@ end
 test_http_request()
 test_response_builder()
 test_shell_switch_route()
+test_payload_route_request()
 test_current_payload_interaction()
 test_db_helper()
 

@@ -30,7 +30,7 @@ local function render_sequence(provider)
 end
 
 local function assert_payload_markup(t, response)
-	t.truthy(response.body:find('hx-post="/counter"', 1, true) ~= nil, "expected htmx button")
+	t.truthy(response.body:find('hx-post="counter"', 1, true) ~= nil, "expected htmx button")
 	t.truthy(response.body:find('v-scope="{ pressed: false }"', 1, true) ~= nil, "expected petite-vue scope")
 	t.truthy(response.body:find("https://unpkg.com/htmx.org", 1, true) ~= nil, "expected htmx script")
 	t.truthy(response.body:find("https://unpkg.com/petite-vue?module", 1, true) ~= nil, "expected petite-vue script")

@@ -59,26 +59,12 @@ routes do
   GET "/" Home.index
 end
 ]])
-	write_file(root .. "/current/pages/home.fuwa", [[
-module Home
-
-action index(req) do
-  browser_js = ""
-  render "home", title: "Current payload", summary: "Current payload body", browser_js: browser_js
-end
-]])
 	write_file(root .. "/current/view.fuwa", [[
 <include src="views/layout.fuwa" />
 ]])
-write_file(root .. "/current/views/home.fuwa", [[
-<main class="payload-stage">
-  <h1>Current payload</h1>
-  <p>Current payload body</p>
-</main>
-]])
-write_file(root .. "/current/views/layout.fuwa", [[
-<html><body><include src="views/home.fuwa" /></body></html>
-]])
+	write_file(root .. "/current/pages/home.fuwa", "module Home\nend\n")
+	write_file(root .. "/current/views/home.fuwa", "<main>Current payload</main>\n")
+	write_file(root .. "/current/views/layout.fuwa", "<html><body><include src=\"views/home.fuwa\" /></body></html>\n")
 
 	write_file(root .. "/lesson/app.fuwa", [[
 module App
@@ -91,26 +77,12 @@ routes do
   GET "/" Home.index
 end
 ]])
-	write_file(root .. "/lesson/pages/home.fuwa", [[
-module Home
-
-action index(req) do
-  browser_js = ""
-  render "home", title: "Lesson payload", summary: "Lesson payload body", browser_js: browser_js
-end
-]])
 	write_file(root .. "/lesson/view.fuwa", [[
 <include src="views/layout.fuwa" />
 ]])
-write_file(root .. "/lesson/views/home.fuwa", [[
-<main class="payload-stage">
-  <h1>Lesson payload</h1>
-  <p>Lesson payload body</p>
-</main>
-]])
-write_file(root .. "/lesson/views/layout.fuwa", [[
-<html><body><include src="views/home.fuwa" /></body></html>
-]])
+	write_file(root .. "/lesson/pages/home.fuwa", "module Home\nend\n")
+	write_file(root .. "/lesson/views/home.fuwa", "<main>Lesson payload</main>\n")
+	write_file(root .. "/lesson/views/layout.fuwa", "<html><body><include src=\"views/home.fuwa\" /></body></html>\n")
 
 	local ok, err = pcall(fn, root)
 	cleanup_tree(root)
@@ -126,14 +98,16 @@ t.test("switch_payload updates the active payload and primary slot", function()
 
 		local current = host.mount_payload("preview", "current")
 		t.truthy(current:find('data-host-slot="preview"', 1, true) ~= nil, "expected preview slot")
-		t.truthy(current:find("Current payload", 1, true) ~= nil, "expected current payload content")
+		t.truthy(current:find('src="/payload/current/"', 1, true) ~= nil, "expected current payload route")
+		t.truthy(current:find("sandbox=\"allow-scripts allow-forms\"", 1, true) ~= nil, "expected sandboxed iframe")
 
 		local lesson = host.switch_payload("lesson")
 		t.truthy(lesson:find('data-host-slot="primary"', 1, true) ~= nil, "expected primary slot")
-		t.truthy(lesson:find("Lesson payload", 1, true) ~= nil, "expected lesson payload content")
+		t.truthy(lesson:find('src="/payload/lesson/"', 1, true) ~= nil, "expected lesson payload route")
 
 		local active = host.mount_payload("preview")
-		t.truthy(active:find("Lesson payload", 1, true) ~= nil, "expected active payload to persist")
+		t.truthy(active:find('data-host-slot="preview"', 1, true) ~= nil, "expected preview slot to persist")
+		t.truthy(active:find('src="/payload/lesson/"', 1, true) ~= nil, "expected active payload to persist")
 	end)
 end)
 
