@@ -41,7 +41,7 @@ local function build_preview_frame(slot, payload_id)
 	return table.concat({
 		'<iframe class="shell-preview-frame"',
 		' data-host-slot="' .. escape_html(slot) .. '"',
-		' sandbox="allow-scripts allow-forms"',
+		' sandbox="allow-scripts allow-forms allow-same-origin"',
 		' title="Payload preview"',
 		' src="/payload/' .. escape_html(payload_id) .. '/"',
 		'></iframe>',
@@ -71,6 +71,7 @@ local function render_mount(instance, slot, payload_id)
 		local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
 		if normalized_id == nil then
 			span:set("status", 400)
+			span:set("ok", false)
 			span:set("result", "invalid_payload_id")
 			return error_frame(slot, tostring(payload_id or ""), "Invalid payload id")
 		end
@@ -78,6 +79,7 @@ local function render_mount(instance, slot, payload_id)
 		local app_path = payload_path(instance.__payload_root, normalized_id) .. "/app.fuwa"
 		if not file_exists(app_path) then
 			span:set("status", 404)
+			span:set("ok", false)
 			span:set("result", "missing_payload")
 			span:set("app_path", app_path)
 			return error_frame(slot, normalized_id, "Payload not found")
@@ -86,6 +88,7 @@ local function render_mount(instance, slot, payload_id)
 		instance.__active_slot = slot
 		instance.__active_payload_id = normalized_id
 		span:set("status", 200)
+		span:set("ok", true)
 		span:set("result", "ok")
 		span:set("route", "/payload/" .. normalized_id .. "/")
 		return build_preview_frame(slot, normalized_id)

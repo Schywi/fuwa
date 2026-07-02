@@ -1,12 +1,9 @@
+&unsafe doctype
 <html>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-    <script type="module">
-      import { createApp } from "https://unpkg.com/petite-vue?module"
-      createApp().mount()
-    </script>
     <style>
       :root {
         color-scheme: light;
@@ -31,7 +28,7 @@
           radial-gradient(circle at 85% 20%, rgba(31, 41, 55, 0.08), transparent 24%),
           var(--bg);
         color: var(--ink);
-        font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+        font-family: Avenir Next, Segoe UI, system-ui, sans-serif;
       }
 
       .shell-stage {
@@ -119,7 +116,7 @@
       .shell-title {
         margin: 0;
         max-width: 14ch;
-        font-family: "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+        font-family: Iowan Old Style, Palatino Linotype, Georgia, serif;
         font-size: clamp(3rem, 6vw, 5.6rem);
         line-height: 0.93;
         letter-spacing: -0.05em;

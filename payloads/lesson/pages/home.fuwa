@@ -3,5 +3,5 @@ module Home
 action index(req) do
   browser_js = ""
 
-  render "home", title: "Fuwa Lesson", summary: "This alternate payload proves the host can switch the mounted tenant without leaving the shell.", browser_js: browser_js
+  render "home", doctype: "<!DOCTYPE html>", title: "Fuwa Lesson", summary: "This alternate payload proves the host can switch the mounted tenant without leaving the shell.", browser_js: browser_js
 end

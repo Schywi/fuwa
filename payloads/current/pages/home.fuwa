@@ -12,7 +12,7 @@ import { createApp } from "https://unpkg.com/petite-vue?module"
 createApp().mount()
 ]]
 
-  render "home", title: "Fuwa Dev", count: row.count, tone: row.tone or "emerald", browser_js: browser_js
+  render "home", doctype: "<!DOCTYPE html>", title: "Fuwa Dev", count: row.count, tone: row.tone or "emerald", browser_js: browser_js
 end
 
 action bump(req) do
