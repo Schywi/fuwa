@@ -1,7 +1,2 @@
 # Local refactoring notes that should stay out of the public repo
 docs/refactoring/htmx-rewrite-notes.local.md
-
-# Node / TypeScript workspace artifacts for the lean runtime
-node_modules/
-dist/
-*.tsbuildinfo
