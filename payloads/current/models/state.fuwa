@@ -1,0 +1,7 @@
+module State
+
+schema "current_state" do
+  field key: string required unique
+  field count: integer
+  field tone: string
+end

@@ -1,0 +1,12 @@
+module Shell
+
+import
+  Home "pages/home"
+end
+
+routes do
+  GET "/" Home.index
+  GET "/inspect/:payload_id" Home.inspect
+  POST "/switch/:payload_id" Home.switch
+  POST "/save/:payload_id" Home.save
+end

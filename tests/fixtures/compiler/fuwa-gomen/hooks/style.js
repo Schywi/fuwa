@@ -1,0 +1,1 @@
+// fuwa-gomen hook asset

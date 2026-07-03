@@ -1,0 +1,34 @@
+module Home
+
+import
+  State "models/state"
+end
+
+action index(req) do
+  row = State.find_by({ key = "main" })
+  row = row or State.create({ key = "main", count = 0, tone = "emerald" })?
+
+  render "home", doctype: "<!DOCTYPE html>", title: "Fuwa Dev", count: row.count, tone: row.tone or "emerald"
+end
+
+action bump(req) do
+  row = State.find_by({ key = "main" })
+  row = row or State.create({ key = "main", count = 0, tone = "emerald" })?
+
+  count = row.count + 1
+  tone = count % 2 == 0 and "emerald" or "amber"
+  row = State.update(row.id, { key = "main", count = count, tone = tone })?
+
+  return table.concat({
+    string.format([[<section id="counter" class="counter-card bg-%s-500 text-white rounded-2xl shadow-lg transition" v-scope="{ pressed: false }">]], tone),
+    [[  <div class="flex items-center gap-3">]],
+    string.format([[    <span class="counter-pill">Clicks: %d</span>]], count),
+    string.format([[    <span class="counter-tone">Tone: %s</span>]], tone),
+    [[  </div>]],
+    [[  <button type="button" class="counter-button px-4 py-3 rounded-full text-slate-900 bg-white" hx-post="/payload/current/counter" hx-target="#counter" hx-swap="outerHTML" @click="pressed = !pressed" :class="pressed ? 'scale-95 ring-2 ring-offset-2' : ''">]],
+    [[    Ping the stack]],
+    [[  </button>]],
+    [[  <p class="counter-note">HTMX posts server state. petite-vue flips pressed locally.</p>]],
+    [[</section>]],
+  }, "\n")
+end

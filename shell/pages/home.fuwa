@@ -1,0 +1,31 @@
+module Home
+
+use host
+
+import
+  Dashboard "runtime/host/dashboard"
+  ShellViews "runtime/host/shell_views"
+end
+
+action index(req) do
+  dashboard = Dashboard.build(host, "current", req.query.file)
+  render "home", doctype: "<!DOCTYPE html>", title: "Fuwa Shell", dashboard: dashboard
+end
+
+action inspect(req) do
+  dashboard = Dashboard.build(host, req.params.payload_id, req.query.file)
+  return ShellViews.render_fragment("home", { dashboard = dashboard })
+end
+
+action switch(req) do
+  dashboard = Dashboard.build(host, req.params.payload_id)
+  return ShellViews.render_fragment("home", { dashboard = dashboard })
+end
+
+action save(req) do
+  saved = host.write_payload_file(req.params.payload_id, req.form.path, req.form.contents or "")?
+  run = host.compile_payload(req.params.payload_id)?
+  run.output = "$ save " .. saved.path .. "\n" .. run.output
+  dashboard = Dashboard.build(host, req.params.payload_id, req.form.path, run)
+  return ShellViews.render_fragment("home", { dashboard = dashboard, saved = saved })
+end

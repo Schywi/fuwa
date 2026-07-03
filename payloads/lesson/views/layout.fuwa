@@ -1,0 +1,94 @@
+&unsafe doctype
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="htmx-config" content='{"historyEnabled":false,"selfRequestsOnly":false,"allowScriptTags":false}' />
+    <title>&title</title>
+    <script src="/vendor/htmx/htmx-1.9.12.min.js"></script>
+    <script src="/vendor/petite-vue/petite-vue-0.4.1.iife.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #eef2ff;
+        --panel: rgba(255, 255, 255, 0.84);
+        --ink: #111827;
+        --muted: #4b5563;
+        --line: rgba(17, 24, 39, 0.12);
+        --accent: #2563eb;
+        --accent-soft: rgba(37, 99, 235, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(37, 99, 235, 0.16), transparent 26%),
+          radial-gradient(circle at 85% 20%, rgba(17, 24, 39, 0.08), transparent 24%),
+          var(--bg);
+        color: var(--ink);
+        font-family: Avenir Next, Segoe UI, system-ui, sans-serif;
+      }
+
+      .lesson-stage {
+        min-height: 100vh;
+        padding: 28px;
+        display: grid;
+        place-items: center;
+      }
+
+      .lesson-card {
+        width: min(32rem, 100%);
+        padding: 28px;
+        border-radius: 28px;
+        border: 1px solid var(--line);
+        background: var(--panel);
+        box-shadow: 0 28px 72px rgba(17, 24, 39, 0.16);
+        backdrop-filter: blur(18px);
+        display: grid;
+        gap: 18px;
+      }
+
+      .lesson-kicker {
+        margin: 0;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: 0.72rem;
+        color: var(--accent);
+        font-weight: 800;
+      }
+
+      .lesson-card h1 {
+        margin: 0;
+        font-family: Iowan Old Style, Palatino Linotype, Georgia, serif;
+        font-size: clamp(2.2rem, 5vw, 3.8rem);
+        line-height: 0.95;
+        letter-spacing: -0.05em;
+      }
+
+      .lesson-summary {
+        margin: 0;
+        color: var(--muted);
+        line-height: 1.65;
+      }
+
+      .lesson-badge {
+        width: max-content;
+        padding: 8px 12px;
+        border-radius: 999px;
+        background: var(--accent-soft);
+        color: #1d4ed8;
+        font-size: 0.8rem;
+        font-weight: 700;
+      }
+    </style>
+  </head>
+  <body>
+    <include src="views/home.fuwa" />
+    <script defer src="browser.js"></script>
+  </body>
+</html>

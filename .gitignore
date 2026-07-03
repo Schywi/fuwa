@@ -1,2 +1,11 @@
 # Local refactoring notes that should stay out of the public repo
+docs/refactoring/*
+!docs/refactoring/browser-ide-wiring/
+!docs/refactoring/browser-ide-wiring/**
 docs/refactoring/htmx-rewrite-notes.local.md
+.fuwa-dev/
+.env
+.agent
+AGENTS.md
+CLAUDE.md
+.git
