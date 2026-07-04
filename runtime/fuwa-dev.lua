@@ -63,6 +63,12 @@ local function content_type_for(path)
 	if lower:match("%.svg$") then
 		return "image/svg+xml"
 	end
+	if lower:match("%.wasm$") then
+		return "application/wasm"
+	end
+	if lower:match("%.html?$") then
+		return "text/html; charset=utf-8"
+	end
 	if lower:match("%.txt$") then
 		return "text/plain; charset=utf-8"
 	end
@@ -192,6 +198,7 @@ package.path = root_dir .. "/?.lua;" .. root_dir .. "/?/init.lua;" .. root_dir .
 
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local package_web = require("runtime.stdlib.compiler.package_web")
+local browser_runtime = require("runtime.browser")
 local host_caps = require("runtime.host.capabilities")
 local runtime_db = require("runtime.db")
 local trace = require("runtime.trace")
@@ -586,6 +593,49 @@ function M.collect_payload_files(root)
 	return collect_find_output(root or payload_root)
 end
 
+local function collect_stdlib_sources()
+	local sources = {}
+	for _, relative_path in pairs(runtime_preloads) do
+		local contents = read_all(root_dir .. "/" .. relative_path)
+		if contents ~= nil then
+			sources[relative_path] = contents
+		end
+	end
+	return sources
+end
+
+-- Browser runtime bundle: compiled run files plus the stdlib VFS the
+-- Wasmoon worker needs. Served as JSON at /runtime/<payload_id>/bundle.json.
+function M.build_bundle_response(payload_id)
+	local safe_id = tostring(payload_id or ""):match("^[A-Za-z0-9_%-]+$")
+	if safe_id == nil then
+		return {
+			status = 404,
+			headers = {
+				["Content-Type"] = "text/plain; charset=utf-8",
+				["Content-Length"] = "9",
+				["Connection"] = "close",
+			},
+			body = "Not found",
+		}
+	end
+
+	local source_files = collect_find_output(payloads_root .. "/" .. safe_id)
+	local bundle = browser_runtime.bundle.build(source_files, collect_stdlib_sources())
+	local body = browser_runtime.bundle.to_json(bundle)
+
+	return {
+		status = bundle.ok and 200 or 500,
+		headers = {
+			["Content-Type"] = "application/json; charset=utf-8",
+			["Content-Length"] = tostring(#body),
+			["Cache-Control"] = "no-cache",
+			["Connection"] = "close",
+		},
+		body = body,
+	}
+end
+
 function M.build_response(root, method, path, body, opts)
 	opts = opts or {}
 	local db_provider = resolve_db_provider(opts)
@@ -665,7 +715,10 @@ function M.build_response(root, method, path, body, opts)
 				local handle_request = assert(_G.handle_request, "main.lua did not define handle_request")
 				local rendered = handle_request(method, path, body or "")
 				local output = tostring(rendered or captured.value or "")
-				if method == "GET" then
+				-- Dev reload only targets tenant documents. The shell host page
+				-- must not full-page reload on payload disk writes — saves refresh
+				-- the preview surgically through the #ide-preview-refresh token.
+				if method == "GET" and not allow_host then
 					output = render_reload_script(output)
 				end
 				return output
@@ -876,6 +929,27 @@ function M.run()
 
 	if request.path == "/__dev/reload" then
 		handle_reload_request()
+		return
+	end
+
+	local bundle_payload_id = request.path:match("^/runtime/([^/]+)/bundle%.json$")
+	if bundle_payload_id and request.method == "GET" then
+		write_http_response(M.build_bundle_response(bundle_payload_id))
+		return
+	end
+
+	if request.path == "/runtime/tenant.html" and request.method == "GET" then
+		local tenant_html = browser_runtime.bootstrap.build_runtime_srcdoc()
+		write_http_response({
+			status = 200,
+			headers = {
+				["Content-Type"] = "text/html; charset=utf-8",
+				["Content-Length"] = tostring(#tenant_html),
+				["Cache-Control"] = "no-cache",
+				["Connection"] = "close",
+			},
+			body = tenant_html,
+		})
 		return
 	end
 

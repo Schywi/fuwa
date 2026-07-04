@@ -43,6 +43,37 @@ local script_path = script_source:sub(1, 1) == "@" and script_source:sub(2) or s
 local root_dir = dirname(dirname(dirname(script_path)))
 local shell_views_root = root_dir .. "/shell"
 
+-- The compiler expands <include> at compile time; fragments rendered at
+-- runtime need the same expansion. Matches exactly the compiler's shape:
+-- <include src="..." />, paths relative to the shell root, no directives.
+local function expand_includes(source, depth)
+	depth = depth or 0
+	if depth > 8 then
+		return source
+	end
+
+	return (source:gsub('<include%s+src="([^"]+)"%s*/>', function(include_path)
+		if include_path:sub(1, 1) == "/" or include_path:find("%.%.", 1, true) then
+			return ""
+		end
+
+		local included = read_all(shell_views_root .. "/" .. include_path)
+		if included == nil then
+			return ""
+		end
+
+		return expand_includes(included, depth + 1)
+	end))
+end
+
+local function read_source(path)
+	local source = read_all(path)
+	if source == nil then
+		return nil
+	end
+	return expand_includes(source)
+end
+
 function M.render_fragment(fragment_name, data)
 	local normalized_name = validate_fragment_name(fragment_name)
 	if normalized_name == nil then
@@ -58,7 +89,7 @@ function M.render_fragment(fragment_name, data)
 		})
 	end
 
-	local source = read_all(shell_views_root .. "/views/fragments/" .. normalized_name .. ".fuwa")
+	local source = read_source(shell_views_root .. "/views/fragments/" .. normalized_name .. ".fuwa")
 	if source == nil then
 		return web.dev_error_html({
 			_type = "error",

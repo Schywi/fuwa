@@ -86,12 +86,22 @@ local function build_payload_card(host, payload_id, selected_file)
 	}
 end
 
+local function hash_text(text)
+	local hash = 5381
+	for index = 1, #text do
+		hash = (hash * 33 + text:byte(index)) % 4294967296
+	end
+	return string.format("%08x", hash)
+end
+
 local function build_terminal_state(run_result)
 	if type(run_result) == "table" and type(run_result.output) == "string" and run_result.output ~= "" then
+		local output = run_result.output
 		return {
-			output = run_result.output,
+			output = output,
 			status = run_result.status or (run_result.success == false and "error" or "ok"),
 			label = run_result.success == false and "Build failed" or "Build ok",
+			run_id = hash_text(output) .. "-" .. tostring(os.time()),
 		}
 	end
 
@@ -99,6 +109,7 @@ local function build_terminal_state(run_result)
 		output = "No run yet.\nSave a file to compile and refresh the preview.",
 		status = "idle",
 		label = "Idle",
+		run_id = "idle",
 	}
 end
 
@@ -144,19 +155,31 @@ function M.build(host, payload_id, requested_file, run_result)
 	active.terminal_output = terminal.output
 	active.terminal_status = terminal.status
 	active.terminal_label = terminal.label
+	active.terminal_run_id = terminal.run_id
+	active.bundle_url = "/runtime/" .. encode_query_component(active.id) .. "/bundle.json"
+
+	-- A non-empty token tells the preview hook to refresh the mounted tenant
+	-- without recreating the iframe. Only successful runs refresh the preview.
+	local preview_refresh_token = ""
+	if type(run_result) == "table" and run_result.success ~= false then
+		preview_refresh_token = terminal.run_id
+	end
 
 	return {
 		eyebrow = "Privileged shell",
 		title = "Fuwa Shell",
-		summary = "The host shell mounts a payload through a route-backed iframe, exposes a single-file editor, and reports compile output in the terminal panel.",
-		chips = {
-			"Same compiler, same render stack",
-			"Route-backed iframe mount",
-			"Tenant stays sandboxed",
-			"Save + run loop",
+		summary = "The host shell mounts a payload through a route-backed iframe, exposes the payload workspace, and reports compile output in the terminal panel.",
+		breadcrumb = {
+			{ label = "payloads", active = false },
+			{ label = active.label, active = false },
+			{ label = active.selected_file ~= "" and active.selected_file or "no file", active = true },
 		},
+		runtime_state = terminal.status == "error" and "error" or "ready",
 		preview_heading = "Mounted tenant",
 		preview_note = "Route-backed tenant document",
+		preview_refresh_token = preview_refresh_token,
+		runtime_tenant_url = "/runtime/tenant.html",
+		runtime_worker_url = "/shell/hooks/runtime-worker.js",
 		payloads = payloads,
 		active = active,
 		preview_html = host.mount_payload("preview", payload_id),

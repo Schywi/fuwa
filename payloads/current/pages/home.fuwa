@@ -8,7 +8,7 @@ action index(req) do
   row = State.find_by({ key = "main" })
   row = row or State.create({ key = "main", count = 0, tone = "emerald" })?
 
-  render "home", doctype: "<!DOCTYPE html>", title: "Fuwa Dev", count: row.count, tone: row.tone or "emerald"
+  render "home", doctype: "<!DOCTYPE html>", title: "Fuwa D5ev", count: row.count, tone: row.tone or "emerald"
 end
 
 action bump(req) do
@@ -30,5 +30,5 @@ action bump(req) do
     [[  </button>]],
     [[  <p class="counter-note">HTMX posts server state. petite-vue flips pressed locally.</p>]],
     [[</section>]],
-  }, "\")
+  }, "\n")
 end
