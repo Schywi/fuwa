@@ -15,7 +15,7 @@ action bump(req) do
   row = State.find_by({ key = "main" })
   row = row or State.create({ key = "main", count = 0, tone = "emerald" })?
 
-  count = row.count + 1
+  count = row.count + 1 
   tone = count % 2 == 0 and "emerald" or "amber"
   row = State.update(row.id, { key = "main", count = count, tone = tone })?
 
@@ -30,5 +30,5 @@ action bump(req) do
     [[  </button>]],
     [[  <p class="counter-note">HTMX posts server state. petite-vue flips pressed locally.</p>]],
     [[</section>]],
-  }, "\n")
+  }, "\")
 end
