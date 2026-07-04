@@ -5,6 +5,8 @@
 	// the tiny imperative seams that templates cannot express well: outside
 	// clicks, search filtering, and keyboard focus within the rendered list.
 
+	let booted = false;
+	let retry_timer = null;
 	let active_state = null;
 
 	function workspaceRoot(node) {
@@ -230,6 +232,45 @@
 		}
 	}
 
+	function dependenciesReady() {
+		return window.PetiteVue && typeof window.PetiteVue.createApp === 'function';
+	}
+
+	function mount(scope) {
+		if (!(scope instanceof Element)) {
+			return;
+		}
+
+		if (window.PetiteVue && typeof window.PetiteVue.createApp === 'function') {
+			try {
+				window.PetiteVue.createApp().mount(scope);
+			} catch (error) {
+				console.error('[shell] petite-vue mount failed', error);
+			}
+		}
+	}
+
+	function boot() {
+		initialize(document);
+
+		if (!dependenciesReady()) {
+			if (!retry_timer) {
+				retry_timer = setTimeout(function () {
+					retry_timer = null;
+					boot();
+				}, 16);
+			}
+			return;
+		}
+
+		if (booted) {
+			return;
+		}
+
+		booted = true;
+		mount(document.body);
+	}
+
 	window.FuwaShellWorkspace = {
 		createState,
 		setView,
@@ -240,16 +281,17 @@
 		document.addEventListener(
 			'DOMContentLoaded',
 			function () {
-				initialize(document);
+				boot();
 			},
 			{ once: true }
 		);
 	} else {
-		initialize(document);
+		boot();
 	}
 
 	document.addEventListener('htmx:afterSwap', function (event) {
 		active_state = null;
 		initialize(event.detail?.target || document);
+		mount(event.detail?.target || event.target || document.body);
 	});
 })();

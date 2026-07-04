@@ -164,6 +164,8 @@ local function test_raw_asset_requests()
 	assert_true(workspace_js:find("createState", 1, true) ~= nil, "expected petite-vue workspace state")
 	assert_true(workspace_js:find("open_popover", 1, true) ~= nil, "expected single popover state")
 	assert_true(workspace_js:find("getBoundingClientRect", 1, true) == nil, "expected no manual popover geometry hack")
+	assert_true(workspace_js:find("mount(document.body)", 1, true) ~= nil, "expected petite-vue boot mount")
+	assert_true(workspace_js:find("htmx:afterSwap", 1, true) ~= nil, "expected petite-vue remount after swaps")
 
 	local runtime_worker_js = run_command(
 		"printf 'GET /shell/hooks/runtime-worker.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
