@@ -37,6 +37,8 @@ end
 local files = collect_files("shell")
 local workspace_js = files["hooks/workspace.js"]
 local editor_js = files["hooks/editor.js"]
+local home_fuwa = files["views/fragments/home.fuwa"]
+local workspace_fuwa = files["views/fragments/workspace.fuwa"]
 local layout_fuwa = files["views/layout.fuwa"]
 local compile_result = compiler.compile_runtime_files(files)
 assert_true(#compile_result.diagnostics == 0, "shell should compile cleanly")
@@ -46,7 +48,8 @@ assert_true(compile_result.modules["view.lua"] ~= nil, "shell should emit view.l
 assert_true(workspace_js:find("pointerdown", 1, true) ~= nil, "shell should close popovers on pointerdown")
 assert_true(workspace_js:find("createState", 1, true) ~= nil, "shell should expose petite-vue workspace state")
 assert_true(workspace_js:find("open_popover", 1, true) ~= nil, "shell should keep a single popover source of truth")
-assert_true(workspace_js:find("mount(document.body)", 1, true) ~= nil, "shell should mount petite-vue on boot")
+assert_true(workspace_js:find("boot:mount-shell", 1, true) ~= nil, "shell should mount petite-vue on the stable parent")
+assert_true(workspace_js:find("document.querySelector('[data-workspace]')", 1, true) ~= nil, "shell should remount the live workspace after swaps")
 assert_true(workspace_js:find("htmx:afterSwap", 1, true) ~= nil, "shell should remount petite-vue after swaps")
 assert_true(editor_js:find("lineNumbers()", 1, true) ~= nil, "shell should show line numbers in CodeMirror")
 assert_true(editor_js:find("highlightActiveLineGutter()", 1, true) ~= nil, "shell should highlight the active gutter")
@@ -58,6 +61,8 @@ assert_true(editor_js:find("buildLuaHighlights", 1, true) ~= nil, "shell should 
 assert_true(editor_js:find("cm-lua-keyword", 1, true) ~= nil, "shell should style Lua keywords")
 assert_true(editor_js:find("cm-lua-string", 1, true) ~= nil, "shell should style Lua strings")
 assert_true(layout_fuwa:find('.shell-widget-shell[data-widget-kind="editor"] > div', 1, true) ~= nil, "shell should let the editor host fill the panel")
+assert_true(home_fuwa:find('v-scope="FuwaShellWorkspace.createState()"', 1, true) ~= nil, "shell should mount petite-vue on the stable shell parent")
+assert_true(workspace_fuwa:find('v-scope="FuwaShellWorkspace.createState()"', 1, true) == nil, "shell should not mount petite-vue on the swapped workspace")
 
 local build_result = package_web.build(files)
 assert_true(#build_result.diagnostics == 0, "shell packaging should compile cleanly")

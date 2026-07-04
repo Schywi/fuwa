@@ -1,5 +1,5 @@
 <section id="shell-content" class="shell-content">
-  <div class="ide-shell">
+  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()">
     <section class="ide-island ide-preview-island">
       <div class="ide-preview-head">
         <div>

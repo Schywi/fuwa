@@ -5,12 +5,59 @@
 	// the tiny imperative seams that templates cannot express well: outside
 	// clicks, search filtering, and keyboard focus within the rendered list.
 
+	const LOG_PREFIX = '[shell:workspace]';
 	let booted = false;
 	let retry_timer = null;
+	let workspace_state = null;
 	let active_state = null;
+	const mounted_roots = new WeakSet();
+
+	function log(step, detail) {
+		if (detail === undefined) {
+			console.info(LOG_PREFIX + ' ' + step);
+			return;
+		}
+		console.info(LOG_PREFIX + ' ' + step, detail);
+	}
+
+	function describeScope(scope) {
+		if (!(scope instanceof Element)) {
+			return null;
+		}
+
+		return {
+			tag: scope.tagName.toLowerCase(),
+			id: scope.id || null,
+			activeView: scope.getAttribute('data-active-view') || null,
+			hasScope: scope.hasAttribute('v-scope')
+		};
+	}
 
 	function workspaceRoot(node) {
 		return node instanceof Element ? node.closest('[data-workspace]') : null;
+	}
+
+	function resolveScope(scope, reason) {
+		if (scope instanceof Element && document.contains(scope)) {
+			return scope;
+		}
+
+		if (scope instanceof Element) {
+			log(reason + ':fallback-document-body', describeScope(scope));
+		}
+
+		return document.body || document;
+	}
+
+	function rememberMounted(target) {
+		if (!(target instanceof Element)) {
+			return;
+		}
+
+		mounted_roots.add(target);
+		for (const workspace of target.querySelectorAll('[data-workspace]')) {
+			mounted_roots.add(workspace);
+		}
 	}
 
 	function currentRows(popover) {
@@ -74,47 +121,74 @@
 	}
 
 	function createState() {
-		return {
+		if (workspace_state) {
+			return workspace_state;
+		}
+
+		workspace_state = {
 			open_popover: null,
 			root: null,
 			togglePopover(name, event) {
 				const workspace = workspaceRoot(event && event.currentTarget);
 				if (!(workspace instanceof Element)) {
+					log('popover-toggle:missing-workspace', { name: name });
 					return;
 				}
 
+				log('popover-toggle:start', {
+					name: name,
+					open: this.open_popover,
+					workspace: describeScope(workspace)
+				});
 				this.root = workspace;
+				active_state = this;
 				if (this.open_popover === name) {
-					this.closePopover();
+					log('popover-toggle:close-self', { name: name });
+					this.closePopover('toggle');
 					return;
 				}
 
 				this.open_popover = name;
-				active_state = this;
+				log('popover-toggle:open', { name: name });
 				queueMicrotask(function () {
+					log('popover-toggle:sync-ui', { name: name });
 					syncPopoverUi(workspace, name);
 				});
 			},
-			closePopover() {
+			closePopover(reason) {
+				log('popover-close', {
+					reason: reason || 'manual',
+					open: this.open_popover,
+					workspace: describeScope(this.root)
+				});
 				this.open_popover = null;
 				if (active_state === this) {
 					active_state = null;
 				}
 				if (!(this.root instanceof Element)) {
+					this.root = null;
 					return;
 				}
 				for (const row of this.root.querySelectorAll('[data-file-path]')) {
 					row.removeAttribute('data-focused');
 				}
+				this.root = null;
 			}
 		};
+
+		return workspace_state;
 	}
 
 	function setView(workspace, view) {
 		if (active_state && active_state.root === workspace) {
+			log('view-switch:close-active-popover', { view: view, workspace: describeScope(workspace) });
 			active_state.closePopover();
 		}
 
+		log('view-switch', {
+			view: view,
+			workspace: describeScope(workspace)
+		});
 		for (const panel of workspace.querySelectorAll('[data-view]')) {
 			panel.hidden = panel.dataset.view !== view;
 		}
@@ -141,9 +215,11 @@
 		if (viewToggle) {
 			const workspace = workspaceRoot(viewToggle);
 			if (!workspace) {
+				log('view-toggle:missing-workspace');
 				return;
 			}
 			const next = workspace.getAttribute('data-active-view') === 'terminal' ? 'code' : 'terminal';
+			log('view-toggle:click', { next: next, workspace: describeScope(workspace) });
 			setView(workspace, next);
 		}
 	});
@@ -162,19 +238,25 @@
 
 			const workspace = active_state && active_state.root instanceof Element ? active_state.root : null;
 			if (!workspace) {
+				log('outside-click:no-active-popover');
 				return;
 			}
 
 			if (target.closest('[data-popover]') || target.closest('[data-popover-toggle]')) {
+				log('outside-click:ignored-inside-popover', {
+					target: target.tagName.toLowerCase()
+				});
 				return;
 			}
 
 			if (!workspace.contains(target)) {
-				active_state.closePopover();
+				log('outside-click:close-popover', { workspace: describeScope(workspace) });
+				active_state.closePopover('outside-click');
 				return;
 			}
 
-			active_state.closePopover();
+			log('outside-click:close-popover-in-workspace', { workspace: describeScope(workspace) });
+			active_state.closePopover('workspace-click');
 		},
 		true
 	);
@@ -221,8 +303,10 @@
 	});
 
 	function initialize(scope) {
-		const target = scope && typeof scope.querySelectorAll === 'function' ? scope : document;
+		const target = resolveScope(scope, 'initialize');
+		let workspace_count = 0;
 		for (const workspace of target.querySelectorAll('[data-workspace]')) {
+			workspace_count += 1;
 			if (!workspace.hasAttribute('data-active-view')) {
 				setView(workspace, 'code');
 			}
@@ -230,6 +314,7 @@
 		if (target instanceof Element && target.matches('[data-workspace]') && !target.hasAttribute('data-active-view')) {
 			setView(target, 'code');
 		}
+		log('initialize', { scope: describeScope(target), workspaces: workspace_count });
 	}
 
 	function dependenciesReady() {
@@ -237,24 +322,36 @@
 	}
 
 	function mount(scope) {
-		if (!(scope instanceof Element)) {
+		const target = resolveScope(scope, 'mount');
+		if (!(target instanceof Element)) {
+			return;
+		}
+
+		if (mounted_roots.has(target)) {
+			log('mount:already-mounted', describeScope(target));
 			return;
 		}
 
 		if (window.PetiteVue && typeof window.PetiteVue.createApp === 'function') {
 			try {
-				window.PetiteVue.createApp().mount(scope);
+				log('mount:start', describeScope(target));
+				window.PetiteVue.createApp({ scope: workspace_state }).mount(target);
+				rememberMounted(target);
+				log('mount:complete', describeScope(target));
 			} catch (error) {
-				console.error('[shell] petite-vue mount failed', error);
+				console.error(LOG_PREFIX + ' petite-vue mount failed', error);
 			}
 		}
 	}
 
 	function boot() {
-		initialize(document);
+		log('boot:start');
+		const shell = document.querySelector('.ide-shell') || document.body || document;
+		initialize(shell);
 
 		if (!dependenciesReady()) {
 			if (!retry_timer) {
+				log('boot:waiting-for-dependencies');
 				retry_timer = setTimeout(function () {
 					retry_timer = null;
 					boot();
@@ -268,11 +365,15 @@
 		}
 
 		booted = true;
-		mount(document.body);
+		log('boot:mount-shell', describeScope(shell));
+		mount(shell);
 	}
+
+	workspace_state = createState();
 
 	window.FuwaShellWorkspace = {
 		createState,
+		state: workspace_state,
 		setView,
 		initialize
 	};
@@ -290,8 +391,20 @@
 	}
 
 	document.addEventListener('htmx:afterSwap', function (event) {
-		active_state = null;
-		initialize(event.detail?.target || document);
-		mount(event.detail?.target || event.target || document.body);
+		const raw_scope = event.detail?.target || event.detail?.elt || event.target || document.body;
+		if (raw_scope instanceof Element && (raw_scope.id === 'shell-content' || raw_scope.matches('[data-workspace]'))) {
+			active_state?.closePopover('swap');
+		}
+
+		const target = raw_scope instanceof Element && raw_scope.id === 'shell-content'
+			? document.querySelector('.ide-shell') || document.body || document
+			: document.querySelector('[data-workspace]') || document.querySelector('.ide-shell') || document.body || document;
+		active_state = workspace_state;
+		log('afterSwap', {
+			raw: describeScope(raw_scope),
+			resolved: describeScope(target)
+		});
+		initialize(target);
+		mount(target);
 	});
 })();

@@ -8,6 +8,7 @@
 	// is appended.
 	const ROOT_SELECTOR = '[data-terminal-root]';
 	const sessions = new Map();
+	const LOG_PREFIX = '[shell:terminal]';
 	let xterm_modules = null;
 
 	function loadTerminalModules() {
@@ -34,6 +35,40 @@
 
 		const seed = panel.querySelector('[data-terminal-seed]');
 		return seed instanceof Element ? seed.textContent || '' : '';
+	}
+
+	function log(step, detail) {
+		if (detail === undefined) {
+			console.info(LOG_PREFIX + ' ' + step);
+			return;
+		}
+		console.info(LOG_PREFIX + ' ' + step, detail);
+	}
+
+	function describeRoot(root) {
+		if (!(root instanceof Element)) {
+			return null;
+		}
+
+		return {
+			tag: root.tagName.toLowerCase(),
+			id: root.id || null,
+			session: root.getAttribute('data-terminal-session') || null,
+			state: root.getAttribute('data-widget-state') || null
+		};
+	}
+
+	function resolveScope(scope, reason) {
+		const target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
+		if (target instanceof Element && document.contains(target)) {
+			return target;
+		}
+
+		const fallback = document.querySelector(ROOT_SELECTOR) || document.body || document;
+		if (target instanceof Element) {
+			log(reason + ':fallback', { raw: describeRoot(target), fallback: describeRoot(fallback) });
+		}
+		return fallback;
 	}
 
 	async function ensureSession(session_id) {
@@ -125,8 +160,10 @@
 
 			root.setAttribute('data-widget-state', 'mounted');
 			root.setAttribute('data-widget-kind', 'terminal');
+			log('mount:success', describeRoot(root));
 			return session;
 		} catch (error) {
+			console.error(LOG_PREFIX + ' mount failed', error);
 			root.setAttribute('data-widget-state', 'error');
 			root.setAttribute('data-widget-kind', 'terminal');
 			root.textContent = 'xterm failed to load: ' + String(error && error.message ? error.message : error);
@@ -139,6 +176,7 @@
 			return;
 		}
 
+		log('detach', describeRoot(root));
 		// Move the live container out of the subtree that htmx is about to
 		// replace; the terminal instance stays alive for the next mount.
 		for (const session of sessions.values()) {
@@ -176,7 +214,8 @@
 	}
 
 	function refresh(scope) {
-		const target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
+		const target = resolveScope(scope, 'refresh');
+		log('refresh', { scope: describeRoot(target) });
 
 		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
 			void mount(target);
@@ -190,6 +229,10 @@
 	function handleBeforeSwap(event) {
 		const scope = event.detail?.target || event.detail?.elt || event.target || document.body;
 		const target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
+		log('htmx:beforeSwap', {
+			raw: describeRoot(scope),
+			status: event.detail?.xhr?.status || null
+		});
 
 		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
 			detach(target);
@@ -201,7 +244,12 @@
 	}
 
 	function handleAfterSwap(event) {
-		refresh(event.detail?.target || event.detail?.elt || event.target || document.body);
+		const scope = event.detail?.target || event.detail?.elt || event.target || document.body;
+		log('htmx:afterSwap', {
+			raw: describeRoot(scope),
+			status: event.detail?.xhr?.status || null
+		});
+		refresh(scope);
 	}
 
 	window.FuwaShellTerminal = {
@@ -217,11 +265,13 @@
 		document.addEventListener(
 			'DOMContentLoaded',
 			function () {
+				log('boot:DOMContentLoaded');
 				refresh(document.body || document);
 			},
 			{ once: true }
 		);
 	} else {
+		log('boot:ready');
 		refresh(document.body || document);
 	}
 
