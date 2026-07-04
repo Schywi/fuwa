@@ -40,7 +40,7 @@
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 11 2-2-2-2" /><path d="M11 13h4" /><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
     </button>
 
-    <div class="popover-v2 search-popover" data-popover="search" v-show="open_popover === 'search'" style="display:none" @click.stop>
+    <div class="popover-v2 search-popover" data-popover="search" v-show="open_popover === 'search'" v-cloak @click.stop>
       <div class="search-input-wrap">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" data-popover-search placeholder="Jump to file…" aria-label="Filter files" />
@@ -63,7 +63,7 @@
       </div>
     </div>
 
-    <div class="popover-v2 list-popover" data-popover="list" v-show="open_popover === 'list'" style="display:none" @click.stop>
+    <div class="popover-v2 list-popover" data-popover="list" v-show="open_popover === 'list'" v-cloak @click.stop>
       <div class="popover-header">
         <span class="label">Files</span>
         <span class="count">&dashboard.active.file_count</span>
