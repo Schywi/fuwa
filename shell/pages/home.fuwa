@@ -14,7 +14,9 @@ end
 
 action inspect(req) do
   dashboard = Dashboard.build(host, req.params.payload_id, req.query.file)
-  return ShellViews.render_fragment("home", { dashboard = dashboard })
+  workspace = ShellViews.render_fragment("workspace", { dashboard = dashboard })
+  oob = ShellViews.render_fragment("workspace-oob", { dashboard = dashboard })
+  return workspace .. oob
 end
 
 action switch(req) do
@@ -27,5 +29,7 @@ action save(req) do
   run = host.compile_payload(req.params.payload_id)?
   run.output = "$ save " .. saved.path .. "\n" .. run.output
   dashboard = Dashboard.build(host, req.params.payload_id, req.form.path, run)
-  return ShellViews.render_fragment("home", { dashboard = dashboard, saved = saved })
+  workspace = ShellViews.render_fragment("workspace", { dashboard = dashboard })
+  oob = ShellViews.render_fragment("workspace-oob", { dashboard = dashboard })
+  return workspace .. oob
 end

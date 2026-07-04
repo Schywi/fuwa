@@ -77,6 +77,7 @@ local function test_http_request()
 	assert_true(output:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected shell switch button")
 	assert_true(output:find('hx-post="/save/current"', 1, true) ~= nil, "expected shell save button")
 	assert_true(output:find('hx-target="#shell-content"', 1, true) ~= nil, "expected shell fragment target")
+	assert_true(output:find("EventSource('/__dev/reload')", 1, true) == nil, "expected no full-page reload script in the shell host page")
 end
 
 local function test_response_builder()
@@ -124,6 +125,7 @@ local function test_payload_route_request()
 	assert_true(output:find('script defer src="browser.js"', 1, true) ~= nil, "expected payload browser asset tag")
 	assert_true(output:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected htmx loader")
 	assert_true(output:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected petite-vue loader")
+	assert_true(output:find("EventSource('/__dev/reload')", 1, true) ~= nil, "expected dev reload script in tenant documents")
 
 	local post_output = run_command(
 		"printf 'POST /payload/current/counter HTTP/1.1\\r\\nHost: localhost\\r\\nContent-Length: 0\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
@@ -255,6 +257,85 @@ local function test_shell_save_run_loop()
 	assert_true(ok, err)
 end
 
+local function test_shell_inspect_fragment()
+	local response = dev.build_response("shell", "GET", "/inspect/current?file=view.fuwa", "", {
+		allow_host = true,
+	})
+
+	assert_true(response.status == 200, "expected inspect route to succeed")
+	assert_true(response.body:find('id="ide-workspace"', 1, true) ~= nil, "expected workspace fragment root")
+	assert_true(response.body:find('id="shell-content"', 1, true) == nil, "expected inspect to leave the shell frame alone")
+	assert_true(response.body:find("shell-preview-frame", 1, true) == nil, "expected inspect to leave the preview iframe alone")
+	assert_true(response.body:find('data-popover="search"', 1, true) ~= nil, "expected search popover")
+	assert_true(response.body:find('data-popover="list"', 1, true) ~= nil, "expected file list dropdown")
+	assert_true(response.body:find('data-selected="true"', 1, true) ~= nil, "expected an active file highlight")
+	assert_true(response.body:find('data-file-path="view.fuwa"', 1, true) ~= nil, "expected the inspected file in the list")
+	assert_true(response.body:find("breadcrumb-segment", 1, true) ~= nil, "expected breadcrumb context")
+	assert_true(response.body:find('id="ide-preview-refresh" hx-swap-oob="true" data-refresh-token=""', 1, true) ~= nil,
+		"expected inspect to carry an empty preview refresh token")
+	assert_true(response.body:find('id="ide-entry-stat" hx-swap-oob="true"', 1, true) ~= nil, "expected entry stat OOB update")
+end
+
+local function test_shell_save_preview_refresh()
+	local path = "payloads/current/pages/home.fuwa"
+	local original = read_file(path)
+	local body = "path=" .. encode_form_component("pages/home.fuwa") .. "&contents=" .. encode_form_component(original)
+
+	local ok, err = pcall(function()
+		local response = dev.build_response("shell", "POST", "/save/current", body, {
+			allow_host = true,
+		})
+
+		assert_true(response.status == 200, "expected shell save route to succeed")
+		assert_true(response.body:find('id="ide-workspace"', 1, true) ~= nil, "expected save to return the workspace fragment")
+		assert_true(response.body:find('id="shell-content"', 1, true) == nil, "expected save to leave the shell frame alone")
+		assert_true(response.body:find("shell-preview-frame", 1, true) == nil, "expected save to leave the preview iframe alone")
+		assert_true(response.body:find('id="ide-preview-refresh" hx-swap-oob="true" data-refresh-token=""', 1, true) == nil,
+			"expected save to carry a non-empty preview refresh token")
+		assert_true(response.body:find('id="ide-preview-refresh" hx-swap-oob="true" data-refresh-token="', 1, true) ~= nil,
+			"expected preview refresh OOB marker")
+		assert_true(response.body:find('id="ide-runtime-state" hx-swap-oob="true"', 1, true) ~= nil, "expected runtime state OOB update")
+		assert_true(response.body:find('data-status="ok"', 1, true) ~= nil, "expected successful build status")
+	end)
+
+	write_file(path, original)
+	assert_true(ok, err)
+end
+
+local function test_browser_runtime_routes()
+	local bundle_response = dev.build_bundle_response("current")
+	assert_true(bundle_response.status == 200, "expected bundle route to succeed")
+	assert_true(bundle_response.headers["Content-Type"] == "application/json; charset=utf-8", "expected JSON bundle")
+	assert_true(bundle_response.body:find('"ok":true', 1, true) ~= nil, "expected clean payload bundle")
+	assert_true(bundle_response.body:find('"entry":"main.lua"', 1, true) ~= nil, "expected bundle entry")
+	assert_true(bundle_response.body:find('"main.lua":', 1, true) ~= nil, "expected compiled main.lua in bundle")
+	assert_true(bundle_response.body:find("runtime/stdlib/db.lua", 1, true) ~= nil, "expected stdlib VFS in bundle")
+
+	local invalid = dev.build_bundle_response("../etc")
+	assert_true(invalid.status == 404, "expected invalid payload id to 404")
+
+	local tenant_html = run_command(
+		"printf 'GET /runtime/tenant.html HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(tenant_html:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected tenant document route")
+	assert_true(tenant_html:find('data-browser-runtime="tenant"', 1, true) ~= nil, "expected tenant runtime marker")
+	assert_true(tenant_html:find("/shell/hooks/tenant-runtime.js", 1, true) ~= nil, "expected tenant bridge script")
+	assert_true(tenant_html:find("/vendor/htmx/htmx-1.9.12.min.js", 1, true) ~= nil, "expected vendor htmx in tenant document")
+
+	local worker_js = run_command(
+		"printf 'GET /shell/hooks/runtime-worker.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(worker_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected worker asset to respond")
+	assert_true(worker_js:find("importScripts('/vendor/wasmoon/wasmoon-1.16.0.js'", 1, true) ~= nil, "expected vendor wasmoon import")
+	assert_true(worker_js:find("__fuwaBrowser", 1, true) ~= nil, "expected worker message marker")
+
+	local wasm_asset = run_command(
+		"printf 'GET /vendor/wasmoon/glue-1.16.0.wasm HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua | head -c 400"
+	)
+	assert_true(wasm_asset:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected wasm asset to respond")
+	assert_true(wasm_asset:find("Content%-Type: application/wasm") ~= nil, "expected wasm MIME type")
+end
+
 local function test_db_helper()
 	local state_path = os.tmpname()
 	local lock_path = state_path .. ".lock"
@@ -297,6 +378,9 @@ test_payload_route_request()
 test_raw_asset_requests()
 test_current_payload_interaction()
 test_shell_save_run_loop()
+test_shell_inspect_fragment()
+test_shell_save_preview_refresh()
+test_browser_runtime_routes()
 test_db_helper()
 
 print("dev server smoke checks passed")

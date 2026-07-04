@@ -1,0 +1,4 @@
+<div id="ide-preview-refresh" hx-swap-oob="true" data-refresh-token="&dashboard.preview_refresh_token" hidden></div>
+<span id="ide-entry-stat" hx-swap-oob="true" class="stat-value">&dashboard.active.selected_file</span>
+<span id="ide-runtime-state" hx-swap-oob="true" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
+<footer id="ide-status" hx-swap-oob="true" class="ide-island ide-status">( •ω•)ﾉ✦ fuwa shell ready · &dashboard.active.terminal_label</footer>

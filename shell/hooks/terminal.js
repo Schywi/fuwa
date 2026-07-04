@@ -1,9 +1,13 @@
 (function () {
 	'use strict';
 
-	// The terminal root remounts after shell fragment swaps, matching the editor hook.
+	// Terminal sessions outlive workspace fragment swaps. Each payload id owns
+	// one xterm instance living in a detached container; mounting re-parents
+	// the container instead of recreating the terminal, so scrollback survives
+	// file switches and only new run output (tracked by data-terminal-run-id)
+	// is appended.
 	const ROOT_SELECTOR = '[data-terminal-root]';
-	const mounted_roots = new WeakMap();
+	const sessions = new Map();
 	let xterm_modules = null;
 
 	function loadTerminalModules() {
@@ -23,7 +27,7 @@
 	}
 
 	function readSeed(root) {
-		const panel = root.closest('.shell-terminal');
+		const panel = root.closest('[data-view="terminal"], .shell-terminal');
 		if (!(panel instanceof Element)) {
 			return '';
 		}
@@ -32,89 +36,143 @@
 		return seed instanceof Element ? seed.textContent || '' : '';
 	}
 
+	async function ensureSession(session_id) {
+		let session = sessions.get(session_id);
+		if (session) {
+			return session;
+		}
+
+		const { Terminal, FitAddon } = await loadTerminalModules();
+		if (sessions.has(session_id)) {
+			return sessions.get(session_id);
+		}
+
+		const container = document.createElement('div');
+		container.style.height = '100%';
+		const fit_addon = new FitAddon();
+		const terminal = new Terminal({
+			fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+			fontSize: 12,
+			lineHeight: 1.25,
+			cursorBlink: false,
+			convertEol: true,
+			theme: {
+				background: '#09090b',
+				foreground: '#f4f4f5',
+				cursor: '#f59e0b',
+				cursorAccent: '#09090b'
+			}
+		});
+
+		terminal.loadAddon(fit_addon);
+		terminal.open(container);
+
+		session = {
+			terminal,
+			fit_addon,
+			container,
+			applied_run_ids: new Set(),
+			resize_observer: null
+		};
+
+		if (typeof ResizeObserver === 'function') {
+			session.resize_observer = new ResizeObserver(function () {
+				if (container.isConnected) {
+					try {
+						fit_addon.fit();
+					} catch (error) {
+						/* fit can race detach; harmless */
+					}
+				}
+			});
+			session.resize_observer.observe(container);
+		}
+
+		sessions.set(session_id, session);
+		return session;
+	}
+
+	function appendOutput(session, text) {
+		if (text === '') {
+			return;
+		}
+		session.terminal.write(text.endsWith('\n') ? text : text + '\n');
+	}
+
 	async function mount(root) {
 		if (!(root instanceof Element)) {
 			return null;
 		}
 
-		const existing = mounted_roots.get(root);
-		if (existing) {
-			return existing;
-		}
-
-		const host = document.createElement('div');
-		host.style.height = '100%';
-		root.replaceChildren(host);
-
+		const session_id = root.getAttribute('data-terminal-session') || 'default';
 		try {
-			const { Terminal, FitAddon } = await loadTerminalModules();
-			const fit_addon = new FitAddon();
-			const terminal = new Terminal({
-				fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-				fontSize: 12,
-				lineHeight: 1.25,
-				cursorBlink: false,
-				convertEol: true,
-				theme: {
-					background: '#09090b',
-					foreground: '#f4f4f5',
-					cursor: '#f59e0b',
-					cursorAccent: '#09090b'
+			const session = await ensureSession(session_id);
+
+			if (!session.container.isConnected || session.container.parentElement !== root) {
+				root.replaceChildren(session.container);
+				try {
+					session.fit_addon.fit();
+				} catch (error) {
+					/* first fit after re-parent can race layout */
 				}
-			});
-			let resize_observer = null;
+			}
 
-			terminal.loadAddon(fit_addon);
-			terminal.open(host);
-			fit_addon.fit();
-			terminal.write(readSeed(root));
-
-			if (typeof ResizeObserver === 'function') {
-				resize_observer = new ResizeObserver(function () {
-					fit_addon.fit();
-				});
-				resize_observer.observe(host);
+			const run_id = root.getAttribute('data-terminal-run-id') || 'idle';
+			if (!session.applied_run_ids.has(run_id)) {
+				session.applied_run_ids.add(run_id);
+				appendOutput(session, readSeed(root));
 			}
 
 			root.setAttribute('data-widget-state', 'mounted');
 			root.setAttribute('data-widget-kind', 'terminal');
-
-			const cleanup = function () {
-				resize_observer?.disconnect();
-				fit_addon.dispose();
-				terminal.dispose();
-				root.removeAttribute('data-widget-state');
-				root.removeAttribute('data-widget-kind');
-				mounted_roots.delete(root);
-			};
-
-			mounted_roots.set(root, cleanup);
-			return cleanup;
+			return session;
 		} catch (error) {
 			root.setAttribute('data-widget-state', 'error');
 			root.setAttribute('data-widget-kind', 'terminal');
 			root.textContent = 'xterm failed to load: ' + String(error && error.message ? error.message : error);
-
-			const cleanup = function () {
-				root.removeAttribute('data-widget-state');
-				root.removeAttribute('data-widget-kind');
-				mounted_roots.delete(root);
-			};
-
-			mounted_roots.set(root, cleanup);
-			return cleanup;
+			return null;
 		}
 	}
 
-	function unmount(root) {
+	function detach(root) {
 		if (!(root instanceof Element)) {
 			return;
 		}
 
-		const cleanup = mounted_roots.get(root);
-		if (cleanup) {
-			cleanup();
+		// Move the live container out of the subtree that htmx is about to
+		// replace; the terminal instance stays alive for the next mount.
+		for (const session of sessions.values()) {
+			if (root.contains(session.container)) {
+				session.container.remove();
+			}
 		}
+	}
+
+	function write(session_id, text) {
+		const session = sessions.get(session_id);
+		if (session) {
+			session.terminal.write(text);
+		}
+	}
+
+	function clear(session_id) {
+		const session = sessions.get(session_id);
+		if (session) {
+			session.terminal.clear();
+		}
+	}
+
+	function dispose(session_id) {
+		const session = sessions.get(session_id);
+		if (!session) {
+			return;
+		}
+
+		session.resize_observer?.disconnect();
+		session.fit_addon.dispose();
+		session.terminal.dispose();
+		session.container.remove();
+		sessions.delete(session_id);
 	}
 
 	function refresh(scope) {
@@ -129,20 +187,17 @@
 		}
 	}
 
-	function clearRoots(scope) {
+	function handleBeforeSwap(event) {
+		const scope = event.detail?.target || event.detail?.elt || event.target || document.body;
 		const target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
 
 		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
-			unmount(target);
+			detach(target);
 		}
 
 		for (const root of target.querySelectorAll(ROOT_SELECTOR)) {
-			unmount(root);
+			detach(root);
 		}
-	}
-
-	function handleBeforeSwap(event) {
-		clearRoots(event.detail?.target || event.detail?.elt || event.target || document.body);
 	}
 
 	function handleAfterSwap(event) {
@@ -151,8 +206,10 @@
 
 	window.FuwaShellTerminal = {
 		mount,
-		unmount,
 		refresh,
+		write,
+		clear,
+		dispose,
 		selector: ROOT_SELECTOR
 	};
 

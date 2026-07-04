@@ -1,141 +1,78 @@
 <section id="shell-content" class="shell-content">
-  <section class="shell-frame">
-    <div class="shell-topbar">
-      <div class="shell-brand">
-        <p class="shell-kicker">&dashboard.eyebrow</p>
-        <h1>&dashboard.title</h1>
-      </div>
-      <div class="shell-badge">Route-backed tenant iframe</div>
-    </div>
-
-    <div class="shell-main">
-      <section class="shell-hero">
-        <h1 class="shell-title">&dashboard.title</h1>
-        <p class="shell-summary">&dashboard.summary</p>
-
-        <div class="shell-chip-row">
-          <span class="shell-chip" f-for="chip in dashboard.chips">&chip</span>
-        </div>
-
-        <section class="shell-switcher">
-          <div class="shell-switcher-copy">
-            <p class="shell-kicker">Lesson navigation</p>
-            <h2>Switch the mounted payload</h2>
-            <p>Buttons call host.switch_payload through htmx, but the shell stays in `.fuwa` and the payload stays in its own route-backed iframe.</p>
-          </div>
-
-          <div class="shell-switcher-actions">
-            <button
-              f-for="payload in dashboard.payloads"
-              type="button"
-              class="shell-button"
-              data-active="&payload.active"
-              hx-post="&payload.switch_route"
-              hx-target="#shell-content"
-              hx-swap="outerHTML"
-            >
-              <span>&payload.label</span>
-              <span class="shell-button-meta">&payload.summary</span>
-            </button>
-          </div>
-        </section>
-      </section>
-
-      <aside class="shell-rail">
-        <article class="shell-card">
-          <h2>Mount status</h2>
-          <p>The active payload is <code>&dashboard.active.label</code>.</p>
-          <p>Route: <code>&dashboard.active.route</code></p>
-          <p>Sandbox: <code>&dashboard.active.sandbox</code></p>
-          <p>Bootstrap: <code>&dashboard.active.bootstrap</code></p>
-        </article>
-
-        <article class="shell-card">
-          <h2>Inspector</h2>
-          <p>Selected file: <code>&dashboard.active.selected_file_name</code></p>
-          <p>Files visible: <code>&dashboard.active.file_count</code></p>
-          <p>Selected size: <code>&dashboard.active.selected_file_length</code> bytes</p>
-        </article>
-      </aside>
-    </div>
-
-    <section class="shell-workbench">
-      <div class="shell-workbench-head">
+  <div class="ide-shell">
+    <section class="ide-island ide-preview-island">
+      <div class="ide-preview-head">
         <div>
-          <p class="shell-kicker">Preview slot</p>
-          <h2>&dashboard.preview_heading</h2>
+          <p class="shell-kicker">&dashboard.preview_heading</p>
+          <p class="ide-preview-note">&dashboard.preview_note</p>
         </div>
-        <div class="shell-workbench-note">&dashboard.preview_note</div>
+        <div class="shell-badge">Route-backed tenant iframe</div>
       </div>
 
-      <div class="shell-preview-stage">
+      <div
+        class="ide-preview-stage"
+        data-preview-stage
+        data-payload-id="&dashboard.active.id"
+        data-payload-route="&dashboard.active.route"
+        data-runtime-tenant-url="&dashboard.runtime_tenant_url"
+        data-runtime-worker-url="&dashboard.runtime_worker_url"
+        data-bundle-url="&dashboard.active.bundle_url"
+      >
         &unsafe dashboard.preview_html
       </div>
 
-      <div class="shell-workbench-grid">
-        <section class="shell-panel">
-          <div class="shell-panel-head">
-            <p class="shell-kicker">File tree</p>
-            <h3>Payload source files</h3>
-            <p>Click a file to inspect it in the editor panel.</p>
-          </div>
-
-          <div class="shell-file-list">
-            <button
-              f-for="file in dashboard.active.files"
-              type="button"
-              class="shell-file-item"
-              data-selected="&file.selected"
-              hx-get="&file.inspect_url"
-              hx-target="#shell-content"
-              hx-swap="outerHTML"
-            >
-              <span class="shell-file-name">&file.name</span>
-              <span class="shell-file-path">&file.path</span>
-            </button>
-          </div>
-        </section>
-
-        <form class="shell-panel shell-editor" hx-post="&dashboard.active.save_route" hx-target="#shell-content" hx-swap="outerHTML">
-          <input type="hidden" name="path" value="&dashboard.active.selected_file" />
-
-          <div class="shell-panel-head">
-            <p class="shell-kicker">Edit panel</p>
-            <h3>&dashboard.active.selected_file_name</h3>
-            <p>Changes save directly back into the active payload root, then compile the payload and refresh the preview mount.</p>
-          </div>
-
-          <div class="shell-widget-shell" data-editor-root data-file-path="&dashboard.active.selected_file" aria-label="CodeMirror editor mount point">
-            <p class="shell-widget-placeholder">CodeMirror mounts here.</p>
-          </div>
-
-          <textarea data-editor-fallback name="contents" spellcheck="false">&dashboard.active.selected_file_source</textarea>
-
-          <div class="shell-editor-actions">
-            <span class="shell-editor-note">Editing <code>&dashboard.active.selected_file</code></span>
-            <button type="submit" class="shell-button shell-button-primary">Save + run</button>
-          </div>
-        </form>
+      <div class="ide-preview-foot">
+        <button type="button" class="shell-button ide-runtime-mode" data-runtime-mode-toggle data-runtime-mode="server">
+          <span data-runtime-mode-label>Server runtime</span>
+          <span class="shell-button-meta">tap to run in-browser</span>
+        </button>
       </div>
-
-      <section class="shell-panel shell-terminal">
-        <div class="shell-panel-head">
-          <p class="shell-kicker">Terminal</p>
-          <h3>xterm output</h3>
-          <p>Each save returns the latest compile result here, so the shell shows the run loop without adding a second host framework.</p>
-        </div>
-
-        <div class="shell-terminal-meta">
-          <span class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
-          <span class="shell-editor-note">Session <code>&dashboard.active.id</code></span>
-        </div>
-
-        <div class="shell-widget-shell" data-terminal-root data-terminal-session="&dashboard.active.id" data-terminal-status="&dashboard.active.terminal_status" aria-label="xterm terminal mount point">
-          <p class="shell-widget-placeholder">xterm mounts here.</p>
-        </div>
-
-        <pre hidden data-terminal-seed>&dashboard.active.terminal_output</pre>
-      </section>
+      <div id="ide-preview-refresh" data-refresh-token="" hidden></div>
     </section>
-  </section>
+
+    <div class="ide-panel">
+      <header class="ide-island ide-header">
+        <div class="owner">
+          <div class="owner-avatar">FW</div>
+          <div class="owner-meta">
+            <div class="owner-name">&dashboard.title</div>
+            <div class="owner-sub">&dashboard.eyebrow · &dashboard.active.file_count files</div>
+          </div>
+        </div>
+
+        <div class="stats">
+          <div class="stat-item">
+            <span class="stat-label">payload</span>
+            <span class="stat-value">&dashboard.active.label</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">entry</span>
+            <span id="ide-entry-stat" class="stat-value">&dashboard.active.selected_file</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">runtime</span>
+            <span id="ide-runtime-state" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
+          </div>
+          <div class="stat-item ide-switcher">
+            <span class="stat-label">switch</span>
+            <div class="ide-switcher-buttons">
+              <button
+                f-for="payload in dashboard.payloads"
+                type="button"
+                class="shell-button ide-switch-button"
+                data-active="&payload.active"
+                hx-post="&payload.switch_route"
+                hx-target="#shell-content"
+                hx-swap="outerHTML"
+              >&payload.label</button>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <include src="views/fragments/workspace.fuwa" />
+
+      <footer id="ide-status" class="ide-island ide-status">( •ω•)ﾉ✦ fuwa shell ready · &dashboard.active.terminal_label</footer>
+    </div>
+  </div>
 </section>
