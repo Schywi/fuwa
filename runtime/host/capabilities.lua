@@ -232,6 +232,11 @@ local function write_payload_file(instance, payload_id, relative_path, contents)
 	os.execute("mkdir -p " .. shell_quote(dirname(path)))
 	write_all(path, contents or "")
 
+	-- Publishing supersedes any live draft of the same file: the draft overlay
+	-- (.fuwa-dev/drafts) only exists to keep unsaved edits out of the payload
+	-- source tree, so a promoted file's draft copy is cleared here.
+	os.remove(instance.__root .. "/.fuwa-dev/drafts/" .. normalized_id .. "/" .. normalized_path)
+
 	return {
 		ok = true,
 		value = {
