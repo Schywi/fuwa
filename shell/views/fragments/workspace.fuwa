@@ -1,10 +1,35 @@
-<section id="ide-workspace" class="ide-island ide-workspace" data-workspace data-payload-id="&dashboard.active.id" data-selected-file="&dashboard.active.selected_file">
+<section
+  id="ide-workspace"
+  class="ide-island ide-workspace"
+  data-workspace
+  data-payload-id="&dashboard.active.id"
+  data-selected-file="&dashboard.active.selected_file"
+  v-scope="FuwaShellWorkspace.createState()"
+>
   <header class="code-shell-header" data-popover-scope>
-    <button type="button" class="shell-icon-btn" data-popover-toggle="search" aria-label="Search files" aria-haspopup="true">
+    <button
+      type="button"
+      class="shell-icon-btn"
+      data-popover-toggle="search"
+      :data-open="open_popover === 'search' ? 'true' : null"
+      :aria-expanded="open_popover === 'search' ? 'true' : 'false'"
+      @click.stop="togglePopover('search', $event)"
+      aria-label="Search files"
+      aria-haspopup="true"
+    >
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
     </button>
 
-    <button type="button" class="shell-icon-btn" data-popover-toggle="list" aria-label="File list" aria-haspopup="true">
+    <button
+      type="button"
+      class="shell-icon-btn"
+      data-popover-toggle="list"
+      :data-open="open_popover === 'list' ? 'true' : null"
+      :aria-expanded="open_popover === 'list' ? 'true' : 'false'"
+      @click.stop="togglePopover('list', $event)"
+      aria-label="File list"
+      aria-haspopup="true"
+    >
       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /><path d="M14 4h7" /><path d="M14 9h7" /><path d="M14 15h7" /><path d="M14 20h7" /></svg>
     </button>
 
@@ -16,7 +41,7 @@
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 11 2-2-2-2" /><path d="M11 13h4" /><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
     </button>
 
-    <div class="popover-v2 search-popover" data-popover="search" hidden>
+    <div class="popover-v2 search-popover" data-popover="search" v-show="open_popover === 'search'" style="display:none" @click.stop>
       <div class="search-input-wrap">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
         <input type="text" data-popover-search placeholder="Jump to file…" aria-label="Filter files" />
@@ -28,6 +53,7 @@
           class="popover-row"
           data-selected="&file.selected"
           data-file-path="&file.path"
+          @click="closePopover()"
           hx-get="&file.inspect_url"
           hx-target="#ide-workspace"
           hx-swap="outerHTML"
@@ -38,7 +64,7 @@
       </div>
     </div>
 
-    <div class="popover-v2 list-popover" data-popover="list" hidden>
+    <div class="popover-v2 list-popover" data-popover="list" v-show="open_popover === 'list'" style="display:none" @click.stop>
       <div class="popover-header">
         <span class="label">Files</span>
         <span class="count">&dashboard.active.file_count</span>
@@ -50,6 +76,7 @@
           class="popover-row-rich"
           data-selected="&file.selected"
           data-file-path="&file.path"
+          @click="closePopover()"
           hx-get="&file.inspect_url"
           hx-target="#ide-workspace"
           hx-swap="outerHTML"

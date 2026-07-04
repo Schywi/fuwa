@@ -70,5 +70,6 @@ return function(t)
 
 		t.truthy(body:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected browser asset to respond")
 		t.truthy(body:find("fuwaBrowser", 1, true) ~= nil, "expected browser.js contents")
+		t.truthy(body:find("dependenciesReady", 1, true) ~= nil, "expected browser.js to wait for vendor libraries")
 	end)
 end

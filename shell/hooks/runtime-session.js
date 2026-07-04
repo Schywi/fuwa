@@ -13,6 +13,7 @@
 		const on_terminal = options.onTerminal || function () {};
 		const on_status = options.onStatus || function () {};
 		const send_tenant_command = options.sendTenantCommand || function () {};
+		const payload_base_url = derivePayloadBaseUrl(bundle_url);
 
 		let worker = null;
 		let state = 'idle';
@@ -23,6 +24,48 @@
 		const pending_runs = new Map();
 		const local_edits = new Map();
 		let current_request = null;
+
+		function normalizeBasePath(value) {
+			const text = typeof value === 'string' ? value.trim() : '';
+			if (text === '' || text === '/') {
+				return '';
+			}
+			return text.endsWith('/') ? text : text + '/';
+		}
+
+		function derivePayloadBaseUrl(url) {
+			const match = String(url || '').match(/\/runtime\/([^/]+)\/bundle\.json$/);
+			if (!match) {
+				return '/payload/current/';
+			}
+			return '/payload/' + match[1] + '/';
+		}
+
+		function normalizeRequestPath(path, payloadBaseUrl) {
+			const text = typeof path === 'string' && path !== '' ? path : '/';
+			const base = normalizeBasePath(payloadBaseUrl) || '/';
+			const root = base.slice(0, -1);
+			if (text === root) {
+				return '/';
+			}
+			if (text.startsWith(base)) {
+				const inner = text.slice(base.length);
+				return inner === '' ? '/' : '/' + inner.replace(/^\/+/, '');
+			}
+			return text;
+		}
+
+		function resolveResponseUrl(path) {
+			const base_path = normalizeBasePath(payload_base_url) || '/';
+			const request_path = typeof path === 'string' && path !== '' ? path : '/';
+			const relative_path = request_path === '/' ? '' : request_path.replace(/^\/+/, '');
+			try {
+				const url = new URL(relative_path, 'https://tenant.invalid' + base_path);
+				return url.pathname + url.search + url.hash;
+			} catch {
+				return base_path;
+			}
+		}
 
 		function setState(next) {
 			state = next;
@@ -59,19 +102,24 @@
 				return;
 			}
 			if (message.type === 'html') {
+				const response_url = current_request ? current_request.responseUrl : payload_base_url;
 				if (current_request && current_request.requestId != null) {
 					send_tenant_command({
 						type: 'reply',
 						requestId: current_request.requestId,
 						html: message.html,
-						path: current_request.path,
+						path: response_url,
+						responseUrl: response_url,
+						appBasePath: payload_base_url,
 						status: 200
 					});
 				} else {
 					send_tenant_command({
 						type: 'swap',
 						html: message.html,
-						path: current_request ? current_request.path : '/'
+						path: response_url,
+						responseUrl: response_url,
+						appBasePath: payload_base_url
 					});
 				}
 				return;
@@ -154,7 +202,14 @@
 				await loadBundle();
 			}
 
-			current_request = target && target.kind === 'request' ? target : null;
+			current_request = target && target.kind === 'request'
+				? Object.assign({}, target, {
+					path: normalizeRequestPath(target.path, payload_base_url)
+				})
+				: null;
+			if (current_request) {
+				current_request.responseUrl = resolveResponseUrl(current_request.path);
+			}
 			if (!current_request) {
 				send_tenant_command({ type: 'clear', message: 'Running Lua…' });
 			}
@@ -164,11 +219,12 @@
 			const id = message_id;
 			return new Promise(function (resolve) {
 				pending_runs.set(id, resolve);
+				const worker_target = current_request || target || { kind: 'request', method: 'GET', path: '/', body: '' };
 				post({
 					type: 'run',
 					id: id,
 					files: bundleFiles(),
-					target: target || { kind: 'request', method: 'GET', path: '/', body: '' }
+					target: worker_target
 				});
 			});
 		}
@@ -185,7 +241,7 @@
 				kind: 'request',
 				requestId: request.requestId,
 				method: request.method || 'GET',
-				path: request.path || '/',
+				path: normalizeRequestPath(request.path || '/', payload_base_url),
 				body: request.body || ''
 			});
 		}

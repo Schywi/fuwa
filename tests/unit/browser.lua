@@ -119,6 +119,34 @@ t.test("browser worker imports sqlite-wasm instead of sql.js", function()
 	t.falsy(worker:find("sqljs", 1, true) ~= nil, "expected no sql.js backend")
 end)
 
+t.test("runtime bridge rebinds browser URLs through the payload base", function()
+	local session = read_file("shell/hooks/runtime-session.js")
+	t.contains(session, "resolveResponseUrl", "expected response URL resolution")
+	t.contains(session, "appBasePath", "expected payload base propagation")
+	t.contains(session, "responseUrl", "expected response URL propagation")
+	t.contains(session, "payload_base_url", "expected derived payload base")
+
+	local tenant = read_file("shell/hooks/tenant-runtime.js")
+	t.contains(tenant, "rewriteDocumentUrls", "expected tenant URL rewrite helper")
+	t.contains(tenant, "hx-push-url", "expected hx url rewriting")
+	t.contains(tenant, "fresh.async = false", "expected ordered script replay")
+	t.contains(tenant, "responseUrl", "expected response URL contract")
+	t.contains(tenant, "window.location.href", "expected same-origin URL resolution")
+end)
+
+t.test("payload browser bootstraps wait for vendor libraries", function()
+	local current_browser = read_file("payloads/current/browser.js")
+	t.contains(current_browser, "dependenciesReady", "expected dependency probe")
+	t.contains(current_browser, "function handleSwap(event)", "expected swap listener helper")
+	t.contains(current_browser, "document.addEventListener('htmx:afterSwap', handleSwap);", "expected swap listener registration")
+	t.contains(current_browser, "setTimeout(function () {", "expected retry loop")
+
+	local lesson_browser = read_file("payloads/lesson/browser.js")
+	t.contains(lesson_browser, "dependenciesReady", "expected lesson dependency probe")
+	t.contains(lesson_browser, "function handleSwap(event)", "expected lesson swap listener helper")
+	t.contains(lesson_browser, "document.addEventListener('htmx:afterSwap', handleSwap);", "expected lesson swap listener registration")
+end)
+
 t.test("bundle build compiles payload sources plus the stdlib VFS", function()
 	local sources = {
 		["app.fuwa"] = table.concat({

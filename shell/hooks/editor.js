@@ -10,17 +10,222 @@
 	const mounted_roots = new WeakMap();
 	const pending_edits = new Map();
 	let codemirror_modules = null;
+	const LUA_KEYWORDS = new Set([
+		'and',
+		'break',
+		'do',
+		'else',
+		'elseif',
+		'end',
+		'false',
+		'for',
+		'function',
+		'if',
+		'in',
+		'local',
+		'nil',
+		'not',
+		'or',
+		'repeat',
+		'return',
+		'then',
+		'true',
+		'until',
+		'while'
+	]);
+	const LUA_BUILTINS = new Set([
+		'assert',
+		'error',
+		'ipairs',
+		'next',
+		'pairs',
+		'pcall',
+		'print',
+		'require',
+		'select',
+		'setmetatable',
+		'tonumber',
+		'tostring',
+		'type',
+		'getmetatable'
+	]);
+
+	function isWordStart(char) {
+		return /[A-Za-z_]/.test(char);
+	}
+
+	function isWordChar(char) {
+		return /[A-Za-z0-9_]/.test(char);
+	}
+
+	function readLongBracket(text, start) {
+		if (text.charAt(start) !== '[') {
+			return -1;
+		}
+
+		let index = start + 1;
+		while (text.charAt(index) === '=') {
+			index += 1;
+		}
+		if (text.charAt(index) !== '[') {
+			return -1;
+		}
+
+		const delimiter = ']' + '='.repeat(index - start - 1) + ']';
+		const end = text.indexOf(delimiter, index + 1);
+		return end === -1 ? text.length : end + delimiter.length;
+	}
+
+	function readQuotedString(text, start) {
+		const quote = text.charAt(start);
+		let index = start + 1;
+		while (index < text.length) {
+			const char = text.charAt(index);
+			if (char === '\\') {
+				index += 2;
+				continue;
+			}
+			if (char === quote) {
+				return index + 1;
+			}
+			if (char === '\n' || char === '\r') {
+				return index;
+			}
+			index += 1;
+		}
+
+		return text.length;
+	}
+
+	function readNumber(text, start) {
+		let index = start;
+		if (text.charAt(index) === '0' && (text.charAt(index + 1) === 'x' || text.charAt(index + 1) === 'X')) {
+			index += 2;
+			while (/[0-9a-fA-F_.]/.test(text.charAt(index))) {
+				index += 1;
+			}
+			return index;
+		}
+
+		while (/[0-9_]/.test(text.charAt(index))) {
+			index += 1;
+		}
+		if (text.charAt(index) === '.' && /[0-9]/.test(text.charAt(index + 1))) {
+			index += 1;
+			while (/[0-9_]/.test(text.charAt(index))) {
+				index += 1;
+			}
+		}
+		if (text.charAt(index) === 'e' || text.charAt(index) === 'E') {
+			index += 1;
+			if (text.charAt(index) === '+' || text.charAt(index) === '-') {
+				index += 1;
+			}
+			while (/[0-9_]/.test(text.charAt(index))) {
+				index += 1;
+			}
+		}
+
+		return index;
+	}
+
+	function buildLuaHighlights(view, Decoration, RangeSetBuilder) {
+		const text = view.state.doc.toString();
+		const builder = new RangeSetBuilder();
+		let index = 0;
+
+		function mark(className, from, to) {
+			if (to > from) {
+				builder.add(from, to, Decoration.mark({ class: className }));
+			}
+		}
+
+		while (index < text.length) {
+			const char = text.charAt(index);
+			const next = text.charAt(index + 1);
+
+			if (char === '-' && next === '-') {
+				if (text.charAt(index + 2) === '[') {
+					const longEnd = readLongBracket(text, index + 2);
+					if (longEnd > index + 2) {
+						mark('cm-lua-comment', index, longEnd);
+						index = longEnd;
+						continue;
+					}
+				}
+				let lineEnd = text.indexOf('\n', index + 2);
+				if (lineEnd === -1) {
+					lineEnd = text.length;
+				}
+				mark('cm-lua-comment', index, lineEnd);
+				index = lineEnd;
+				continue;
+			}
+
+			if (char === '"' || char === "'") {
+				const end = readQuotedString(text, index);
+				mark('cm-lua-string', index, end);
+				index = end;
+				continue;
+			}
+
+			if (char === '[') {
+				const longEnd = readLongBracket(text, index);
+				if (longEnd > index + 1) {
+					mark('cm-lua-string', index, longEnd);
+					index = longEnd;
+					continue;
+				}
+			}
+
+			if (/[0-9]/.test(char) || (char === '.' && /[0-9]/.test(next))) {
+				const end = readNumber(text, index);
+				mark('cm-lua-number', index, end);
+				index = end;
+				continue;
+			}
+
+			if (isWordStart(char)) {
+				let end = index + 1;
+				while (isWordChar(text.charAt(end))) {
+					end += 1;
+				}
+				const word = text.slice(index, end);
+				if (LUA_KEYWORDS.has(word)) {
+					mark('cm-lua-keyword', index, end);
+				} else if (LUA_BUILTINS.has(word)) {
+					mark('cm-lua-builtin', index, end);
+				}
+				index = end;
+				continue;
+			}
+
+			index += 1;
+		}
+
+		return builder.finish();
+	}
 
 	function loadCodeMirror() {
 		if (!codemirror_modules) {
-			codemirror_modules = Promise.all([import('@codemirror/state'), import('@codemirror/view')]).then(
-				function ([state_module, view_module]) {
-					return {
-						EditorState: state_module.EditorState,
-						EditorView: view_module.EditorView
-					};
-				}
-			);
+			codemirror_modules = Promise.all([import('@codemirror/state'), import('@codemirror/view')]).then(function ([
+				state_module,
+				view_module
+			]) {
+				return {
+					EditorState: state_module.EditorState,
+					RangeSetBuilder: state_module.RangeSetBuilder,
+					EditorView: view_module.EditorView,
+					Decoration: view_module.Decoration,
+					ViewPlugin: view_module.ViewPlugin,
+					drawSelection: view_module.drawSelection,
+					dropCursor: view_module.dropCursor,
+					highlightActiveLine: view_module.highlightActiveLine,
+					highlightActiveLineGutter: view_module.highlightActiveLineGutter,
+					highlightSpecialChars: view_module.highlightSpecialChars,
+					lineNumbers: view_module.lineNumbers
+				};
+			});
 		}
 
 		return codemirror_modules;
@@ -74,11 +279,39 @@
 		}
 
 		const host = document.createElement('div');
-		host.style.height = '100%';
+		host.style.cssText = 'width:100%;height:100%;min-height:0;display:flex;flex-direction:column;';
 		root.replaceChildren(host);
 
 		try {
-			const { EditorState, EditorView } = await loadCodeMirror();
+			const {
+				EditorState,
+				EditorView,
+				Decoration,
+				ViewPlugin,
+				RangeSetBuilder,
+				drawSelection,
+				dropCursor,
+				highlightActiveLine,
+				highlightActiveLineGutter,
+				highlightSpecialChars,
+				lineNumbers
+			} = await loadCodeMirror();
+			const luaHighlightPlugin = ViewPlugin.fromClass(
+				class {
+					constructor(view) {
+						this.decorations = buildLuaHighlights(view, Decoration, RangeSetBuilder);
+					}
+
+					update(update) {
+						if (update.docChanged) {
+							this.decorations = buildLuaHighlights(update.view, Decoration, RangeSetBuilder);
+						}
+					}
+				},
+				{
+					decorations: (plugin) => plugin.decorations
+				}
+			);
 			const syncContentsField = function (view) {
 				const contents = view.state.doc.toString();
 				contents_field.value = contents;
@@ -95,6 +328,13 @@
 				state: EditorState.create({
 					doc: initial_doc,
 					extensions: [
+						lineNumbers(),
+						highlightSpecialChars(),
+						drawSelection(),
+						dropCursor(),
+						highlightActiveLineGutter(),
+						highlightActiveLine(),
+						luaHighlightPlugin,
 						EditorView.lineWrapping,
 						EditorView.updateListener.of(function (update) {
 							if (update.docChanged) {
@@ -108,27 +348,58 @@
 									backgroundColor: '#1a1b26',
 									color: '#c0caf5',
 									fontSize: '13px',
-									lineHeight: '1.55'
+									lineHeight: '1.55',
+									fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+								},
+								'.cm-editor': {
+									height: '100%'
 								},
 								'.cm-content': {
-									fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-									padding: '16px',
+									fontFamily: 'inherit',
+									padding: '14px 0',
 									caretColor: '#c0caf5'
 								},
 								'.cm-scroller': {
-									fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
+									fontFamily: 'inherit'
 								},
-								'.cm-focused': {
-									outline: 'none'
+								'.cm-gutters': {
+									backgroundColor: '#16161e',
+									color: '#565f89',
+									border: 'none',
+									paddingRight: '6px'
 								},
 								'.cm-activeLine': {
 									backgroundColor: '#24283b'
+								},
+								'.cm-activeLineGutter': {
+									backgroundColor: '#24283b',
+									color: '#7aa2f7'
+								},
+								'.cm-focused': {
+									outline: 'none'
 								},
 								'.cm-cursor': {
 									borderLeftColor: '#c0caf5'
 								},
 								'.cm-selectionBackground, &.cm-focused .cm-selectionBackground, .cm-content ::selection': {
 									backgroundColor: '#33467c !important'
+								},
+								'.cm-lua-keyword': {
+									color: '#bb9af7',
+									fontWeight: '700'
+								},
+								'.cm-lua-builtin': {
+									color: '#7aa2f7'
+								},
+								'.cm-lua-string': {
+									color: '#9ece6a'
+								},
+								'.cm-lua-number': {
+									color: '#ff9e64'
+								},
+								'.cm-lua-comment': {
+									color: '#565f89',
+									fontStyle: 'italic'
 								}
 							},
 							{ dark: true }
