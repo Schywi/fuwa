@@ -2,6 +2,8 @@
 docs/refactoring/*
 !docs/refactoring/ide-port-one-shot/
 !docs/refactoring/ide-port-one-shot/**
+!docs/refactoring/ide-port-skeptical-review/
+!docs/refactoring/ide-port-skeptical-review/**
 .fuwa-dev/
 .env
 .agent
