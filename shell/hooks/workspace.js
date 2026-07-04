@@ -10,6 +10,7 @@
 	let retry_timer = null;
 	let workspace_state = null;
 	let active_state = null;
+	let mounted_app = null;
 	const mounted_roots = new WeakSet();
 
 	function log(step, detail) {
@@ -335,7 +336,10 @@
 		if (window.PetiteVue && typeof window.PetiteVue.createApp === 'function') {
 			try {
 				log('mount:start', describeScope(target));
-				window.PetiteVue.createApp({ scope: workspace_state }).mount(target);
+				if (mounted_app) {
+					mounted_app.unmount();
+				}
+				mounted_app = window.PetiteVue.createApp({ scope: workspace_state }).mount(target);
 				rememberMounted(target);
 				log('mount:complete', describeScope(target));
 			} catch (error) {
