@@ -6,6 +6,11 @@ Use this as a direct implementation brief for a strong coding model.
 
 You are working in `/mnt/DATA/development/projects/repos/fuwa`.
 
+`/mnt/DATA/development/projects/repos/IDE` is **read-only reference material**.
+Do not edit files there. Do not move, delete, or rewrite anything in `IDE`.
+Use it only to inspect the existing Svelte implementation and port behavior into
+`fuwa`.
+
 Do not ask questions. Do not stop after analysis. Do not produce a phased plan
 instead of implementation. Execute the port in one cohesive pass, while keeping
 the repo buildable and testable.
@@ -264,4 +269,3 @@ The work is only complete if all of this is true:
 Do not stop at analysis. Do not ask clarifying questions. Do not break the task
 into “future phases” and stop. Implement the port in one coherent pass on top
 of the current `fuwa` repo, using `/IDE` as the concrete feature-parity source.
-
