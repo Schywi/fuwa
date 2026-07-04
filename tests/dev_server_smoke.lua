@@ -149,7 +149,18 @@ local function test_raw_asset_requests()
 	assert_true(editor_js:find("window.FuwaShellEditor", 1, true) ~= nil, "expected editor hook contract")
 	assert_true(editor_js:find("data-editor-root", 1, true) ~= nil, "expected editor mount selector")
 	assert_true(editor_js:find("new EditorView", 1, true) ~= nil, "expected codemirror mount")
-	assert_true(editor_js:find("textarea.hidden = true", 1, true) ~= nil, "expected fallback textarea handoff")
+	assert_true(editor_js:find('input[name="contents"]', 1, true) ~= nil, "expected hidden contents carrier")
+	assert_true(editor_js:find("backgroundColor: '#1a1b26'", 1, true) ~= nil, "expected dark editor theme")
+	assert_true(editor_js:find("dark: true", 1, true) ~= nil, "expected dark CodeMirror mode")
+	assert_true(editor_js:find("textarea.hidden = true", 1, true) == nil, "expected no textarea handoff")
+
+	local runtime_worker_js = run_command(
+		"printf 'GET /shell/hooks/runtime-worker.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(runtime_worker_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected runtime worker to respond")
+	assert_true(runtime_worker_js:find('/vendor/sqlite-wasm/index.mjs', 1, true) ~= nil, "expected sqlite-wasm module import")
+	assert_true(runtime_worker_js:find('/vendor/sqlite-wasm/sqlite3.wasm', 1, true) ~= nil, "expected sqlite-wasm wasm asset")
+	assert_true(runtime_worker_js:find("sqljs", 1, true) == nil, "expected no sql.js backend")
 
 	local terminal_js = run_command(
 		"printf 'GET /shell/hooks/terminal.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"

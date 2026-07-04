@@ -323,14 +323,14 @@
 
       /* Code shell header: icon buttons, breadcrumb, popovers. */
       .code-shell-header {
-        height: 42px;
+        height: 38px;
         display: flex;
         align-items: center;
         padding: 0 12px;
         gap: 8px;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
         border-radius: 22px 22px 0 0;
-        background: rgba(24, 24, 27, 0.88);
+        background: rgba(13, 16, 24, 0.92);
         flex-shrink: 0;
         position: relative;
         z-index: 20;
@@ -341,20 +341,21 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 26px;
-        height: 26px;
+        width: 22px;
+        height: 22px;
         padding: 0;
         border: none;
-        border-radius: 6px;
+        border-radius: 4px;
         background: transparent;
-        color: var(--muted);
+        color: #8f97bb;
         cursor: pointer;
+        transition: background-color 0.16s ease, color 0.16s ease;
       }
 
       .shell-icon-btn:hover,
       .shell-icon-btn[data-open=true],
       .shell-icon-btn[data-view-active=true] {
-        color: var(--ink);
+        color: #c0caf5;
         background: rgba(255, 255, 255, 0.08);
       }
 
@@ -363,8 +364,8 @@
         display: flex;
         align-items: center;
         gap: 6px;
-        font-size: 0.76rem;
-        color: var(--muted);
+        font-size: 11px;
+        color: #8f97bb;
         overflow: hidden;
         white-space: nowrap;
       }
@@ -372,21 +373,21 @@
       .breadcrumb-segment + .breadcrumb-segment::before {
         content: "/";
         margin-right: 6px;
-        color: rgba(255, 255, 255, 0.16);
+        color: #4f577a;
       }
 
       .breadcrumb-segment[data-active=true] {
-        color: var(--ink);
-        font-weight: 650;
+        color: #d8ddf8;
+        font-weight: 600;
       }
 
       .popover-v2 {
         position: absolute;
         top: calc(100% + 8px);
-        background: rgba(17, 24, 39, 0.98);
-        border: 1px solid var(--line);
-        border-radius: 12px;
-        box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42);
+        background: rgba(15, 16, 26, 0.98);
+        border: 1px solid #414868;
+        border-radius: 10px;
+        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
         backdrop-filter: blur(16px);
         z-index: 40;
         overflow: hidden;
@@ -395,13 +396,13 @@
       }
 
       .search-popover {
-        left: 8px;
-        width: min(300px, 90vw);
+        left: 0;
+        width: min(260px, 90vw);
       }
 
       .list-popover {
-        left: 40px;
-        width: min(340px, 90vw);
+        right: 0;
+        width: min(320px, 90vw);
       }
 
       .search-input-wrap {
@@ -409,9 +410,9 @@
         align-items: center;
         gap: 7px;
         padding: 0 10px;
-        height: 34px;
-        border-bottom: 1px solid var(--line);
-        color: var(--muted);
+        height: 32px;
+        border-bottom: 1px solid #27272a;
+        color: #3d4466;
       }
 
       .search-input-wrap input {
@@ -419,8 +420,8 @@
         background: transparent;
         border: none;
         outline: none;
-        font-size: 0.78rem;
-        color: var(--ink);
+        font-size: 11px;
+        color: #c0caf5;
       }
 
       .popover-list {
@@ -435,17 +436,18 @@
         justify-content: space-between;
         height: 30px;
         padding: 0 10px;
-        border-bottom: 1px solid var(--line);
+        border-bottom: 1px solid #27272a;
       }
 
       .popover-header .label {
-        font-size: 0.76rem;
+        font-size: 11px;
         font-weight: 700;
+        color: #d8ddf8;
       }
 
       .popover-header .count {
-        font-size: 0.7rem;
-        color: var(--muted);
+        font-size: 10px;
+        color: #8f97bb;
       }
 
       .popover-row,
@@ -453,11 +455,11 @@
         display: flex;
         align-items: center;
         gap: 7px;
-        min-height: 28px;
+        min-height: 26px;
         padding: 0 10px;
         cursor: pointer;
-        font-size: 0.78rem;
-        color: var(--ink);
+        font-size: 11px;
+        color: #a9b1d6;
         appearance: none;
         border: 0;
         border-left: 2px solid transparent;
@@ -470,18 +472,19 @@
       .popover-row-rich:hover,
       .popover-row[data-focused=true],
       .popover-row-rich[data-focused=true] {
-        background: var(--faint);
+        background: rgba(63, 63, 70, 0.5);
       }
 
       .popover-row[data-selected=true],
       .popover-row-rich[data-selected=true] {
-        background: rgba(217, 119, 6, 0.16);
-        border-left-color: var(--accent);
+        background: rgba(52, 211, 153, 0.14);
+        border-left-color: #34d399;
+        color: #c0caf5;
       }
 
       .popover-row .glyph {
         width: 10px;
-        color: var(--muted);
+        color: #565f89;
         font-family: monospace;
       }
 
@@ -496,7 +499,7 @@
         width: 6px;
         height: 6px;
         border-radius: 50%;
-        background: var(--accent);
+        background: #7aa2f7;
       }
 
       .popover-row-rich .badge {
@@ -504,8 +507,8 @@
         font-weight: 800;
         padding: 1px 3px;
         border-radius: 3px;
-        color: #fcd9ad;
-        background: rgba(217, 119, 6, 0.18);
+        color: #7aa2f7;
+        background: rgba(122, 162, 247, 0.09);
       }
 
       .popover-row-rich .title {
@@ -554,6 +557,7 @@
         min-height: 380px;
         padding: 0;
         overflow: hidden;
+        background: #0b0f14;
       }
 
       .shell-widget-shell[data-widget-kind="terminal"] {
@@ -570,23 +574,6 @@
         color: var(--muted);
         line-height: 1.5;
         font-size: 0.88rem;
-      }
-
-      .ide-editor textarea {
-        width: 100%;
-        flex: 1;
-        min-height: 380px;
-        border: 1px solid var(--line);
-        border-radius: 14px;
-        padding: 14px 16px;
-        background: #111827;
-        color: var(--ink);
-        line-height: 1.55;
-        resize: vertical;
-      }
-
-      .ide-editor textarea[hidden] {
-        display: none;
       }
 
       .shell-editor-actions {

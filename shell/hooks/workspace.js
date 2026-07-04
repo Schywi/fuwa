@@ -16,6 +16,7 @@
 		}
 		for (const toggle of root.querySelectorAll('[data-popover-toggle]')) {
 			toggle.removeAttribute('data-open');
+			toggle.setAttribute('aria-expanded', 'false');
 		}
 	}
 
@@ -29,6 +30,7 @@
 
 		popover.hidden = false;
 		toggle?.setAttribute('data-open', 'true');
+		toggle?.setAttribute('aria-expanded', 'true');
 
 		const search = popover.querySelector('[data-popover-search]');
 		if (search instanceof HTMLInputElement) {
@@ -71,6 +73,8 @@
 	}
 
 	function setView(workspace, view) {
+		closePopovers(workspace);
+
 		for (const panel of workspace.querySelectorAll('[data-view]')) {
 			panel.hidden = panel.dataset.view !== view;
 		}
@@ -178,9 +182,11 @@
 			if (!workspace.hasAttribute('data-active-view')) {
 				setView(workspace, 'code');
 			}
+			closePopovers(workspace);
 		}
 		if (target instanceof Element && target.matches('[data-workspace]') && !target.hasAttribute('data-active-view')) {
 			setView(target, 'code');
+			closePopovers(target);
 		}
 	}
 

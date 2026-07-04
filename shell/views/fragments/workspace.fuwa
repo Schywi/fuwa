@@ -65,12 +65,9 @@
   <div class="ide-view ide-view-code" data-view="code">
     <form id="ide-editor-form" class="ide-editor" hx-post="&dashboard.active.save_route" hx-target="#ide-workspace" hx-swap="outerHTML">
       <input type="hidden" name="path" value="&dashboard.active.selected_file" />
+      <input type="hidden" data-editor-source name="contents" value="&dashboard.active.selected_file_source" />
 
-      <div class="shell-widget-shell" data-editor-root data-file-path="&dashboard.active.selected_file" aria-label="CodeMirror editor mount point">
-        <p class="shell-widget-placeholder">CodeMirror mounts here.</p>
-      </div>
-
-      <textarea data-editor-fallback name="contents" spellcheck="false">&dashboard.active.selected_file_source</textarea>
+      <div class="shell-widget-shell" data-editor-root data-file-path="&dashboard.active.selected_file" aria-label="CodeMirror editor"></div>
 
       <div class="shell-editor-actions">
         <span class="shell-editor-note">Editing <code>&dashboard.active.selected_file</code></span>

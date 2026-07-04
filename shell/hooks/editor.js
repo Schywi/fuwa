@@ -26,14 +26,14 @@
 		return codemirror_modules;
 	}
 
-	function findTextarea(root) {
+	function findContentsField(root) {
 		const form = root.closest('form');
 		if (!(form instanceof HTMLFormElement)) {
 			return null;
 		}
 
-		const textarea = form.querySelector('textarea[name="contents"]');
-		return textarea instanceof HTMLTextAreaElement ? textarea : null;
+		const field = form.querySelector('input[name="contents"]');
+		return field instanceof HTMLInputElement ? field : null;
 	}
 
 	function emitChange(root, file_path, contents) {
@@ -58,18 +58,18 @@
 			return existing;
 		}
 
-		const textarea = findTextarea(root);
-		if (!(textarea instanceof HTMLTextAreaElement)) {
+		const contents_field = findContentsField(root);
+		if (!(contents_field instanceof HTMLInputElement)) {
 			root.setAttribute('data-widget-state', 'error');
 			return null;
 		}
 
 		const file_path = root.getAttribute('data-file-path') || '';
-		const server_contents = textarea.value;
+		const server_contents = contents_field.value;
 		const pending = pending_edits.get(file_path);
 		const initial_doc = typeof pending === 'string' && pending !== server_contents ? pending : server_contents;
 		if (initial_doc !== server_contents) {
-			textarea.value = initial_doc;
+			contents_field.value = initial_doc;
 			root.setAttribute('data-editor-dirty', 'true');
 		}
 
@@ -79,9 +79,9 @@
 
 		try {
 			const { EditorState, EditorView } = await loadCodeMirror();
-			const syncTextarea = function (view) {
+			const syncContentsField = function (view) {
 				const contents = view.state.doc.toString();
-				textarea.value = contents;
+				contents_field.value = contents;
 				if (contents === server_contents) {
 					pending_edits.delete(file_path);
 					root.removeAttribute('data-editor-dirty');
@@ -98,38 +98,48 @@
 						EditorView.lineWrapping,
 						EditorView.updateListener.of(function (update) {
 							if (update.docChanged) {
-								syncTextarea(update.view);
+								syncContentsField(update.view);
 							}
 						}),
 						EditorView.theme(
 							{
 								'&': {
 									height: '100%',
-									backgroundColor: '#fdfcf9',
-									color: '#1f2937',
-									fontSize: '14px',
+									backgroundColor: '#1a1b26',
+									color: '#c0caf5',
+									fontSize: '13px',
 									lineHeight: '1.55'
 								},
 								'.cm-content': {
 									fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-									padding: '16px'
+									padding: '16px',
+									caretColor: '#c0caf5'
 								},
 								'.cm-scroller': {
 									fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace'
 								},
 								'.cm-focused': {
 									outline: 'none'
+								},
+								'.cm-activeLine': {
+									backgroundColor: '#24283b'
+								},
+								'.cm-cursor': {
+									borderLeftColor: '#c0caf5'
+								},
+								'.cm-selectionBackground, &.cm-focused .cm-selectionBackground, .cm-content ::selection': {
+									backgroundColor: '#33467c !important'
 								}
 							},
-							{ dark: false }
+							{ dark: true }
 						)
 					]
 				}),
 				parent: host
 			});
-			const form = textarea.form;
+			const form = contents_field.form;
 			const handleSubmit = function () {
-				textarea.value = editor_view.state.doc.toString();
+				contents_field.value = editor_view.state.doc.toString();
 			};
 			const handleKeydown = function (event) {
 				if ((event.metaKey || event.ctrlKey) && event.key === 's') {
@@ -150,8 +160,6 @@
 			}
 			root.addEventListener('keydown', handleKeydown);
 
-			textarea.hidden = true;
-			textarea.setAttribute('aria-hidden', 'true');
 			root.setAttribute('data-widget-state', 'mounted');
 			root.setAttribute('data-widget-kind', 'editor');
 
@@ -161,8 +169,6 @@
 				}
 				root.removeEventListener('keydown', handleKeydown);
 				editor_view.destroy();
-				textarea.hidden = false;
-				textarea.removeAttribute('aria-hidden');
 				root.removeAttribute('data-widget-state');
 				root.removeAttribute('data-widget-kind');
 				mounted_roots.delete(root);

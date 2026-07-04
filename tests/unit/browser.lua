@@ -45,6 +45,13 @@ function t.contains(haystack, needle, label)
 	end
 end
 
+local function read_file(path)
+	local file = assert(io.open(path, "rb"))
+	local contents = file:read("*a")
+	file:close()
+	return contents
+end
+
 t.test("browser worker contract exposes the bootstrap message set", function()
 	local types = browser.contract.message_types()
 	t.eq(#types, 8, "expected eight message types")
@@ -103,6 +110,13 @@ t.test("runtime tenant document ships the vendor widget stack and bridge", funct
 	t.contains(srcdoc, "/vendor/htmx/htmx-1.9.12.min.js", "expected vendor-local htmx")
 	t.contains(srcdoc, "/vendor/petite-vue/petite-vue-0.4.1.iife.js", "expected vendor-local petite-vue")
 	t.contains(srcdoc, "/shell/hooks/tenant-runtime.js", "expected tenant bridge script")
+end)
+
+t.test("browser worker imports sqlite-wasm instead of sql.js", function()
+	local worker = read_file("shell/hooks/runtime-worker.js")
+	t.contains(worker, "/vendor/sqlite-wasm/index.mjs", "expected sqlite-wasm module import")
+	t.contains(worker, "/vendor/sqlite-wasm/sqlite3.wasm", "expected sqlite-wasm wasm asset")
+	t.falsy(worker:find("sqljs", 1, true) ~= nil, "expected no sql.js backend")
 end)
 
 t.test("bundle build compiles payload sources plus the stdlib VFS", function()

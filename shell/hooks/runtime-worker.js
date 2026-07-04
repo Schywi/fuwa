@@ -8,10 +8,11 @@
 // the __fuwaBrowser marker.
 //
 // Vendor-local, no npm at runtime.
-importScripts('/vendor/wasmoon/wasmoon-1.16.0.js', '/vendor/sqljs/sql-wasm-1.14.1.js');
+importScripts('/vendor/wasmoon/wasmoon-1.16.0.js');
 
 const GLUE_WASM_URL = '/vendor/wasmoon/glue-1.16.0.wasm';
-const SQL_WASM_URL = '/vendor/sqljs/sql-wasm-1.14.1.wasm';
+const SQLITE_MODULE_URL = '/vendor/sqlite-wasm/index.mjs';
+const SQLITE_WASM_URL = '/vendor/sqlite-wasm/sqlite3.wasm';
 
 // The Lua-side boot script: print bridge, VFS module searcher, and nothing
 // else. DB and HTML bridges are installed as globals from JS.
@@ -32,7 +33,8 @@ const LUA_BOOT_SCRIPT = [
 
 let lua = null;
 let bootPromise = null;
-let sqlDb = null;
+let sqliteDb = null;
+let sqliteModulePromise = null;
 let vfs = {};
 let runQueue = Promise.resolve();
 
@@ -52,33 +54,53 @@ function dbErr(kind, message) {
 	return { ok: false, err: { kind: kind, message: message } };
 }
 
+async function loadSqliteModule() {
+	if (!sqliteModulePromise) {
+		sqliteModulePromise = import(SQLITE_MODULE_URL).then(function (module) {
+			return module.default || module;
+		});
+	}
+	return sqliteModulePromise;
+}
+
+async function initDatabase() {
+	if (sqliteDb) {
+		return sqliteDb;
+	}
+
+	const sqlite3InitModule = await loadSqliteModule();
+	const sqlite3 = await sqlite3InitModule({
+		locateFile: function () {
+			return SQLITE_WASM_URL;
+		},
+	});
+
+	sqliteDb = new sqlite3.oo1.DB(':memory:');
+	sqliteDb.exec(
+		'CREATE TABLE IF NOT EXISTS fuwa_docs (collection TEXT NOT NULL, id INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (collection, id))'
+	);
+
+	return sqliteDb;
+}
+
 function ensureSchema() {
-	sqlDb.run(
+	sqliteDb.exec(
 		'CREATE TABLE IF NOT EXISTS fuwa_docs (collection TEXT NOT NULL, id INTEGER NOT NULL, data TEXT NOT NULL, PRIMARY KEY (collection, id))'
 	);
 }
 
 function rowsFor(collection) {
-	const statement = sqlDb.prepare('SELECT id, data FROM fuwa_docs WHERE collection = :c ORDER BY id');
-	statement.bind({ ':c': collection });
-	const rows = [];
-	while (statement.step()) {
-		const entry = statement.getAsObject();
+	const rows = sqliteDb.selectObjects('SELECT id, data FROM fuwa_docs WHERE collection = ? ORDER BY id', [collection]);
+	return rows.map(function (entry) {
 		const row = JSON.parse(entry.data);
 		row.id = entry.id;
-		rows.push(row);
-	}
-	statement.free();
-	return rows;
+		return row;
+	});
 }
 
 function nextIdFor(collection) {
-	const statement = sqlDb.prepare('SELECT COALESCE(MAX(id), 0) + 1 AS next FROM fuwa_docs WHERE collection = :c');
-	statement.bind({ ':c': collection });
-	statement.step();
-	const next = statement.getAsObject().next;
-	statement.free();
-	return next;
+	const row = sqliteDb.selectObject('SELECT COALESCE(MAX(id), 0) + 1 AS next FROM fuwa_docs WHERE collection = ?', [collection]);
+	return row && row.next != null ? row.next : 1;
 }
 
 function valuesEqual(left, right) {
@@ -103,88 +125,95 @@ function rowMatches(row, where) {
 function writeRow(collection, id, row) {
 	const data = Object.assign({}, row);
 	delete data.id;
-	sqlDb.run('INSERT OR REPLACE INTO fuwa_docs (collection, id, data) VALUES (?, ?, ?)', [
-		collection,
-		id,
-		JSON.stringify(data)
-	]);
+	sqliteDb.exec({
+		sql: 'INSERT OR REPLACE INTO fuwa_docs (collection, id, data) VALUES (?, ?, ?)',
+		bind: [collection, id, JSON.stringify(data)],
+	});
 }
 
 function dbOp(command) {
-	if (!sqlDb) {
-		return dbErr('db_unavailable', 'SQLite-WASM is not initialized');
-	}
-	if (!command || typeof command !== 'object') {
-		return dbErr('invalid_command', 'Missing DB command');
-	}
-	if (command.collection == null) {
-		return dbErr('invalid_command', 'Missing collection name');
-	}
+	try {
+		if (!sqliteDb) {
+			return dbErr('db_unavailable', 'SQLite-WASM is not initialized');
+		}
+		if (!command || typeof command !== 'object') {
+			return dbErr('invalid_command', 'Missing DB command');
+		}
+		if (command.collection == null) {
+			return dbErr('invalid_command', 'Missing collection name');
+		}
 
-	const collection = String(command.collection);
-	const op = command.op;
+		const collection = String(command.collection);
+		const op = command.op;
 
-	if (op === 'all') {
-		return dbOk(rowsFor(collection));
-	}
+		if (op === 'all') {
+			return dbOk(rowsFor(collection));
+		}
 
-	if (op === 'find') {
-		const row = rowsFor(collection).find((entry) => valuesEqual(entry.id, command.id));
-		return row ? dbOk(row) : dbErr('not_found', 'row not found');
-	}
+		if (op === 'find') {
+			const row = rowsFor(collection).find((entry) => valuesEqual(entry.id, command.id));
+			return row ? dbOk(row) : dbErr('not_found', 'row not found');
+		}
 
-	if (op === 'find_by') {
-		const row = rowsFor(collection).find((entry) => rowMatches(entry, command.where || {}));
-		return row ? dbOk(row) : dbErr('not_found', 'row not found');
-	}
+		if (op === 'find_by') {
+			const row = rowsFor(collection).find((entry) => rowMatches(entry, command.where || {}));
+			return row ? dbOk(row) : dbErr('not_found', 'row not found');
+		}
 
-	if (op === 'where') {
-		const limit = Number(command.limit) || 0;
-		const matched = [];
-		for (const row of rowsFor(collection)) {
-			if (rowMatches(row, command.where || {})) {
-				matched.push(row);
-				if (limit > 0 && matched.length >= limit) {
-					break;
+		if (op === 'where') {
+			const limit = Number(command.limit) || 0;
+			const matched = [];
+			for (const row of rowsFor(collection)) {
+				if (rowMatches(row, command.where || {})) {
+					matched.push(row);
+					if (limit > 0 && matched.length >= limit) {
+						break;
+					}
 				}
 			}
+			return dbOk(matched);
 		}
-		return dbOk(matched);
-	}
 
-	if (op === 'create' || op === 'insert') {
-		const row = Object.assign({}, command.data || {});
-		let id = row.id;
-		if (id == null) {
-			id = nextIdFor(collection);
+		if (op === 'create' || op === 'insert') {
+			const row = Object.assign({}, command.data || {});
+			let id = row.id;
+			if (id == null) {
+				id = nextIdFor(collection);
+			}
+			id = Number(id);
+			row.id = id;
+			writeRow(collection, id, row);
+			return dbOk(row);
 		}
-		id = Number(id);
-		row.id = id;
-		writeRow(collection, id, row);
-		return dbOk(row);
-	}
 
-	if (op === 'update') {
-		const existing = rowsFor(collection).find((entry) => valuesEqual(entry.id, command.id));
-		if (!existing) {
-			return dbErr('not_found', 'row not found');
+		if (op === 'update') {
+			const existing = rowsFor(collection).find((entry) => valuesEqual(entry.id, command.id));
+			if (!existing) {
+				return dbErr('not_found', 'row not found');
+			}
+			const row = Object.assign({}, existing, command.data || {});
+			row.id = existing.id;
+			writeRow(collection, existing.id, row);
+			return dbOk(row);
 		}
-		const row = Object.assign({}, existing, command.data || {});
-		row.id = existing.id;
-		writeRow(collection, existing.id, row);
-		return dbOk(row);
-	}
 
-	if (op === 'delete') {
-		const existing = rowsFor(collection).find((entry) => valuesEqual(entry.id, command.id));
-		if (!existing) {
-			return dbErr('not_found', 'row not found');
+		if (op === 'delete') {
+			const existing = rowsFor(collection).find((entry) => valuesEqual(entry.id, command.id));
+			if (!existing) {
+				return dbErr('not_found', 'row not found');
+			}
+			sqliteDb.exec({
+				sql: 'DELETE FROM fuwa_docs WHERE collection = ? AND id = ?',
+				bind: [collection, existing.id],
+			});
+			return dbOk(existing);
 		}
-		sqlDb.run('DELETE FROM fuwa_docs WHERE collection = ? AND id = ?', [collection, existing.id]);
-		return dbOk(existing);
-	}
 
-	return dbErr('unsupported_op', 'Unsupported DB op: ' + String(op));
+		return dbErr('unsupported_op', 'Unsupported DB op: ' + String(op));
+	} catch (error) {
+		const text = error instanceof Error ? error.message : String(error);
+		return dbErr('db_error', text);
+	}
 }
 
 // --- Lua engine ---------------------------------------------------------------
@@ -201,8 +230,7 @@ async function boot() {
 		const started = Date.now();
 
 		// Boot order matters: sqlite first, then lua.
-		const SQL = await initSqlJs({ locateFile: () => SQL_WASM_URL });
-		sqlDb = new SQL.Database();
+		await initDatabase();
 		ensureSchema();
 
 		const factory = new wasmoon.LuaFactory(GLUE_WASM_URL);
@@ -224,7 +252,7 @@ async function boot() {
 		lua.global.set('__fuwa_db_op', function (command) {
 			// runtime/stdlib/db.lua calls bridge:await(); wasmoon maps a JS
 			// Promise to an awaitable proxy, so resolve through a Promise even
-			// though sql.js is synchronous.
+			// though SQLite-WASM is synchronous in this worker.
 			return Promise.resolve().then(function () {
 				return dbOp(command);
 			});
