@@ -150,9 +150,20 @@ local function test_raw_asset_requests()
 	assert_true(editor_js:find("data-editor-root", 1, true) ~= nil, "expected editor mount selector")
 	assert_true(editor_js:find("new EditorView", 1, true) ~= nil, "expected codemirror mount")
 	assert_true(editor_js:find('input[name="contents"]', 1, true) ~= nil, "expected hidden contents carrier")
-	assert_true(editor_js:find("backgroundColor: '#1a1b26'", 1, true) ~= nil, "expected dark editor theme")
-	assert_true(editor_js:find("dark: true", 1, true) ~= nil, "expected dark CodeMirror mode")
-	assert_true(editor_js:find("textarea.hidden = true", 1, true) == nil, "expected no textarea handoff")
+		assert_true(editor_js:find("backgroundColor: '#1a1b26'", 1, true) ~= nil, "expected dark editor theme")
+		assert_true(editor_js:find("dark: true", 1, true) ~= nil, "expected dark CodeMirror mode")
+		assert_true(editor_js:find("textarea.hidden = true", 1, true) == nil, "expected no textarea handoff")
+		assert_true(editor_js:find("buildLuaHighlights", 1, true) ~= nil, "expected local Lua syntax highlighting")
+	assert_true(editor_js:find("cm-lua-keyword", 1, true) ~= nil, "expected keyword styling")
+	assert_true(editor_js:find("cm-lua-string", 1, true) ~= nil, "expected string styling")
+
+	local workspace_js = run_command(
+		"printf 'GET /shell/hooks/workspace.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(workspace_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected workspace hook to respond")
+	assert_true(workspace_js:find("createState", 1, true) ~= nil, "expected petite-vue workspace state")
+	assert_true(workspace_js:find("open_popover", 1, true) ~= nil, "expected single popover state")
+	assert_true(workspace_js:find("getBoundingClientRect", 1, true) == nil, "expected no manual popover geometry hack")
 
 	local runtime_worker_js = run_command(
 		"printf 'GET /shell/hooks/runtime-worker.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
@@ -161,6 +172,22 @@ local function test_raw_asset_requests()
 	assert_true(runtime_worker_js:find('/vendor/sqlite-wasm/index.mjs', 1, true) ~= nil, "expected sqlite-wasm module import")
 	assert_true(runtime_worker_js:find('/vendor/sqlite-wasm/sqlite3.wasm', 1, true) ~= nil, "expected sqlite-wasm wasm asset")
 	assert_true(runtime_worker_js:find("sqljs", 1, true) == nil, "expected no sql.js backend")
+
+		local tenant_runtime_js = run_command(
+			"printf 'GET /shell/hooks/tenant-runtime.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+		)
+		assert_true(tenant_runtime_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected tenant runtime to respond")
+		assert_true(tenant_runtime_js:find("rewriteDocumentUrls", 1, true) ~= nil, "expected tenant URL rewrite helper")
+		assert_true(tenant_runtime_js:find("fresh.async = false", 1, true) ~= nil, "expected ordered script replay")
+		assert_true(tenant_runtime_js:find("responseUrl", 1, true) ~= nil, "expected response URL contract")
+		assert_true(tenant_runtime_js:find("window.location.href", 1, true) ~= nil, "expected same-origin URL resolution")
+
+		local runtime_session_js = run_command(
+			"printf 'GET /shell/hooks/runtime-session.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+		)
+		assert_true(runtime_session_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected runtime session to respond")
+		assert_true(runtime_session_js:find("resolveResponseUrl", 1, true) ~= nil, "expected request path normalization")
+		assert_true(runtime_session_js:find("appBasePath", 1, true) ~= nil, "expected payload base propagation")
 
 	local terminal_js = run_command(
 		"printf 'GET /shell/hooks/terminal.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"

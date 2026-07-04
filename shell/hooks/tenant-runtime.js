@@ -11,7 +11,8 @@
 	const ROOT = document.getElementById('app');
 	const state = {
 		path: '/',
-		title: 'runtime'
+		title: 'runtime',
+		appBasePath: typeof window.__FUWA_APP_BASE_PATH__ === 'string' ? window.__FUWA_APP_BASE_PATH__ : ''
 	};
 	const pendingReplies = new Map();
 	let requestId = 0;
@@ -36,14 +37,109 @@
 	}
 
 	function normalizePath(input) {
+		const base = state.path || '/';
 		try {
-			if (String(input).startsWith('/')) {
-				return String(input);
+			const text = String(input);
+			if (text.startsWith('#') || text.startsWith('javascript:') || text.startsWith('data:')) {
+				return text;
 			}
-			const url = new URL(String(input), 'https://tenant.invalid' + (state.path || '/'));
-			return url.pathname + url.search + url.hash;
+			if (text.startsWith('//')) {
+				const url = new URL(text, window.location.href);
+				return rebaseAppPath(url.pathname + url.search + url.hash, state.appBasePath);
+			}
+			if (isAbsoluteUrl(text)) {
+				const url = new URL(text);
+				return rebaseAppPath(url.pathname + url.search + url.hash, state.appBasePath);
+			}
+			if (text.startsWith('/')) {
+				return rebaseAppPath(text, state.appBasePath);
+			}
+			const url = new URL(text, 'https://tenant.invalid' + (base.startsWith('/') ? base : '/' + base));
+			return rebaseAppPath(url.pathname + url.search + url.hash, state.appBasePath);
 		} catch (error) {
 			return '/';
+		}
+	}
+
+	function normalizeAppBasePath(appBasePath) {
+		const trimmed = typeof appBasePath === 'string' ? appBasePath.trim() : '';
+		if (trimmed === '' || trimmed === '/') {
+			return '';
+		}
+		return trimmed.endsWith('/') ? trimmed : trimmed + '/';
+	}
+
+	function isAbsoluteUrl(value) {
+		return /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value) || value.startsWith('//');
+	}
+
+	function rebaseAppPath(path, appBasePath) {
+		const normalized = normalizeAppBasePath(appBasePath);
+		if (!path || isAbsoluteUrl(path) || !path.startsWith('/')) {
+			return path;
+		}
+		if (!normalized) {
+			return path;
+		}
+		if (path === normalized || path.startsWith(normalized)) {
+			return path;
+		}
+		return normalized + path.replace(/^\/+/, '');
+	}
+
+	function resolveUrl(value, baseUrl) {
+		const text = typeof value === 'string' ? value.trim() : '';
+		if (text === '' || text.startsWith('#') || text.startsWith('javascript:') || text.startsWith('data:') || isAbsoluteUrl(text)) {
+			return text;
+		}
+		try {
+			const base = new URL(String(baseUrl || '/'), window.location.href);
+			const url = new URL(text, base);
+			return url.pathname + url.search + url.hash;
+		} catch (error) {
+			return text;
+		}
+	}
+
+	function rewriteDocumentUrls(root, baseUrl, appBasePath) {
+		if (!(root instanceof Element)) {
+			return;
+		}
+
+		const attribute_names = [
+			'href',
+			'src',
+			'action',
+			'formaction',
+			'hx-get',
+			'hx-post',
+			'hx-put',
+			'hx-patch',
+			'hx-delete',
+			'hx-push-url',
+			'hx-replace-url',
+			'data-hx-get',
+			'data-hx-post',
+			'data-hx-put',
+			'data-hx-patch',
+			'data-hx-delete'
+		];
+
+		for (const element of [root, ...Array.from(root.querySelectorAll('*'))]) {
+			for (const attributeName of attribute_names) {
+				if (!element.hasAttribute(attributeName)) {
+					continue;
+				}
+				const value = element.getAttribute(attributeName);
+				if (!value || value === '' || value.startsWith('#') || value.startsWith('javascript:') || value.startsWith('data:')) {
+					continue;
+				}
+				if ((attributeName === 'hx-push-url' || attributeName === 'hx-replace-url') && (value === 'true' || value === 'false')) {
+					continue;
+				}
+				const rebasedValue = value.startsWith('/') ? rebaseAppPath(value, appBasePath) : value;
+				element.setAttribute(attributeName, resolveUrl(rebasedValue, baseUrl));
+			}
 		}
 	}
 
@@ -74,7 +170,10 @@
 	}
 
 	function updateTitleAndPath(command) {
-		state.path = command.path || state.path || '/';
+		state.path = command.responseUrl || command.path || state.path || '/';
+		if (command.appBasePath) {
+			state.appBasePath = normalizeAppBasePath(command.appBasePath);
+		}
 		state.title = deriveTitle(command);
 		document.title = state.title;
 		emitMeta();
@@ -83,35 +182,34 @@
 	// innerHTML never executes <script> tags; re-create each one so tenant
 	// scripts run, then mount reactive frameworks once they're done.
 	function reviveTenantScripts(scriptNodes, done) {
-		let pending = 0;
-		let finished = false;
-		const maybeDone = function () {
-			if (finished || pending > 0) {
+		let index = 0;
+
+		function appendNext() {
+			if (index >= scriptNodes.length) {
+				done();
 				return;
 			}
-			finished = true;
-			done();
-		};
 
-		for (const old of scriptNodes) {
+			const old = scriptNodes[index];
+			index += 1;
+
 			const fresh = document.createElement('script');
 			for (const attr of Array.from(old.attributes)) {
 				fresh.setAttribute(attr.name, attr.value);
 			}
 			fresh.textContent = old.textContent;
 			if (old.src) {
-				pending += 1;
-				const settle = function () {
-					pending -= 1;
-					maybeDone();
-				};
-				fresh.addEventListener('load', settle, { once: true });
-				fresh.addEventListener('error', settle, { once: true });
+				fresh.async = false;
+				fresh.addEventListener('load', appendNext, { once: true });
+				fresh.addEventListener('error', appendNext, { once: true });
 			}
 			ROOT.appendChild(fresh);
+			if (!old.src) {
+				appendNext();
+			}
 		}
 
-		maybeDone();
+		appendNext();
 	}
 
 	function swapHtml(command) {
@@ -119,19 +217,29 @@
 			return;
 		}
 		const html = command.html || '';
+		const baseUrl = command.responseUrl || command.baseUrl || command.path || '/';
+		const appBasePath = normalizeAppBasePath(command.appBasePath || state.appBasePath);
 
 		const holder = document.createElement('div');
 		holder.innerHTML = html;
+		state.path = command.responseUrl || command.path || state.path || '/';
+		state.appBasePath = appBasePath;
+		rewriteDocumentUrls(holder, baseUrl, appBasePath);
 		const scriptNodes = Array.from(holder.querySelectorAll('script'));
 
-		ROOT.innerHTML = html;
+		ROOT.innerHTML = holder.innerHTML;
 		for (const stale of Array.from(ROOT.querySelectorAll('script'))) {
 			stale.remove();
 		}
 
 		reviveTenantScripts(scriptNodes, function () {
 			processTenantDom(ROOT);
-			updateTitleAndPath(command);
+			updateTitleAndPath({
+				title: command.title,
+				path: command.path || baseUrl,
+				responseUrl: command.responseUrl || baseUrl,
+				appBasePath: appBasePath
+			});
 		});
 	}
 
@@ -248,8 +356,13 @@
 			this.statusText = 'OK';
 			this.responseText = reply.html || '';
 			this.response = this.responseText;
-			this.responseURL = reply.path || this.url;
-			this.fuwaMeta = { title: reply.title, path: reply.path };
+			this.responseURL = reply.responseUrl || reply.path || this.url;
+			this.fuwaMeta = {
+				title: reply.title,
+				path: reply.path || this.responseURL,
+				responseUrl: this.responseURL,
+				appBasePath: reply.appBasePath || reply.baseUrl || state.appBasePath || ''
+			};
 			this.readyState = 2;
 			this.emitEvent('readystatechange');
 			this.readyState = 4;
@@ -321,12 +434,20 @@
 	});
 
 	document.addEventListener('htmx:afterSwap', function (event) {
-		processTenantDom(ROOT);
 		const xhr = event.detail?.xhr;
+		const target = event.detail?.target || event.target || ROOT;
+		const baseUrl = xhr?.fuwaMeta?.responseUrl || xhr?.responseURL || xhr?.fuwaMeta?.path || state.path || '/';
+		const appBasePath = xhr?.fuwaMeta?.appBasePath || state.appBasePath || '';
+		rewriteDocumentUrls(target, baseUrl, appBasePath);
+		processTenantDom(target);
 		if (xhr && xhr.fuwaMeta) {
 			updateTitleAndPath(xhr.fuwaMeta);
 		} else {
-			updateTitleAndPath({});
+			updateTitleAndPath({
+				path: baseUrl,
+				responseUrl: baseUrl,
+				appBasePath: appBasePath
+			});
 		}
 	});
 
