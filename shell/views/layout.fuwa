@@ -24,6 +24,8 @@
     <script defer src="/shell/hooks/terminal.js"></script>
     <script defer src="/shell/hooks/workspace.js"></script>
     <script defer src="/shell/hooks/runtime-session.js"></script>
+    <script defer src="/shell/hooks/preview-server.js"></script>
+    <script defer src="/shell/hooks/preview-browser.js"></script>
     <script defer src="/shell/hooks/preview.js"></script>
     <style>
       :root {
