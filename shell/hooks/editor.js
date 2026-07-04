@@ -9,6 +9,7 @@
 	const ROOT_SELECTOR = '[data-editor-root]';
 	const mounted_roots = new WeakMap();
 	const pending_edits = new Map();
+	const LOG_PREFIX = '[shell:editor]';
 	let codemirror_modules = null;
 	const LUA_KEYWORDS = new Set([
 		'and',
@@ -253,6 +254,40 @@
 		);
 	}
 
+	function log(step, detail) {
+		if (detail === undefined) {
+			console.info(LOG_PREFIX + ' ' + step);
+			return;
+		}
+		console.info(LOG_PREFIX + ' ' + step, detail);
+	}
+
+	function describeRoot(root) {
+		if (!(root instanceof Element)) {
+			return null;
+		}
+
+		return {
+			tag: root.tagName.toLowerCase(),
+			id: root.id || null,
+			filePath: root.getAttribute('data-file-path') || null,
+			state: root.getAttribute('data-widget-state') || null
+		};
+	}
+
+	function resolveScope(scope, reason) {
+		const target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
+		if (target instanceof Element && document.contains(target)) {
+			return target;
+		}
+
+		const fallback = document.querySelector(ROOT_SELECTOR) || document.body || document;
+		if (target instanceof Element) {
+			log(reason + ':fallback', { raw: describeRoot(target), fallback: describeRoot(fallback) });
+		}
+		return fallback;
+	}
+
 	async function mount(root) {
 		if (!(root instanceof Element)) {
 			return null;
@@ -260,11 +295,13 @@
 
 		const existing = mounted_roots.get(root);
 		if (existing) {
+			log('mount:already-mounted', describeRoot(root));
 			return existing;
 		}
 
 		const contents_field = findContentsField(root);
 		if (!(contents_field instanceof HTMLInputElement)) {
+			log('mount:missing-contents', describeRoot(root));
 			root.setAttribute('data-widget-state', 'error');
 			return null;
 		}
@@ -276,11 +313,16 @@
 		if (initial_doc !== server_contents) {
 			contents_field.value = initial_doc;
 			root.setAttribute('data-editor-dirty', 'true');
+			log('mount:restore-pending', {
+				root: describeRoot(root),
+				filePath: file_path
+			});
 		}
 
 		const host = document.createElement('div');
 		host.style.cssText = 'width:100%;height:100%;min-height:0;display:flex;flex-direction:column;';
 		root.replaceChildren(host);
+		log('mount:attach-host', describeRoot(root));
 
 		try {
 			const {
@@ -410,11 +452,13 @@
 			});
 			const form = contents_field.form;
 			const handleSubmit = function () {
+				log('submit:sync-contents', { filePath: file_path });
 				contents_field.value = editor_view.state.doc.toString();
 			};
 			const handleKeydown = function (event) {
 				if ((event.metaKey || event.ctrlKey) && event.key === 's') {
 					event.preventDefault();
+					log('keydown:save', { filePath: file_path });
 					handleSubmit();
 					if (form instanceof HTMLFormElement) {
 						if (window.htmx && typeof window.htmx.trigger === 'function') {
@@ -433,8 +477,10 @@
 
 			root.setAttribute('data-widget-state', 'mounted');
 			root.setAttribute('data-widget-kind', 'editor');
+			log('mount:success', describeRoot(root));
 
 			const cleanup = function () {
+				log('cleanup', describeRoot(root));
 				if (form instanceof HTMLFormElement) {
 					form.removeEventListener('submit', handleSubmit);
 				}
@@ -448,6 +494,7 @@
 			mounted_roots.set(root, cleanup);
 			return cleanup;
 		} catch (error) {
+			console.error(LOG_PREFIX + ' mount failed', error);
 			root.setAttribute('data-widget-state', 'error');
 			root.setAttribute('data-widget-kind', 'editor');
 			root.textContent = 'CodeMirror failed to load: ' + String(error && error.message ? error.message : error);
@@ -468,6 +515,7 @@
 			return;
 		}
 
+		log('unmount', describeRoot(root));
 		const cleanup = mounted_roots.get(root);
 		if (cleanup) {
 			cleanup();
@@ -475,7 +523,8 @@
 	}
 
 	function refresh(scope) {
-		const target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
+		const target = resolveScope(scope, 'refresh');
+		log('refresh', { scope: describeRoot(target) });
 
 		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
 			void mount(target);
@@ -499,11 +548,21 @@
 	}
 
 	function handleBeforeSwap(event) {
-		clearRoots(event.detail?.target || event.detail?.elt || event.target || document.body);
+		const scope = event.detail?.target || event.detail?.elt || event.target || document.body;
+		log('htmx:beforeSwap', {
+			raw: describeRoot(scope),
+			status: event.detail?.xhr?.status || null
+		});
+		clearRoots(scope);
 	}
 
 	function handleAfterSwap(event) {
-		refresh(event.detail?.target || event.detail?.elt || event.target || document.body);
+		const scope = event.detail?.target || event.detail?.elt || event.target || document.body;
+		log('htmx:afterSwap', {
+			raw: describeRoot(scope),
+			status: event.detail?.xhr?.status || null
+		});
+		refresh(scope);
 	}
 
 	// A successful save means the server now owns the submitted contents;
@@ -532,11 +591,13 @@
 		document.addEventListener(
 			'DOMContentLoaded',
 			function () {
+				log('boot:DOMContentLoaded');
 				refresh(document.body || document);
 			},
 			{ once: true }
 		);
 	} else {
+		log('boot:ready');
 		refresh(document.body || document);
 	}
 

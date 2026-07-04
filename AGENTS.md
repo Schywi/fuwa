@@ -38,6 +38,10 @@ IMPORTANT WRITE COMPREENSIVE UNIT tests for changes
 - **Use petite-vue for petite-vue interactions.** If a shell or tenant
   interaction can be handled cleanly with petite-vue state/directives, prefer
   that over custom JS hooks and delegated DOM state machines.
+- **Put petite-vue on the stable parent.** If HTMX swaps a subtree, put
+  `v-scope` on the closest ancestor that HTMX does not replace, and keep
+  stateful widgets above or explicitly preserved across the swap. Do not mount
+  petite-vue state on the node HTMX is about to replace.
 - **Report failures through diagnostics**, never a silent empty result. Fail
   loudly.
 - **One change, one purpose.** Do not reformat or refactor unrelated code in the

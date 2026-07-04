@@ -21,6 +21,7 @@
 	let command_id = 0;
 	let sent_command_id = 0;
 	const command_queue = [];
+	const LOG_PREFIX = '[shell:preview]';
 
 	function previewStage() {
 		return document.querySelector('[data-preview-stage]');
@@ -42,9 +43,18 @@
 		}
 	}
 
+	function log(step, detail) {
+		if (detail === undefined) {
+			console.info(LOG_PREFIX + ' ' + step);
+			return;
+		}
+		console.info(LOG_PREFIX + ' ' + step, detail);
+	}
+
 	// --- tenant bridge (browser runtime) ------------------------------------
 
 	function postToTenant(command) {
+		log('tenant:post', { command: command });
 		runtime_iframe?.contentWindow?.postMessage(
 			{ __fuwaTenant: true, type: 'command', command: command },
 			'*'
@@ -53,6 +63,7 @@
 
 	function flushCommands() {
 		if (!tenant_ready) {
+			log('tenant:flush:queued', { queued: command_queue.length, sent: sent_command_id });
 			return;
 		}
 		for (const entry of command_queue) {
@@ -67,6 +78,7 @@
 	function queueTenantCommand(command) {
 		command_id += 1;
 		command_queue.push({ id: command_id, command: command });
+		log('tenant:queue', { id: command_id, queued: command_queue.length });
 		if (command_queue.length > 40) {
 			command_queue.splice(0, command_queue.length - 40);
 		}
@@ -83,6 +95,7 @@
 	function startReadyProbe() {
 		stopReadyProbe();
 		const probe = function () {
+			log('tenant:probe-ping');
 			runtime_iframe?.contentWindow?.postMessage({ __fuwaTenant: true, type: 'ping' }, '*');
 		};
 		probe();
@@ -105,6 +118,7 @@
 		}
 
 		if (message.type === 'ready') {
+			log('tenant:ready');
 			tenant_ready = true;
 			stopReadyProbe();
 			flushCommands();
@@ -112,11 +126,13 @@
 		}
 
 		if (message.type === 'request' && session) {
+			log('tenant:request', { kind: message.request?.kind || null });
 			session.handleTenantRequest(message);
 			return;
 		}
 
 		if (message.type === 'stream' && message.stream === 'log') {
+			log('tenant:log', { text: message.text });
 			writeTerminal('[tenant:log] ' + message.text + '\r\n');
 		}
 	});
@@ -144,6 +160,10 @@
 			},
 			sendTenantCommand: queueTenantCommand
 		});
+		log('runtime:session-created', {
+			workerUrl: stage.getAttribute('data-runtime-worker-url'),
+			bundleUrl: stage.getAttribute('data-bundle-url')
+		});
 		return session;
 	}
 
@@ -151,9 +171,11 @@
 		const stage = previewStage();
 		const route_frame = routeIframe();
 		if (!stage || !ensureSession()) {
+			log('runtime:enter-browser:blocked');
 			return;
 		}
 
+		log('runtime:enter-browser', { payloadId: payloadId() });
 		runtime_mode = 'browser';
 		tenant_ready = false;
 		sent_command_id = 0;
@@ -176,11 +198,13 @@
 		stage.appendChild(runtime_iframe);
 
 		void session.refresh().catch(function (error) {
+			log('runtime:refresh:error', { message: String(error && error.message ? error.message : error) });
 			writeTerminal('[runtime] ' + String(error && error.message ? error.message : error) + '\r\n');
 		});
 	}
 
 	function exitBrowserMode() {
+		log('runtime:exit-browser', { payloadId: payloadId() });
 		runtime_mode = 'server';
 		stopReadyProbe();
 		tenant_ready = false;
@@ -226,17 +250,21 @@
 	function checkRefreshToken() {
 		const marker = document.getElementById('ide-preview-refresh');
 		if (!marker) {
+			log('refresh-token:missing');
 			return;
 		}
 
 		const token = marker.getAttribute('data-refresh-token') || '';
 		if (token === '' || token === last_refresh_token) {
+			log('refresh-token:unchanged', { token: token });
 			return;
 		}
 		last_refresh_token = token;
+		log('refresh-token:updated', { token: token, mode: runtime_mode });
 
 		if (runtime_mode === 'browser' && session) {
 			void session.refresh().catch(function (error) {
+				log('runtime:browser-refresh:error', { message: String(error && error.message ? error.message : error) });
 				writeTerminal('[runtime] refresh failed: ' + String(error && error.message ? error.message : error) + '\r\n');
 			});
 			return;
@@ -260,6 +288,7 @@
 	// tear the browser runtime down so the new payload starts clean.
 	document.addEventListener('htmx:beforeSwap', function (event) {
 		const target = event.detail?.target;
+		log('htmx:beforeSwap', { target: target instanceof Element ? target.id || target.tagName.toLowerCase() : null });
 		if (target instanceof Element && target.id === 'shell-content' && runtime_mode === 'browser') {
 			exitBrowserMode();
 		}

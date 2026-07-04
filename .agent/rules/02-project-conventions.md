@@ -78,6 +78,10 @@ build-time JS logic into the Lua path. If a task seems to need one, stop and ask
 When a shell or tenant interaction is naturally stateful in the DOM, prefer
 petite-vue state/directives over bespoke JS hooks. Do not replace a simple
 petite-vue interaction with a custom delegated DOM state machine.
+When HTMX swaps a subtree, put `v-scope` on the closest stable ancestor that is
+not replaced by that swap. Stateful shell chrome should live above the swap
+boundary or be explicitly preserved; do not attach petite-vue state to the node
+HTMX is about to replace and then expect the state to survive.
 
 ## `.fuwa` language work
 

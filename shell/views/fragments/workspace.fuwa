@@ -4,7 +4,6 @@
   data-workspace
   data-payload-id="&dashboard.active.id"
   data-selected-file="&dashboard.active.selected_file"
-  v-scope="FuwaShellWorkspace.createState()"
 >
   <header class="code-shell-header" data-popover-scope>
     <button
