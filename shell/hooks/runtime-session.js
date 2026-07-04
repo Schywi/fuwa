@@ -3,8 +3,8 @@
 
 	// Host-side runtime session: the fuwa equivalent of the IDE RuntimeSession +
 	// adapter pair. Owns the Wasmoon worker lifecycle, the compiled payload
-	// bundle, the run/reset loop, live-reload scheduling, terminal streaming,
-	// and the tenant command relay. The worker protocol lives in
+	// bundle, the run/reset loop, and terminal streaming. The tenant command
+	// relay lives in preview-browser.js. The worker protocol lives in
 	// runtime/browser/init.lua (contract) and shell/hooks/runtime-worker.js.
 
 	function create(options) {
@@ -20,9 +20,7 @@
 		let boot_promise = null;
 		let bundle = null;
 		let message_id = 0;
-		let live_timer = null;
 		const pending_runs = new Map();
-		const local_edits = new Map();
 		let current_request = null;
 
 		function normalizeBasePath(value) {
@@ -189,11 +187,7 @@
 		}
 
 		function bundleFiles() {
-			const files = Object.assign({}, bundle ? bundle.files : {});
-			for (const entry of local_edits) {
-				files[entry[0]] = entry[1];
-			}
-			return files;
+			return Object.assign({}, bundle ? bundle.files : {});
 		}
 
 		async function run(target) {
@@ -231,7 +225,6 @@
 
 		async function refresh() {
 			bundle = null;
-			local_edits.clear();
 			await loadBundle();
 			return run({ kind: 'request', method: 'GET', path: '/', body: '' });
 		}
@@ -246,37 +239,12 @@
 			});
 		}
 
-		function scheduleLiveRun() {
-			if (state === 'booting' || state === 'idle') {
-				return;
-			}
-			if (live_timer) {
-				clearTimeout(live_timer);
-			}
-			live_timer = setTimeout(function () {
-				live_timer = null;
-				void run({ kind: 'request', method: 'GET', path: '/', body: '' });
-			}, 650);
-		}
-
-		function updateLocalFile(path, contents) {
-			// Live edits are raw .fuwa sources; the bundle holds compiled Lua, so
-			// local edits only take effect through refresh() (a server compile).
-			// Track them anyway so the session knows the workspace is dirty.
-			local_edits.set(path, contents);
-		}
-
 		function dispose() {
-			if (live_timer) {
-				clearTimeout(live_timer);
-				live_timer = null;
-			}
 			worker?.terminate();
 			worker = null;
 			boot_promise = null;
 			bundle = null;
 			pending_runs.clear();
-			local_edits.clear();
 			current_request = null;
 			setState('idle');
 		}
@@ -286,8 +254,6 @@
 			run: run,
 			refresh: refresh,
 			handleTenantRequest: handleTenantRequest,
-			scheduleLiveRun: scheduleLiveRun,
-			updateLocalFile: updateLocalFile,
 			dispose: dispose,
 			get state() {
 				return state;
