@@ -451,6 +451,7 @@
 				parent: host
 			});
 			const form = contents_field.form;
+			const can_submit = form instanceof HTMLFormElement && form.hasAttribute('hx-post');
 			const handleSubmit = function () {
 				log('submit:sync-contents', { filePath: file_path });
 				contents_field.value = editor_view.state.doc.toString();
@@ -458,9 +459,9 @@
 			const handleKeydown = function (event) {
 				if ((event.metaKey || event.ctrlKey) && event.key === 's') {
 					event.preventDefault();
-					log('keydown:save', { filePath: file_path });
+					log('keydown:sync-contents', { filePath: file_path });
 					handleSubmit();
-					if (form instanceof HTMLFormElement) {
+					if (can_submit && form instanceof HTMLFormElement) {
 						if (window.htmx && typeof window.htmx.trigger === 'function') {
 							window.htmx.trigger(form, 'submit');
 						} else {
@@ -470,7 +471,7 @@
 				}
 			};
 
-			if (form instanceof HTMLFormElement) {
+			if (can_submit && form instanceof HTMLFormElement) {
 				form.addEventListener('submit', handleSubmit);
 			}
 			root.addEventListener('keydown', handleKeydown);

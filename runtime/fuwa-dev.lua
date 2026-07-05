@@ -871,9 +871,9 @@ function M.build_response(root, method, path, body, opts)
 				local handle_request = assert(_G.handle_request, "main.lua did not define handle_request")
 				local rendered = handle_request(method, path, body or "")
 				local output = tostring(rendered or captured.value or "")
-				-- Dev reload only targets tenant documents. The shell host page
-				-- must not full-page reload on payload disk writes — saves refresh
-				-- the preview surgically through the #ide-preview-refresh token.
+				-- Dev reload only targets tenant documents. The browser shell is
+				-- driven by the in-memory runtime session and should not rely on the
+				-- old shell preview refresh token path.
 				if method == "GET" and not allow_host then
 					output = render_reload_script(output)
 				end
