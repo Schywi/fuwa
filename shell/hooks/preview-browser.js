@@ -132,14 +132,13 @@
 			});
 		}
 
-		// Instant path for editor changes: compile the edited sources inside
-		// the worker instead of round-tripping a bundle fetch.
-		function liveUpdate(edits) {
-			if (!session || typeof session.updateSources !== 'function') {
+		// IDE-style live update: update in-memory file and let session debounce.
+		function updateCode(path, contents) {
+			if (!session || typeof session.updateCode !== 'function') {
 				return refresh();
 			}
-			return session.updateSources(edits).catch(function (error) {
-				log('runtime:live-update:error', { message: String(error && error.message ? error.message : error) });
+			return session.updateCode(path, contents).catch(function (error) {
+				log('runtime:update-code:error', { message: String(error && error.message ? error.message : error) });
 				write_terminal('[runtime] ' + String(error && error.message ? error.message : error) + '\r\n');
 				return false;
 			});
@@ -189,7 +188,7 @@
 			kind: 'browser',
 			mount: mount,
 			refresh: refresh,
-			liveUpdate: liveUpdate,
+			updateCode: updateCode,
 			dispose: dispose,
 			get session() {
 				return session;
