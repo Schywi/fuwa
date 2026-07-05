@@ -148,7 +148,9 @@
 	// through the draft-aware surfaces (/preview/<id>/ or bundle.json?draft=1).
 	// "Publish + run" remains the only path that writes real sources.
 
-	const DRAFT_DEBOUNCE_MS = 650;
+	// Short enough to feel like /IDE (near-instant after you stop typing),
+	// long enough to coalesce a burst of keystrokes into one compile+run.
+	const DRAFT_DEBOUNCE_MS = 200;
 	const pending_drafts = new Map();
 	let draft_timer = null;
 	let draft_dirty = false;
