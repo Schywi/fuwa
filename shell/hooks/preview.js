@@ -1,18 +1,12 @@
 (function () {
 	'use strict';
 
-	// Preview mode controller. The two runtimes are separate drivers:
+	// Browser-only preview controller.
 	//
-	//   preview-server.js  — route-backed iframe (server compiles per request)
-	//   preview-browser.js — Wasmoon worker + tenant iframe bridge
-	//
-	// This file only owns mode state, the non-destructive refresh token
-	// (#ide-preview-refresh, OOB-updated by saves), and teardown on payload
-	// switches. It is the only code that knows two modes exist.
+	// This owns the browser runtime driver lifecycle and forwards editor changes
+	// directly into the in-memory Wasmoon session. The legacy server/draft path
+	// is intentionally not part of the default shell anymore.
 
-	let last_refresh_token = '';
-	let runtime_mode = 'server';
-	let server_driver = null;
 	let browser_driver = null;
 	const LOG_PREFIX = '[shell:preview]';
 
@@ -39,297 +33,187 @@
 		console.info(LOG_PREFIX + ' ' + step, detail);
 	}
 
-	function serverDriver() {
-		if (!server_driver && window.FuwaPreviewServerDriver) {
-			server_driver = window.FuwaPreviewServerDriver.create({
-				stage: previewStage(),
-				log: log
-			});
+	function updateStatusPill(state) {
+		const pill = document.getElementById('ide-runtime-state');
+		if (!pill) {
+			return;
 		}
-		return server_driver;
+		pill.textContent = 'wasm · ' + state;
 	}
 
-	function activeDriver() {
-		return runtime_mode === 'browser' ? browser_driver : serverDriver();
-	}
-
-	function clearDraftQueue() {
-		pending_drafts.clear();
-		if (draft_timer) {
-			clearTimeout(draft_timer);
-			draft_timer = null;
-		}
-	}
-
-	// --- runtime mode switch --------------------------------------------------
-
-	function enterBrowserMode() {
-		const stage = previewStage();
-		if (!stage || !window.FuwaPreviewBrowserDriver) {
-			log('runtime:enter-browser:blocked');
+	function clearLegacyPreviewFrame(stage) {
+		if (!(stage instanceof Element)) {
 			return;
 		}
 
-		log('runtime:enter-browser', { payloadId: payloadId() });
-		browser_driver = window.FuwaPreviewBrowserDriver.create({
+		const legacy_frame = stage.querySelector('iframe.shell-preview-frame:not([data-host-slot="runtime"])');
+		if (legacy_frame) {
+			legacy_frame.remove();
+		}
+	}
+
+	function createBrowserDriver() {
+		const stage = previewStage();
+		if (!stage || !window.FuwaPreviewBrowserDriver) {
+			log('runtime:create:blocked');
+			return null;
+		}
+
+		clearLegacyPreviewFrame(stage);
+		return window.FuwaPreviewBrowserDriver.create({
 			stage: stage,
 			writeTerminal: writeTerminal,
 			log: log,
-			onStatus: function (state) {
-				const pill = document.getElementById('ide-runtime-state');
-				if (pill && runtime_mode === 'browser') {
-					pill.textContent = 'wasm · ' + state;
-				}
-			}
-		});
-
-		runtime_mode = 'browser';
-		clearDraftQueue();
-		setDraftDirty(false);
-		serverDriver()?.hide();
-
-		browser_driver.mount().then(function (ok) {
-			if (!ok) {
-				log('runtime:mount:failed');
-				browser_driver = null;
-				runtime_mode = 'server';
-				serverDriver()?.show();
-				return;
-			}
-			// Sync current editor contents to the browser session. The session
-			// boots from the published bundle, but the editor may have unsaved
-			// changes that need to be applied.
-			if (window.FuwaShellEditor && window.FuwaShellEditor.pendingEdits) {
-				for (const entry of window.FuwaShellEditor.pendingEdits) {
-					browser_driver.updateCode(entry[0], entry[1]);
-				}
-			}
+			onStatus: updateStatusPill
 		});
 	}
 
-	function exitBrowserMode() {
-		log('runtime:exit-browser', { payloadId: payloadId() });
-		runtime_mode = 'server';
-		clearDraftQueue();
-		setDraftDirty(false);
-		browser_driver?.dispose();
-		browser_driver = null;
-		serverDriver()?.show();
+	function mountBrowserDriver() {
+		const stage = previewStage();
+		if (!stage) {
+			log('runtime:stage:missing');
+			return Promise.resolve(false);
+		}
+
+		if (browser_driver) {
+			browser_driver.dispose();
+			browser_driver = null;
+		}
+
+		browser_driver = createBrowserDriver();
+		if (!browser_driver) {
+			return Promise.resolve(false);
+		}
+
+		log('runtime:mount', { payloadId: payloadId() });
+		return browser_driver
+			.mount()
+			.then(function (ok) {
+				if (!ok) {
+					log('runtime:mount:failed');
+					browser_driver?.dispose();
+					browser_driver = null;
+					return false;
+				}
+
+				const pendingEdits = window.FuwaShellEditor && window.FuwaShellEditor.pendingEdits;
+				if (pendingEdits && typeof pendingEdits.forEach === 'function') {
+					let replay = Promise.resolve();
+					pendingEdits.forEach(function (contents, path) {
+						replay = replay.then(function () {
+							return browser_driver ? browser_driver.updateCode(path, contents) : false;
+						});
+					});
+					return replay.then(function () {
+						return true;
+					});
+				}
+
+				return true;
+			})
+			.catch(function (error) {
+				log('runtime:mount:error', { message: String(error && error.message ? error.message : error) });
+				writeTerminal('[runtime] ' + String(error && error.message ? error.message : error) + '\r\n');
+				return false;
+			});
 	}
 
-	function updateModeButton(button) {
-		const label = button.querySelector('[data-runtime-mode-label]');
-		const meta = button.querySelector('.shell-button-meta');
-		button.setAttribute('data-runtime-mode', runtime_mode);
-		if (label) {
-			label.textContent = runtime_mode === 'browser' ? 'Browser runtime' : 'Server runtime';
-		}
-		if (meta) {
-			meta.textContent = runtime_mode === 'browser' ? 'Wasmoon + SQLite-WASM' : 'tap to run in-browser';
-		}
-	}
-
-	document.addEventListener('click', function (event) {
-		const target = event.target instanceof Element ? event.target : null;
-		const button = target ? target.closest('[data-runtime-mode-toggle]') : null;
-		if (!button) {
-			return;
+	function refreshBrowserDriver() {
+		if (!browser_driver) {
+			return mountBrowserDriver();
 		}
 
-		if (runtime_mode === 'server') {
-			enterBrowserMode();
-		} else {
-			exitBrowserMode();
-		}
-		updateModeButton(button);
-	});
-
-	// --- non-destructive refresh ----------------------------------------------
-
-	function checkRefreshToken() {
-		const marker = document.getElementById('ide-preview-refresh');
-		if (!marker) {
-			log('refresh-token:missing');
-			return;
-		}
-
-		const token = marker.getAttribute('data-refresh-token') || '';
-		if (token === '' || token === last_refresh_token) {
-			log('refresh-token:unchanged', { token: token });
-			return;
-		}
-		last_refresh_token = token;
-		log('refresh-token:updated', { token: token, mode: runtime_mode });
-
-		activeDriver()?.refresh();
-	}
-
-	document.addEventListener('htmx:afterSwap', checkRefreshToken);
-	document.addEventListener('htmx:oobAfterSwap', checkRefreshToken);
-
-	// --- live update + draft persistence ---------------------------------------
-	//
-	// Browser mode re-runs immediately on editor changes. Draft writes stay
-	// debounced and persist through POST /draft/<id> so the durable source tree
-	// still only changes on publish.
-
-	// Short enough to feel like /IDE (near-instant after you stop typing),
-	// long enough to coalesce a burst of keystrokes into one draft write.
-	const DRAFT_DEBOUNCE_MS = 200;
-	const pending_drafts = new Map();
-	let draft_timer = null;
-	let draft_dirty = false;
-
-	function setDraftDirty(dirty) {
-		draft_dirty = dirty;
-		const indicator = document.querySelector('[data-draft-indicator]');
-		const discard = document.querySelector('[data-draft-discard]');
-		if (indicator) {
-			indicator.hidden = !dirty;
-		}
-		if (discard) {
-			discard.hidden = !dirty;
-		}
-	}
-
-	function refreshActiveDriver() {
-		if (runtime_mode === 'browser') {
-			browser_driver?.refresh();
-			return;
-		}
-		const driver = serverDriver();
-		if (driver) {
-			driver.setSource('/preview/' + encodeURIComponent(payloadId()) + '/');
-		}
+		return browser_driver.refresh().catch(function (error) {
+			log('runtime:refresh:error', { message: String(error && error.message ? error.message : error) });
+			writeTerminal('[runtime] ' + String(error && error.message ? error.message : error) + '\r\n');
+			return false;
+		});
 	}
 
 	function updateBrowserCode(path, contents) {
-		if (runtime_mode !== 'browser' || !browser_driver) {
+		if (!browser_driver) {
+			return mountBrowserDriver().then(function (ok) {
+				if (!ok || !browser_driver) {
+					return false;
+				}
+				return browser_driver.updateCode(path, contents).catch(function (error) {
+					log('runtime:update-code:error', { message: String(error && error.message ? error.message : error) });
+					writeTerminal('[runtime] ' + String(error && error.message ? error.message : error) + '\r\n');
+					return false;
+				});
+			});
+		}
+
+		return browser_driver.updateCode(path, contents).catch(function (error) {
+			log('runtime:update-code:error', { message: String(error && error.message ? error.message : error) });
+			writeTerminal('[runtime] ' + String(error && error.message ? error.message : error) + '\r\n');
 			return false;
-		}
-		browser_driver.updateCode(path, contents);
-		return true;
-	}
-
-	function flushDrafts() {
-		draft_timer = null;
-		if (runtime_mode === 'browser') {
-			return;
-		}
-		const entries = Array.from(pending_drafts.entries());
-		pending_drafts.clear();
-		if (entries.length === 0) {
-			return;
-		}
-
-		const id = encodeURIComponent(payloadId());
-		const writes = entries.map(function (entry) {
-			return fetch('/draft/' + id, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-				body: 'path=' + encodeURIComponent(entry[0]) + '&contents=' + encodeURIComponent(entry[1])
-			}).then(function (response) {
-				if (!response.ok) {
-					throw new Error('draft write failed: ' + response.status);
-				}
-			});
 		});
-
-		Promise.all(writes)
-			.then(function () {
-				log('draft:written', { files: entries.length });
-				setDraftDirty(true);
-				if (runtime_mode !== 'browser') {
-					refreshActiveDriver();
-				}
-			})
-			.catch(function (error) {
-				log('draft:error', { message: String(error && error.message ? error.message : error) });
-				writeTerminal('[draft] ' + String(error && error.message ? error.message : error) + '\r\n');
-			});
 	}
 
-	document.addEventListener('fuwa:editor-change', function (event) {
+	function handleEditorChange(event) {
 		const detail = event.detail || {};
 		if (typeof detail.path !== 'string' || detail.path === '') {
 			return;
 		}
-		if (runtime_mode === 'browser') {
-			// Browser mode: in-memory only, session owns debounce.
-			updateBrowserCode(detail.path, detail.contents || '');
-			return;
-		}
-		// Server mode: draft persistence path (unchanged).
-		pending_drafts.set(detail.path, detail.contents || '');
-		setDraftDirty(true);
-		if (draft_timer) {
-			clearTimeout(draft_timer);
-		}
-		draft_timer = setTimeout(flushDrafts, DRAFT_DEBOUNCE_MS);
-	});
 
-	document.addEventListener('click', function (event) {
-		const target = event.target instanceof Element ? event.target : null;
-		const button = target ? target.closest('[data-draft-discard]') : null;
-		if (!button) {
-			return;
-		}
+		void updateBrowserCode(detail.path, detail.contents || '');
+	}
 
-		pending_drafts.clear();
-		if (draft_timer) {
-			clearTimeout(draft_timer);
-			draft_timer = null;
-		}
+	function handleBeforeSwap(event) {
+		const target = event.detail?.target || event.detail?.elt || event.target || document.body;
+		log('htmx:beforeSwap', {
+			target: target instanceof Element ? target.id || target.tagName.toLowerCase() : null
+		});
 
-		fetch('/draft/' + encodeURIComponent(payloadId()) + '/discard', { method: 'POST' })
-			.then(function (response) {
-				if (!response.ok) {
-					throw new Error('draft discard failed: ' + response.status);
-				}
-				log('draft:discarded');
-				setDraftDirty(false);
-				refreshActiveDriver();
-				if (window.FuwaShellEditor && window.FuwaShellEditor.pendingEdits) {
-					window.FuwaShellEditor.pendingEdits.clear();
-				}
-			})
-			.catch(function (error) {
-				log('draft:discard:error', { message: String(error && error.message ? error.message : error) });
-			});
-	});
-
-	// A successful publish re-renders the workspace (indicator returns hidden)
-	// and clears the published file's draft copy server-side; reset local state
-	// so the indicator does not immediately re-show from stale flags.
-	document.addEventListener('htmx:afterSwap', function (event) {
-		const target = event.detail?.target;
-		if (target instanceof Element && target.id === 'ide-workspace') {
-			setDraftDirty(draft_dirty && pending_drafts.size > 0);
-		}
-	});
-
-	// A full #shell-content swap (payload switch) replaces the preview island;
-	// tear the browser runtime down so the new payload starts clean, and drop
-	// the cached server driver because its stage node is gone.
-	document.addEventListener('htmx:beforeSwap', function (event) {
-		const target = event.detail?.target;
-		log('htmx:beforeSwap', { target: target instanceof Element ? target.id || target.tagName.toLowerCase() : null });
 		if (!(target instanceof Element) || target.id !== 'shell-content') {
 			return;
 		}
-		if (runtime_mode === 'browser') {
-			exitBrowserMode();
+
+		browser_driver?.dispose();
+		browser_driver = null;
+	}
+
+	function handleAfterSwap(event) {
+		const target = event.detail?.target || event.detail?.elt || event.target || document.body;
+		log('htmx:afterSwap', {
+			target: target instanceof Element ? target.id || target.tagName.toLowerCase() : null
+		});
+
+		if (!(target instanceof Element) || target.id !== 'shell-content') {
+			return;
 		}
-		server_driver = null;
-		last_refresh_token = '';
-	});
+
+		void mountBrowserDriver();
+	}
+
+	document.addEventListener('fuwa:editor-change', handleEditorChange);
+	document.addEventListener('htmx:beforeSwap', handleBeforeSwap);
+	document.addEventListener('htmx:afterSwap', handleAfterSwap);
+
+	if (document.readyState === 'loading') {
+		document.addEventListener(
+			'DOMContentLoaded',
+			function () {
+				log('boot:DOMContentLoaded');
+				void mountBrowserDriver();
+			},
+			{ once: true }
+		);
+	} else {
+		log('boot:ready');
+		void mountBrowserDriver();
+	}
 
 	window.FuwaShellPreview = {
-		refreshToken: function () {
-			return last_refresh_token;
-		},
 		mode: function () {
-			return runtime_mode;
+			return 'browser';
+		},
+		refresh: refreshBrowserDriver,
+		updateCode: updateBrowserCode,
+		mount: mountBrowserDriver,
+		get browserDriver() {
+			return browser_driver;
 		}
 	};
 })();

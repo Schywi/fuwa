@@ -6,7 +6,7 @@
           <p class="shell-kicker">&dashboard.preview_heading</p>
           <p class="ide-preview-note">&dashboard.preview_note</p>
         </div>
-        <div class="shell-badge">Route-backed tenant iframe</div>
+        <div class="shell-badge">Browser runtime</div>
       </div>
 
       <div
@@ -22,12 +22,8 @@
       </div>
 
       <div class="ide-preview-foot">
-        <button type="button" class="shell-button ide-runtime-mode" data-runtime-mode-toggle data-runtime-mode="server">
-          <span data-runtime-mode-label>Server runtime</span>
-          <span class="shell-button-meta">tap to run in-browser</span>
-        </button>
+        <div class="shell-badge">In-memory live session</div>
       </div>
-      <div id="ide-preview-refresh" data-refresh-token="" hidden></div>
     </section>
 
     <div class="ide-panel">

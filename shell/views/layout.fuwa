@@ -24,7 +24,6 @@
     <script defer src="/shell/hooks/terminal.js"></script>
     <script defer src="/shell/hooks/workspace.js"></script>
     <script defer src="/shell/hooks/runtime-session.js"></script>
-    <script defer src="/shell/hooks/preview-server.js"></script>
     <script defer src="/shell/hooks/preview-browser.js"></script>
     <script defer src="/shell/hooks/preview.js"></script>
     <style>
@@ -123,13 +122,6 @@
         box-shadow: 0 14px 28px rgba(159, 86, 23, 0.18);
       }
 
-      .shell-button-primary {
-        color: #fff;
-        background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-        border-color: transparent;
-        box-shadow: 0 14px 28px rgba(159, 86, 23, 0.18);
-      }
-
       .shell-button-meta {
         opacity: 0.78;
         font-size: 0.74rem;
@@ -195,12 +187,6 @@
       .ide-preview-foot {
         display: flex;
         justify-content: center;
-      }
-
-      .ide-runtime-mode[data-runtime-mode="browser"] {
-        color: #fff;
-        background: linear-gradient(135deg, #0f766e, #134e4a);
-        border-color: transparent;
       }
 
       .ide-panel {
@@ -641,20 +627,6 @@
       .ide-view-terminal .shell-widget-shell {
         border-radius: 0 0 22px 22px;
         border: 0;
-      }
-
-      .draft-pill {
-        display: inline-flex;
-        align-items: center;
-        min-height: 20px;
-        padding: 0 8px;
-        border-radius: 999px;
-        font-size: 0.62rem;
-        font-weight: 800;
-        letter-spacing: 0.06em;
-        text-transform: uppercase;
-        background: rgba(251, 191, 36, 0.16);
-        color: #fbbf24;
       }
 
       .shell-status-pill {

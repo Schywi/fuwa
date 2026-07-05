@@ -80,7 +80,6 @@ local function build_payload_card(host, payload_id, selected_file)
 		selected_file_name = file_name and basename(file_name) or "",
 		selected_file_source = file_source or "",
 		selected_file_length = #(file_source or ""),
-		save_route = "/save/" .. encode_query_component(payload_id),
 		sandbox = "allow-scripts allow-forms allow-same-origin",
 		bootstrap = "route",
 	}
@@ -145,7 +144,6 @@ function M.build(host, payload_id, requested_file, run_result)
 			selected_file_name = "",
 			selected_file_source = "",
 			selected_file_length = 0,
-			save_route = "/save/" .. encode_query_component(payload_id),
 			sandbox = "allow-scripts allow-forms allow-same-origin",
 			bootstrap = "route",
 		}
@@ -158,31 +156,23 @@ function M.build(host, payload_id, requested_file, run_result)
 	active.terminal_run_id = terminal.run_id
 	active.bundle_url = "/runtime/" .. encode_query_component(active.id) .. "/bundle.json"
 
-	-- A non-empty token tells the preview hook to refresh the mounted tenant
-	-- without recreating the iframe. Only successful runs refresh the preview.
-	local preview_refresh_token = ""
-	if type(run_result) == "table" and run_result.success ~= false then
-		preview_refresh_token = terminal.run_id
-	end
-
 	return {
-		eyebrow = "Privileged shell",
+		eyebrow = "Browser shell",
 		title = "Fuwa Shell",
-		summary = "The host shell mounts a payload through a route-backed iframe, exposes the payload workspace, and reports compile output in the terminal panel.",
+		summary = "The host shell mounts a browser runtime session, exposes the payload workspace, and reports compile output in the terminal panel.",
 		breadcrumb = {
 			{ label = "payloads", active = false },
 			{ label = active.label, active = false },
 			{ label = active.selected_file ~= "" and active.selected_file or "no file", active = true },
 		},
 		runtime_state = terminal.status == "error" and "error" or "ready",
-		preview_heading = "Mounted tenant",
-		preview_note = "Route-backed tenant document",
-		preview_refresh_token = preview_refresh_token,
+		preview_heading = "Browser runtime",
+		preview_note = "In-memory live session",
 		runtime_tenant_url = "/runtime/tenant.html",
 		runtime_worker_url = "/shell/hooks/runtime-worker.js",
 		payloads = payloads,
 		active = active,
-		preview_html = host.mount_payload("preview", payload_id),
+		preview_html = "",
 	}
 end
 

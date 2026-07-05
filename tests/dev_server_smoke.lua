@@ -63,14 +63,16 @@ local function test_http_request()
 	assert_true(output:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected HTTP 200")
 	assert_true(output:find("<!DOCTYPE html>", 1, true) ~= nil, "expected doctype")
 	assert_true(output:find("Fuwa Shell", 1, true) ~= nil, "expected rendered shell")
-	assert_true(output:find('src="/payload/current/"', 1, true) ~= nil, "expected route-backed iframe")
+	assert_true(output:find("Browser runtime", 1, true) ~= nil, "expected browser runtime badge")
+	assert_true(output:find('data-preview-stage', 1, true) ~= nil, "expected browser runtime stage")
+	assert_true(output:find('src="/payload/current/"', 1, true) == nil, "expected no route-backed iframe")
 	assert_true(output:find("tenant-bridge.js", 1, true) == nil, "expected no tenant bridge hook")
 	assert_true(output:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected local htmx asset")
 	assert_true(output:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected local petite-vue asset")
 	assert_true(output:find('/vendor/xterm/xterm-6.0.0.css', 1, true) ~= nil, "expected local xterm stylesheet")
 	assert_true(output:find('/shell/hooks/editor.js', 1, true) ~= nil, "expected editor hook asset")
 	assert_true(output:find('/shell/hooks/terminal.js', 1, true) ~= nil, "expected terminal hook asset")
-	assert_true(output:find('/shell/hooks/preview-server.js', 1, true) ~= nil, "expected server preview driver")
+	assert_true(output:find('/shell/hooks/preview-server.js', 1, true) == nil, "expected no server preview driver in the default shell")
 	assert_true(output:find('/shell/hooks/preview-browser.js', 1, true) ~= nil, "expected browser preview driver")
 	assert_true(output:find('/shell/hooks/preview.js', 1, true) ~= nil, "expected preview mode controller")
 	assert_true(output:find('<script type="importmap">', 1, true) ~= nil, "expected import map")
@@ -78,7 +80,7 @@ local function test_http_request()
 	assert_true(output:find('&quot;@codemirror/state&quot;', 1, true) == nil, "expected unescaped codemirror import map")
 	assert_true(output:find('.shell-widget-shell[data-widget-state="mounted"]', 1, true) ~= nil, "expected literal CSS selectors")
 	assert_true(output:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected shell switch button")
-	assert_true(output:find('hx-post="/save/current"', 1, true) ~= nil, "expected shell save button")
+	assert_true(output:find('hx-post="/save/current"', 1, true) == nil, "expected no shell save button")
 	assert_true(output:find('hx-target="#shell-content"', 1, true) ~= nil, "expected shell fragment target")
 	assert_true(output:find("EventSource('/__dev/reload')", 1, true) == nil, "expected no full-page reload script in the shell host page")
 end
@@ -91,9 +93,11 @@ local function test_response_builder()
 	assert_true(response.status == 200, "expected build_response to succeed")
 	assert_true(response.body:find("<!DOCTYPE html>", 1, true) == 1, "expected doctype first")
 	assert_true(response.headers["Content-Type"] == "text/html; charset=utf-8", "expected HTML content type")
-	assert_true(response.body:find("Route-backed tenant iframe", 1, true) ~= nil, "expected shell response")
+	assert_true(response.body:find("Browser runtime", 1, true) ~= nil, "expected shell response")
+	assert_true(response.body:find("In-memory live session", 1, true) ~= nil, "expected browser runtime footnote")
 	assert_true(response.body:find('<div class="ide-shell" v-scope="FuwaShellWorkspace.createState()">', 1, true) ~= nil, "expected petite-vue on the stable shell parent")
-	assert_true(response.body:find('src="/payload/current/"', 1, true) ~= nil, "expected route-backed iframe")
+	assert_true(response.body:find('data-preview-stage', 1, true) ~= nil, "expected browser runtime stage")
+	assert_true(response.body:find('src="/payload/current/"', 1, true) == nil, "expected no route-backed iframe")
 	assert_true(response.body:find("tenant-bridge.js", 1, true) == nil, "expected no shell bridge hook")
 	assert_true(response.body:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected local htmx asset")
 	assert_true(response.body:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected local petite-vue asset")
@@ -104,6 +108,7 @@ local function test_response_builder()
 	assert_true(response.body:find('"@codemirror/state": "/vendor/codemirror/state-6.6.0.js"', 1, true) ~= nil, "expected literal codemirror import map")
 	assert_true(response.body:find('&quot;@codemirror/state&quot;', 1, true) == nil, "expected unescaped codemirror import map")
 	assert_true(response.body:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected switch button")
+	assert_true(response.body:find('hx-post="/save/current"', 1, true) == nil, "expected no save action in the default shell")
 end
 
 local function test_shell_switch_route()
@@ -113,11 +118,12 @@ local function test_shell_switch_route()
 
 	assert_true(response.status == 200, "expected switch route to succeed")
 	assert_true(response.body:find('id="shell-content"', 1, true) ~= nil, "expected shell workspace fragment")
-	assert_true(response.body:find('hx-post="/save/lesson"', 1, true) ~= nil, "expected lesson save action")
+	assert_true(response.body:find('hx-post="/save/lesson"', 1, true) == nil, "expected no lesson save action")
 	assert_true(response.body:find('hx-get="/inspect/lesson?file=', 1, true) ~= nil, "expected lesson file inspection links")
-	assert_true(response.body:find('Publish + run', 1, true) ~= nil, "expected publish and run label")
-	assert_true(response.body:find('data-draft-indicator', 1, true) ~= nil, "expected draft indicator")
-	assert_true(response.body:find('data-draft-discard', 1, true) ~= nil, "expected draft discard control")
+	assert_true(response.body:find('Publish + run', 1, true) == nil, "expected no publish and run label")
+	assert_true(response.body:find('data-draft-indicator', 1, true) == nil, "expected no draft indicator")
+	assert_true(response.body:find('data-draft-discard', 1, true) == nil, "expected no draft discard control")
+	assert_true(response.body:find('Browser live updates only', 1, true) ~= nil, "expected browser-only editor note")
 	assert_true(response.body:find("<include", 1, true) == nil, "expected rendered HTML, not literal include tags")
 end
 
@@ -285,27 +291,6 @@ local function test_current_payload_interaction()
 	end)
 end
 
-local function test_shell_save_run_loop()
-	local path = "payloads/current/pages/home.fuwa"
-	local original = read_file(path)
-	local body = "path=" .. encode_form_component("pages/home.fuwa") .. "&contents=" .. encode_form_component(original)
-
-	local ok, err = pcall(function()
-		local response = dev.build_response("shell", "POST", "/save/current", body, {
-			allow_host = true,
-		})
-
-		assert_true(response.status == 200, "expected shell save route to succeed")
-		assert_true(response.body:find("Build ok", 1, true) ~= nil, "expected compile success status")
-		assert_true(response.body:find("$ save pages/home.fuwa", 1, true) ~= nil, "expected save line in terminal seed")
-		assert_true(response.body:find("$ package_web.build current", 1, true) ~= nil, "expected compile line in terminal seed")
-		assert_true(response.body:find('data-terminal-root', 1, true) ~= nil, "expected terminal root in fragment")
-	end)
-
-	write_file(path, original)
-	assert_true(ok, err)
-end
-
 local function test_shell_inspect_fragment()
 	local response = dev.build_response("shell", "GET", "/inspect/current?file=view.fuwa", "", {
 		allow_host = true,
@@ -320,35 +305,16 @@ local function test_shell_inspect_fragment()
 	assert_true(response.body:find('data-selected="true"', 1, true) ~= nil, "expected an active file highlight")
 	assert_true(response.body:find('data-file-path="view.fuwa"', 1, true) ~= nil, "expected the inspected file in the list")
 	assert_true(response.body:find("breadcrumb-segment", 1, true) ~= nil, "expected breadcrumb context")
-	assert_true(response.body:find('id="ide-preview-refresh" hx-swap-oob="true" data-refresh-token=""', 1, true) ~= nil,
-		"expected inspect to carry an empty preview refresh token")
 	assert_true(response.body:find('id="ide-entry-stat" hx-swap-oob="true"', 1, true) ~= nil, "expected entry stat OOB update")
 end
 
-local function test_shell_save_preview_refresh()
-	local path = "payloads/current/pages/home.fuwa"
-	local original = read_file(path)
-	local body = "path=" .. encode_form_component("pages/home.fuwa") .. "&contents=" .. encode_form_component(original)
+local function test_shell_save_route_is_not_exposed()
+	local response = dev.build_response("shell", "POST", "/save/current", "", {
+		allow_host = true,
+	})
 
-	local ok, err = pcall(function()
-		local response = dev.build_response("shell", "POST", "/save/current", body, {
-			allow_host = true,
-		})
-
-		assert_true(response.status == 200, "expected shell save route to succeed")
-		assert_true(response.body:find('id="ide-workspace"', 1, true) ~= nil, "expected save to return the workspace fragment")
-		assert_true(response.body:find('id="shell-content"', 1, true) == nil, "expected save to leave the shell frame alone")
-		assert_true(response.body:find("shell-preview-frame", 1, true) == nil, "expected save to leave the preview iframe alone")
-		assert_true(response.body:find('id="ide-preview-refresh" hx-swap-oob="true" data-refresh-token=""', 1, true) == nil,
-			"expected save to carry a non-empty preview refresh token")
-		assert_true(response.body:find('id="ide-preview-refresh" hx-swap-oob="true" data-refresh-token="', 1, true) ~= nil,
-			"expected preview refresh OOB marker")
-		assert_true(response.body:find('id="ide-runtime-state" hx-swap-oob="true"', 1, true) ~= nil, "expected runtime state OOB update")
-		assert_true(response.body:find('data-status="ok"', 1, true) ~= nil, "expected successful build status")
-	end)
-
-	write_file(path, original)
-	assert_true(ok, err)
+	assert_true(response.body:find("The requested route was not found.", 1, true) ~= nil,
+		"expected save route to be removed from the default shell")
 end
 
 local function test_browser_runtime_routes()
@@ -536,9 +502,8 @@ test_shell_switch_route()
 test_payload_route_request()
 test_raw_asset_requests()
 test_current_payload_interaction()
-test_shell_save_run_loop()
+test_shell_save_route_is_not_exposed()
 test_shell_inspect_fragment()
-test_shell_save_preview_refresh()
 test_browser_runtime_routes()
 test_draft_overlay_routes()
 test_db_helper()
