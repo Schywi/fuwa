@@ -66,17 +66,60 @@ local function expand_includes(source, source_files, filename, diagnostics_out, 
 	return table.concat(out)
 end
 
+local function fragment_name(key)
+	return (key:gsub("^views/", ""):gsub("%.fuwa$", ""))
+end
+
+-- Fragments are the reusable partials under views/fragments/**. They become
+-- named, standalone-renderable templates (e.g. "fragments/counter") so actions
+-- can return them directly for HTMX partial swaps. Other views/ files stay
+-- structural (used only through <include>).
+local function collect_fragment_keys(source_files)
+	local keys = {}
+	if source_files then
+		for key in pairs(source_files) do
+			if type(key) == "string" and key:match("^views/fragments/.+%.fuwa$") then
+				keys[#keys + 1] = key
+			end
+		end
+	end
+	table.sort(keys)
+	return keys
+end
+
+-- Compile the single renderable `view` module as a name-keyed registry:
+-- "__page__" is the whole-page template (view.fuwa, includes expanded) and the
+-- default for any unknown name (so `render "home"` still renders the page);
+-- each fragment is registered under its `fragments/<name>` key.
 function M.compile_view_module(template_source, source_files, filename)
 	local diagnostics_out = {}
-	local expanded_template = expand_includes(template_source or "", source_files, filename or "view.fuwa", diagnostics_out, {})
-	if expanded_template == nil then
+	local page_template = expand_includes(template_source or "", source_files, filename or "view.fuwa", diagnostics_out, {})
+
+	local fragments = {}
+	for _, key in ipairs(collect_fragment_keys(source_files)) do
+		local expanded = expand_includes(source_files[key], source_files, key, diagnostics_out, {})
+		if expanded ~= nil then
+			fragments[#fragments + 1] = { name = fragment_name(key), template = expanded }
+		end
+	end
+
+	if page_template == nil or diagnostics.has_errors(diagnostics_out) then
 		return {
 			lua = nil,
 			diagnostics = diagnostics_out
 		}
 	end
 
-	local quoted_template = strings.quote_lua_string(expanded_template)
+	local template_entries = {
+		"  [" .. strings.quote_lua_string("__page__") .. "] = " .. strings.quote_lua_string(page_template) .. ","
+	}
+	for _, fragment in ipairs(fragments) do
+		template_entries[#template_entries + 1] = "  ["
+			.. strings.quote_lua_string(fragment.name)
+			.. "] = "
+			.. strings.quote_lua_string(fragment.template)
+			.. ","
+	end
 
 	return {
 		lua = table.concat({
@@ -85,9 +128,26 @@ function M.compile_view_module(template_source, source_files, filename)
 			"",
 			"local M = {}",
 			"",
-			"local template = " .. quoted_template,
+			"local templates = {",
+			table.concat(template_entries, "\n"),
+			"}",
 			"",
 			"function M.render(name, data, opts)",
+			"  local template = templates[name]",
+			"  if template == nil then",
+			'    if type(name) == "string" and name:match("^fragments/") then',
+			"      return web.dev_error_html({",
+			'        _type = "error",',
+			"        err = {",
+			'          kind = "unknown_fragment",',
+			'          message = "Unknown fragment: " .. tostring(name),',
+			"        },",
+			"        action = name,",
+			"      })",
+			"    end",
+			'    template = templates["__page__"]',
+			"  end",
+			"",
 			"  local html, err = view.render(template, data, opts)",
 			"  if html ~= nil then",
 			"    return html",
