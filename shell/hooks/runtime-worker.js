@@ -300,7 +300,14 @@ const LUA_COMPILE_SCRIPT = [
 ].join('\n');
 
 async function compileSources(sources) {
-	lua.global.set('__fuwa_sources', sources);
+	// wasmoon tries its ProxyTypeExtension (priority 3) before TableTypeExtension
+	// (priority 0), and the proxy extension accepts any plain object, not just
+	// class instances. Left undecorated, `sources` gets marshalled as a
+	// JS-object-backed userdata instead of a real Lua table, and Lua-side
+	// `pairs()` over it throws "decoration.target is null" once the proxy's
+	// callback bridge is exercised. `{ proxy: false }` forces the proxy
+	// extension to decline so the table extension does a real deep conversion.
+	lua.global.set('__fuwa_sources', wasmoon.decorate(sources, { proxy: false }));
 	await lua.doString(LUA_COMPILE_SCRIPT);
 	const buildErrors = lua.global.get('__fuwa_build_errors');
 	if (buildErrors) {

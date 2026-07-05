@@ -10,7 +10,8 @@
 	// Browser mode is in-memory only: boot from bundle once, then own the file
 	// state. No draft overlays, no server round-trips on edit.
 
-	const LIVE_RELOAD_DEBOUNCE_MS = 200;
+	// Matches /IDE's RuntimeSession debounce (src/engine/RuntimeSession.ts).
+	const LIVE_RELOAD_DEBOUNCE_MS = 650;
 
 	function create(options) {
 		const worker_url = options.workerUrl;
@@ -30,6 +31,7 @@
 		const files = new Map();
 		let live_reload_timer = null;
 		let current_request = null;
+		let live_reload = options.liveReload !== false;
 
 		function normalizeBasePath(value) {
 			const text = typeof value === 'string' ? value.trim() : '';
@@ -226,6 +228,12 @@
 		}
 
 		function scheduleLiveRun() {
+			// Mirrors /IDE's scheduleLiveRun guard: skip while reload is disabled
+			// or the worker is still booting, so a burst of keystrokes during
+			// boot doesn't queue a run before the worker can accept one.
+			if (!live_reload || state === 'booting') {
+				return;
+			}
 			clearLiveReloadTimer();
 			live_reload_timer = setTimeout(function () {
 				live_reload_timer = null;
@@ -290,6 +298,27 @@
 			return Promise.resolve(true);
 		}
 
+		// Reads the current canonical content for a file (in-memory edit if any,
+		// else the last loaded bundle source), so callers can switch the active
+		// file client-side without a server round trip. Returns null if the
+		// path is unknown or the bundle hasn't loaded yet.
+		function getFile(path) {
+			if (files.has(path)) {
+				return files.get(path);
+			}
+			if (bundle && bundle.sources && Object.prototype.hasOwnProperty.call(bundle.sources, path)) {
+				return bundle.sources[path];
+			}
+			return null;
+		}
+
+		function setLiveReload(enabled) {
+			live_reload = enabled !== false;
+			if (!live_reload) {
+				clearLiveReloadTimer();
+			}
+		}
+
 		function handleTenantRequest(request) {
 			void run({
 				kind: 'request',
@@ -317,6 +346,8 @@
 			run: run,
 			refresh: refresh,
 			updateCode: updateCode,
+			getFile: getFile,
+			setLiveReload: setLiveReload,
 			handleTenantRequest: handleTenantRequest,
 			dispose: dispose,
 			get state() {
