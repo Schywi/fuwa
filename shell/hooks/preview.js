@@ -83,14 +83,28 @@
 			}
 		});
 
-		if (!browser_driver.mount()) {
-			browser_driver = null;
-			return;
-		}
 		runtime_mode = 'browser';
 		clearDraftQueue();
 		setDraftDirty(false);
 		serverDriver()?.hide();
+
+		browser_driver.mount().then(function (ok) {
+			if (!ok) {
+				log('runtime:mount:failed');
+				browser_driver = null;
+				runtime_mode = 'server';
+				serverDriver()?.show();
+				return;
+			}
+			// Sync current editor contents to the browser session. The session
+			// boots from the published bundle, but the editor may have unsaved
+			// changes that need to be applied.
+			if (window.FuwaShellEditor && window.FuwaShellEditor.pendingEdits) {
+				for (const entry of window.FuwaShellEditor.pendingEdits) {
+					browser_driver.updateCode(entry[0], entry[1]);
+				}
+			}
+		});
 	}
 
 	function exitBrowserMode() {
