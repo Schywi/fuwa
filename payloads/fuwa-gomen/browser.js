@@ -11,12 +11,27 @@
 
 	const css = `
 #gomen[v-cloak]{display:none}
+main.phone-screen{
+	position:relative;
+	display:flex;
+	flex-direction:column;
+	width:100%;
+	height:100%;
+	min-height:100%;
+	overflow:hidden;
+}
 #gomen{
 	--ink:#2a2320;
 	--cream:#fff8ef;
 	--pink:#f9a8c4;
 	--pink-deep:#e7558b;
 	--sakura:#f472b6;
+	position:relative;
+	flex:1 1 auto;
+	align-self:stretch;
+	width:100%;
+	min-height:0;
+	overflow:hidden;
 	display:flex;
 	flex-direction:column;
 	gap:10px;
