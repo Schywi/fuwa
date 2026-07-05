@@ -1,0 +1,5 @@
+<div class="fg-actions">
+  <button type="button" class="fg-btn" @click="poke()">Poke (≖ᴗ≖✿)</button>
+  <button type="button" class="fg-btn" @click="pet()">Pet ( ˶˘ ³˘)</button>
+  <button type="button" class="fg-btn" @click="askPapa()">Papa (-人-)</button>
+</div>
