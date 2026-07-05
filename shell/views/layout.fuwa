@@ -47,7 +47,8 @@
 
       body {
         margin: 0;
-        min-height: 100vh;
+        height: 100vh;
+        overflow: hidden;
         background:
           radial-gradient(circle at top left, rgba(245, 158, 11, 0.18), transparent 24%),
           radial-gradient(circle at 84% 18%, rgba(96, 165, 250, 0.1), transparent 22%),
@@ -65,11 +66,13 @@
       }
 
       .shell-stage {
-        min-height: 100vh;
+        height: 100%;
+        overflow: hidden;
         padding: 20px;
       }
 
       .shell-content {
+        height: 100%;
         width: min(1360px, 100%);
         margin: 0 auto;
       }
@@ -128,12 +131,16 @@
         font-weight: 650;
       }
 
-      /* IDE composition: left phone stage, right control panel. */
+      /* IDE composition: left phone stage, right control panel. Height is
+         bounded (not min-height) all the way from body down to here, so the
+         flex:1;min-height:0;overflow:hidden chain below (preview stage,
+         workspace, terminal) actually clips oversized content instead of the
+         page growing to fit it. */
       .ide-shell {
         display: flex;
         gap: 14px;
         align-items: stretch;
-        min-height: calc(100vh - 40px);
+        height: 100%;
       }
 
       .ide-island {

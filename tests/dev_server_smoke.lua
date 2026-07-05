@@ -79,7 +79,7 @@ local function test_http_request()
 	assert_true(output:find('"@codemirror/state": "/vendor/codemirror/state-6.6.0.js"', 1, true) ~= nil, "expected literal codemirror import map")
 	assert_true(output:find('&quot;@codemirror/state&quot;', 1, true) == nil, "expected unescaped codemirror import map")
 	assert_true(output:find('.shell-widget-shell[data-widget-state="mounted"]', 1, true) ~= nil, "expected literal CSS selectors")
-	assert_true(output:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected shell switch button")
+	assert_true(output:find('hx-post="/switch/fuwa-gomen"', 1, true) ~= nil, "expected shell switch button")
 	assert_true(output:find('hx-post="/save/current"', 1, true) == nil, "expected no shell save button")
 	assert_true(output:find('hx-target="#shell-content"', 1, true) ~= nil, "expected shell fragment target")
 	assert_true(output:find("EventSource('/__dev/reload')", 1, true) == nil, "expected no full-page reload script in the shell host page")
@@ -107,19 +107,19 @@ local function test_response_builder()
 	assert_true(response.body:find('<script type="importmap">', 1, true) ~= nil, "expected import map")
 	assert_true(response.body:find('"@codemirror/state": "/vendor/codemirror/state-6.6.0.js"', 1, true) ~= nil, "expected literal codemirror import map")
 	assert_true(response.body:find('&quot;@codemirror/state&quot;', 1, true) == nil, "expected unescaped codemirror import map")
-	assert_true(response.body:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected switch button")
+	assert_true(response.body:find('hx-post="/switch/fuwa-gomen"', 1, true) ~= nil, "expected switch button")
 	assert_true(response.body:find('hx-post="/save/current"', 1, true) == nil, "expected no save action in the default shell")
 end
 
 local function test_shell_switch_route()
-	local response = dev.build_response("shell", "POST", "/switch/lesson", "", {
+	local response = dev.build_response("shell", "POST", "/switch/fuwa-gomen", "", {
 		allow_host = true,
 	})
 
 	assert_true(response.status == 200, "expected switch route to succeed")
 	assert_true(response.body:find('id="shell-content"', 1, true) ~= nil, "expected shell workspace fragment")
-	assert_true(response.body:find('hx-post="/save/lesson"', 1, true) == nil, "expected no lesson save action")
-	assert_true(response.body:find('hx-get="/inspect/lesson?file=', 1, true) ~= nil, "expected lesson file inspection links")
+	assert_true(response.body:find('hx-post="/save/fuwa-gomen"', 1, true) == nil, "expected no fuwa-gomen save action")
+	assert_true(response.body:find('hx-get="/inspect/fuwa-gomen?file=', 1, true) ~= nil, "expected fuwa-gomen file inspection links")
 	assert_true(response.body:find('Publish + run', 1, true) == nil, "expected no publish and run label")
 	assert_true(response.body:find('data-draft-indicator', 1, true) == nil, "expected no draft indicator")
 	assert_true(response.body:find('data-draft-discard', 1, true) == nil, "expected no draft discard control")

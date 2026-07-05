@@ -116,7 +116,7 @@ function M.build(host, payload_id, requested_file, run_result)
 	payload_id = tostring(payload_id or "current")
 
 	local payloads = {}
-	for _, id in ipairs({ "current", "lesson" }) do
+	for _, id in ipairs({ "current", "fuwa-gomen" }) do
 		local descriptor = host.describe_payload(id)
 		if descriptor ~= nil then
 			payloads[#payloads + 1] = {
