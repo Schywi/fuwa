@@ -1,0 +1,5 @@
+<main class="phone-screen" data-phone-title="Fuwa Gomen">
+  <include src="views/gomen.fuwa" />
+
+  <script src="__BROWSER_JS__"></script>
+</main>

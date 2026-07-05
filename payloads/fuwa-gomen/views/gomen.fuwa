@@ -1,0 +1,32 @@
+<div
+  id="gomen"
+  v-scope="FuwaGomen.createScope()"
+  v-cloak
+  data-balance="&balance"
+  data-spent="&spent"
+  data-pokes="&pokes"
+>
+  <div class="fg-bar">
+    <div class="fg-fill" data-ref="fill"></div>
+    <span class="fg-bar-text" data-ref="bar-text"></span>
+  </div>
+
+  <div class="fg-bubble">
+    <b data-ref="bubble-jp"></b>
+    <span data-ref="bubble-en"></span>
+  </div>
+
+  <div class="fg-kao" data-ref="mouth"></div>
+  <div class="fg-name">ママ</div>
+
+  <div class="fg-papa" data-ref="papa">
+    <span class="fg-papa-kao">( ；▽； )</span>
+    <span>Papa-money all gone…</span>
+  </div>
+
+  <include src="views/fragments/shelf.fuwa" />
+
+  <include src="views/fragments/receipt.fuwa" />
+
+  <include src="views/fragments/actions.fuwa" />
+</div>
