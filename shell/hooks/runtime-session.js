@@ -10,6 +10,9 @@
 	function create(options) {
 		const worker_url = options.workerUrl;
 		const bundle_url = options.bundleUrl;
+		// Preview sessions compile with the draft overlay; an empty overlay makes
+		// ?draft=1 identical to the published bundle, so this is always safe.
+		const use_draft_bundle = options.draft === true;
 		const on_terminal = options.onTerminal || function () {};
 		const on_status = options.onStatus || function () {};
 		const send_tenant_command = options.sendTenantCommand || function () {};
@@ -142,7 +145,8 @@
 		}
 
 		async function loadBundle() {
-			const response = await fetch(bundle_url, { credentials: 'same-origin' });
+			const request_url = use_draft_bundle ? bundle_url + '?draft=1' : bundle_url;
+			const response = await fetch(request_url, { credentials: 'same-origin' });
 			const parsed = await response.json();
 			if (!parsed.ok) {
 				terminal('[lua][build] ' + (parsed.diagnostics || 'build failed') + '\n');

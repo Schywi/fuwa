@@ -36,6 +36,11 @@
       <span f-for="segment in dashboard.breadcrumb" class="breadcrumb-segment" data-active="&segment.active">&segment.label</span>
     </nav>
 
+    <span class="draft-pill" data-draft-indicator hidden>draft</span>
+    <button type="button" class="shell-icon-btn" data-draft-discard hidden aria-label="Discard draft" title="Discard draft">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18" /><path d="m6 6 12 12" /></svg>
+    </button>
+
     <button type="button" class="shell-icon-btn" data-view-toggle aria-label="Toggle terminal">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 11 2-2-2-2" /><path d="M11 13h4" /><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
     </button>
@@ -97,7 +102,7 @@
 
       <div class="shell-editor-actions">
         <span class="shell-editor-note">Editing <code>&dashboard.active.selected_file</code></span>
-        <button type="submit" class="shell-button shell-button-primary">Save + run</button>
+        <button type="submit" class="shell-button shell-button-primary">Publish + run</button>
       </div>
     </form>
   </div>

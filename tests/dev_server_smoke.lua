@@ -115,7 +115,9 @@ local function test_shell_switch_route()
 	assert_true(response.body:find('id="shell-content"', 1, true) ~= nil, "expected shell workspace fragment")
 	assert_true(response.body:find('hx-post="/save/lesson"', 1, true) ~= nil, "expected lesson save action")
 	assert_true(response.body:find('hx-get="/inspect/lesson?file=', 1, true) ~= nil, "expected lesson file inspection links")
-	assert_true(response.body:find('Save + run', 1, true) ~= nil, "expected save and run label")
+	assert_true(response.body:find('Publish + run', 1, true) ~= nil, "expected publish and run label")
+	assert_true(response.body:find('data-draft-indicator', 1, true) ~= nil, "expected draft indicator")
+	assert_true(response.body:find('data-draft-discard', 1, true) ~= nil, "expected draft discard control")
 	assert_true(response.body:find("<include", 1, true) == nil, "expected rendered HTML, not literal include tags")
 end
 
@@ -393,11 +395,13 @@ local function test_draft_overlay_routes()
 		return false
 	end
 
-	local marker = "<!-- draft-marker-" .. tostring(os.time()) .. " -->"
+	local marker = "draft-marker-" .. tostring(os.time())
 	local draft_dir = ".fuwa-dev/drafts/current"
-	local draft_view_path = draft_dir .. "/view.fuwa"
-	local original_view = read_file("payloads/current/view.fuwa")
-	assert_true(original_view ~= nil, "expected payload view.fuwa to exist")
+	local draft_view_path = draft_dir .. "/views/layout.fuwa"
+	local original_view = read_file("payloads/current/views/layout.fuwa")
+	assert_true(original_view ~= nil, "expected payload layout.fuwa to exist")
+	local draft_view = original_view:gsub("<body>", '<body class="' .. marker .. '">', 1)
+	assert_true(draft_view ~= original_view, "expected layout body tag to accept the draft marker")
 
 	run_command("rm -rf " .. shell_quote(draft_dir) .. " 2>/dev/null; true")
 
@@ -405,12 +409,12 @@ local function test_draft_overlay_routes()
 		-- Draft write lands in the overlay, never in the payload tree.
 		local write_response = dev.build_draft_write_response(
 			"current",
-			"path=view.fuwa&contents=" .. encode_form_component(original_view .. marker .. "\n")
+			"path=views/layout.fuwa&contents=" .. encode_form_component(draft_view)
 		)
 		assert_true(write_response.status == 200, "expected draft write to succeed")
 		assert_true(write_response.body:find('"ok":true', 1, true) ~= nil, "expected draft write ok body")
 		assert_true(file_exists(draft_view_path), "expected draft file in the overlay")
-		assert_true(read_file("payloads/current/view.fuwa") == original_view,
+		assert_true(read_file("payloads/current/views/layout.fuwa") == original_view,
 			"expected the payload source tree to stay untouched by draft writes")
 
 		-- Sanitizers: bad ids and traversal paths are rejected.
@@ -427,6 +431,10 @@ local function test_draft_overlay_routes()
 		)
 		assert_true(preview_html:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected preview route to respond")
 		assert_true(preview_html:find(marker, 1, true) ~= nil, "expected draft overlay in preview output")
+		assert_true(preview_html:find('hx-post="/preview/current/counter"', 1, true) ~= nil,
+			"expected payload routes rebased onto the preview surface")
+		assert_true(preview_html:find('hx-post="/payload/current/counter"', 1, true) == nil,
+			"expected no published-route interactions inside a draft preview")
 
 		local published_html = run_command(
 			"printf 'GET /payload/current/ HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
@@ -452,12 +460,12 @@ local function test_draft_overlay_routes()
 		-- Publishing the file clears its draft copy.
 		local caps = require("runtime.host.capabilities")
 		local host = caps.new({})
-		local publish = host.write_payload_file("current", "view.fuwa", original_view)
+		local publish = host.write_payload_file("current", "views/layout.fuwa", original_view)
 		assert_true(publish.ok == true, "expected publish to succeed")
 		assert_true(not file_exists(draft_view_path), "expected publish to clear the draft copy")
 
 		-- Discard deletes the whole overlay.
-		local rewrite = dev.build_draft_write_response("current", "path=view.fuwa&contents=" .. encode_form_component("draft"))
+		local rewrite = dev.build_draft_write_response("current", "path=views/layout.fuwa&contents=" .. encode_form_component(draft_view))
 		assert_true(rewrite.status == 200, "expected second draft write to succeed")
 		local discard = dev.build_draft_discard_response("current", "")
 		assert_true(discard.status == 200, "expected draft discard to succeed")
@@ -465,7 +473,7 @@ local function test_draft_overlay_routes()
 	end)
 
 	run_command("rm -rf " .. shell_quote(draft_dir) .. " 2>/dev/null; true")
-	write_file("payloads/current/view.fuwa", original_view)
+	write_file("payloads/current/views/layout.fuwa", original_view)
 	assert_true(ok, err)
 end
 
