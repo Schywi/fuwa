@@ -134,6 +134,19 @@ t.test("runtime bridge rebinds browser URLs through the payload base", function(
 	t.contains(tenant, "window.location.href", "expected same-origin URL resolution")
 end)
 
+t.test("editor changes trigger browser live updates before draft persistence", function()
+	local preview = read_file("shell/hooks/preview.js")
+	local listener_pos = preview:find("document.addEventListener('fuwa:editor-change'", 1, true)
+	local live_update_pos = preview:find("liveUpdateActiveBrowserDriver({", listener_pos or 1, true)
+	local draft_timer_pos = preview:find("draft_timer = setTimeout(flushDrafts, DRAFT_DEBOUNCE_MS);", listener_pos or 1, true)
+
+	t.truthy(listener_pos, "expected editor change listener")
+	t.truthy(live_update_pos, "expected direct browser live update call")
+	t.truthy(draft_timer_pos, "expected draft debounce timer")
+	t.truthy(live_update_pos < draft_timer_pos, "expected live update before draft debounce")
+	t.contains(preview, "fetch('/draft/' + id", "expected draft persistence to remain")
+end)
+
 t.test("payload browser bootstraps wait for vendor libraries", function()
 	local current_browser = read_file("payloads/current/browser.js")
 	t.contains(current_browser, "dependenciesReady", "expected dependency probe")
