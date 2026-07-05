@@ -53,6 +53,14 @@
 		return runtime_mode === 'browser' ? browser_driver : serverDriver();
 	}
 
+	function clearDraftQueue() {
+		pending_drafts.clear();
+		if (draft_timer) {
+			clearTimeout(draft_timer);
+			draft_timer = null;
+		}
+	}
+
 	// --- runtime mode switch --------------------------------------------------
 
 	function enterBrowserMode() {
@@ -80,12 +88,16 @@
 			return;
 		}
 		runtime_mode = 'browser';
+		clearDraftQueue();
+		setDraftDirty(false);
 		serverDriver()?.hide();
 	}
 
 	function exitBrowserMode() {
 		log('runtime:exit-browser', { payloadId: payloadId() });
 		runtime_mode = 'server';
+		clearDraftQueue();
+		setDraftDirty(false);
 		browser_driver?.dispose();
 		browser_driver = null;
 		serverDriver()?.show();
@@ -187,6 +199,9 @@
 
 	function flushDrafts() {
 		draft_timer = null;
+		if (runtime_mode === 'browser') {
+			return;
+		}
 		const entries = Array.from(pending_drafts.entries());
 		pending_drafts.clear();
 		if (entries.length === 0) {
@@ -225,11 +240,15 @@
 		if (typeof detail.path !== 'string' || detail.path === '') {
 			return;
 		}
+		if (runtime_mode === 'browser') {
+			liveUpdateActiveBrowserDriver({
+				[detail.path]: detail.contents || ''
+			});
+			setDraftDirty(false);
+			return;
+		}
 		pending_drafts.set(detail.path, detail.contents || '');
 		setDraftDirty(true);
-		liveUpdateActiveBrowserDriver({
-			[detail.path]: detail.contents || ''
-		});
 		if (draft_timer) {
 			clearTimeout(draft_timer);
 		}
