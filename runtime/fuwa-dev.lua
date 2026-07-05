@@ -1161,6 +1161,17 @@ function M.run()
 			request.body,
 			opts
 		)
+
+		-- Payload markup hardcodes absolute /payload/<id>/ routes. Inside a
+		-- draft preview those must stay on the draft surface, otherwise htmx
+		-- interactions would run published code against a draft document.
+		if mount_kind == "preview"
+			and response.body
+			and tostring((response.headers or {})["Content-Type"] or ""):match("text/html") then
+			local pattern_id = payload_id:gsub("%-", "%%-")
+			response.body = response.body:gsub("/payload/" .. pattern_id .. "/", "/preview/" .. payload_id .. "/")
+			response.headers["Content-Length"] = tostring(#response.body)
+		end
 	else
 		response = M.build_response(shell_root, request.method, request.path, request.body, {
 			allow_host = true,

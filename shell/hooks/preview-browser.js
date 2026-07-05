@@ -110,6 +110,7 @@
 			session = window.FuwaRuntimeSession.create({
 				workerUrl: stage.getAttribute('data-runtime-worker-url'),
 				bundleUrl: stage.getAttribute('data-bundle-url'),
+				draft: true,
 				onTerminal: write_terminal,
 				onStatus: on_status,
 				sendTenantCommand: queueTenantCommand

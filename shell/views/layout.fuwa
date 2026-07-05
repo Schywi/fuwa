@@ -643,6 +643,20 @@
         border: 0;
       }
 
+      .draft-pill {
+        display: inline-flex;
+        align-items: center;
+        min-height: 20px;
+        padding: 0 8px;
+        border-radius: 999px;
+        font-size: 0.62rem;
+        font-weight: 800;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        background: rgba(251, 191, 36, 0.16);
+        color: #fbbf24;
+      }
+
       .shell-status-pill {
         display: inline-flex;
         align-items: center;

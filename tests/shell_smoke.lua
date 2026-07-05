@@ -112,7 +112,7 @@ assert_true(html:find('/shell/hooks/terminal.js', 1, true) ~= nil, "shell should
 assert_true(html:find('hx-post="/switch/lesson"', 1, true) ~= nil, "shell should expose a payload switch button")
 assert_true(html:find('hx-target="#shell-content"', 1, true) ~= nil, "shell should target the workspace fragment")
 assert_true(html:find('hx-post="/save/current"', 1, true) ~= nil, "shell should expose a save action")
-assert_true(html:find('Save + run', 1, true) ~= nil, "shell should expose the combined save and run action")
+assert_true(html:find('Publish + run', 1, true) ~= nil, "shell should expose the combined publish and run action")
 assert_true(html:find('hx-get="/inspect/current?file=pages%2Fhome.fuwa"', 1, true) ~= nil, "shell should expose file inspection links")
 assert_true(html:find('data-editor-root', 1, true) ~= nil, "shell should expose the editor root")
 assert_true(html:find('data-editor-source', 1, true) ~= nil, "shell should expose the hidden contents carrier")
