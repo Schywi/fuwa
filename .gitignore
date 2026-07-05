@@ -4,6 +4,8 @@ docs/refactoring/*
 !docs/refactoring/ide-port-one-shot/**
 !docs/refactoring/ide-port-skeptical-review/
 !docs/refactoring/ide-port-skeptical-review/**
+!docs/refactoring/editor-live-update-loop/
+!docs/refactoring/editor-live-update-loop/**
 .fuwa-dev/
 .env
 .agent
