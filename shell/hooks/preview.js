@@ -141,15 +141,14 @@
 	document.addEventListener('htmx:afterSwap', checkRefreshToken);
 	document.addEventListener('htmx:oobAfterSwap', checkRefreshToken);
 
-	// --- draft live reload ------------------------------------------------------
+	// --- live update + draft persistence ---------------------------------------
 	//
-	// Edits never touch the payload source tree: they are debounced into
-	// POST /draft/<id> (the .fuwa-dev/drafts overlay) and the preview re-renders
-	// through the draft-aware surfaces (/preview/<id>/ or bundle.json?draft=1).
-	// "Publish + run" remains the only path that writes real sources.
+	// Browser mode re-runs immediately on editor changes. Draft writes stay
+	// debounced and persist through POST /draft/<id> so the durable source tree
+	// still only changes on publish.
 
 	// Short enough to feel like /IDE (near-instant after you stop typing),
-	// long enough to coalesce a burst of keystrokes into one compile+run.
+	// long enough to coalesce a burst of keystrokes into one draft write.
 	const DRAFT_DEBOUNCE_MS = 200;
 	const pending_drafts = new Map();
 	let draft_timer = null;
@@ -178,23 +177,20 @@
 		}
 	}
 
+	function liveUpdateActiveBrowserDriver(edits) {
+		if (runtime_mode !== 'browser' || !browser_driver) {
+			return false;
+		}
+		browser_driver.liveUpdate(edits);
+		return true;
+	}
+
 	function flushDrafts() {
 		draft_timer = null;
 		const entries = Array.from(pending_drafts.entries());
 		pending_drafts.clear();
 		if (entries.length === 0) {
 			return;
-		}
-
-		// Browser mode gets instant feedback: the worker recompiles the edits
-		// in-VM while the draft POST persists them concurrently. Server mode
-		// waits for the POST, then re-renders through /preview/<id>/.
-		if (runtime_mode === 'browser' && browser_driver) {
-			const edits = {};
-			for (const entry of entries) {
-				edits[entry[0]] = entry[1];
-			}
-			browser_driver.liveUpdate(edits);
 		}
 
 		const id = encodeURIComponent(payloadId());
@@ -230,6 +226,10 @@
 			return;
 		}
 		pending_drafts.set(detail.path, detail.contents || '');
+		setDraftDirty(true);
+		liveUpdateActiveBrowserDriver({
+			[detail.path]: detail.contents || ''
+		});
 		if (draft_timer) {
 			clearTimeout(draft_timer);
 		}
