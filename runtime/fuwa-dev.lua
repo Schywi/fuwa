@@ -736,6 +736,16 @@ local function collect_compiler_sources(sources)
 			sources["runtime/stdlib/compiler/" .. relative_path] = contents
 		end
 	end
+	-- compiler/init.lua requires the host trace module (which pulls in log), so
+	-- the in-VM require chain needs them too. Keyed by require path so the
+	-- worker's VFS searcher resolves `require("runtime.trace")`. The compile-time
+	-- span is a noop, so no io/os hot paths run inside the worker.
+	for _, relative_path in ipairs({ "runtime/trace.lua", "runtime/log.lua" }) do
+		local contents = read_all(root_dir .. "/" .. relative_path)
+		if contents ~= nil then
+			sources[relative_path] = contents
+		end
+	end
 	return sources
 end
 
