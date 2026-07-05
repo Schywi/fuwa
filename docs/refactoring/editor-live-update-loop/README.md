@@ -2,226 +2,316 @@
 
 Status: implementation plan.
 
-This plan is narrower than the full IDE port work. It focuses on the exact
-problem you hit in the browser UI:
+This plan is intentionally strict. It does **not** preserve the current
+`fuwa` draft/publish model for browser mode. The target is the browser live
+reload pipeline from `/mnt/DATA/development/projects/repos/IDE` as closely as
+possible.
 
-- typing in CodeMirror does not behave like `/IDE`
-- the current `fuwa` shell still feels publish-first
-- `Publish + run` is doing too much of the work that should happen while
-  editing
-- file clicks still churn the workspace too aggressively
+## Non-Goals
 
-The target is not "more widget mount code". The target is to make editor changes
-flow through the same kind of immediate runtime-session loop that `/IDE` uses.
+Browser mode must **not** include any of these concepts in the live edit path:
 
-## What We Verified
+- draft overlays
+- `POST /draft/...`
+- publish buttons as a prerequisite for feedback
+- server-side file writes on keystroke
+- server-side compile on keystroke
+- durability/persistence concerns
 
-Current `fuwa` pieces that already exist:
+If the implementation needs those concepts to make browser mode "work", it is
+the wrong implementation.
 
-- the editor widget emits `fuwa:editor-change`
-- the preview controller listens for editor changes
-- the runtime-session helper already has a live-update path
-- the workspace shell already has draft indicators and a publish action
+## Source of Truth
 
-Relevant files:
+Browser live reload should mirror this `/IDE` chain:
 
-- [shell/hooks/editor.js](/mnt/DATA/development/projects/repos/fuwa/shell/hooks/editor.js)
-- [shell/hooks/preview.js](/mnt/DATA/development/projects/repos/fuwa/shell/hooks/preview.js)
-- [shell/hooks/runtime-session.js](/mnt/DATA/development/projects/repos/fuwa/shell/hooks/runtime-session.js)
-- [shell/views/fragments/workspace.fuwa](/mnt/DATA/development/projects/repos/fuwa/shell/views/fragments/workspace.fuwa)
-- [shell/pages/home.fuwa](/mnt/DATA/development/projects/repos/fuwa/shell/pages/home.fuwa)
-- [runtime/browser/init.lua](/mnt/DATA/development/projects/repos/fuwa/runtime/browser/init.lua)
+1. editor change calls `session.updateCode(value)`
+2. runtime session mutates in-memory file state immediately
+3. runtime session debounces a live run internally
+4. adapter posts the current in-memory files to the worker
+5. worker runs the code and emits HTML
+6. bridge swaps the tenant DOM without recreating the iframe
 
-The key gap is not that the code is missing entirely. The gap is that the edit
-signal is not driving the same user-visible behavior as `/IDE`.
+Reference files:
 
-## What `/IDE` Does Differently
+- [TestPanel.svelte](/mnt/DATA/development/projects/repos/IDE/src/ui/desktop/TestPanel.svelte)
+- [RuntimeSession.ts](/mnt/DATA/development/projects/repos/IDE/src/engine/RuntimeSession.ts)
+- [adapter.ts](/mnt/DATA/development/projects/repos/IDE/src/engine/adapter.ts)
+- [worker.ts](/mnt/DATA/development/projects/repos/IDE/src/engine/worker.ts)
+- [runtime-bridge.js](/mnt/DATA/development/projects/repos/IDE/src/ui/engine/runtime-bridge.js)
 
-In `/IDE`, the editor change path is direct:
+## Current `fuwa` Mismatch
 
-- `EditorPane` calls `session.updateCode(value)` on change
-- `RuntimeSession.updateCode()` updates file state immediately
-- the session schedules the next live run itself
-- save/publish is not the only way the user sees progress
+The current `fuwa` browser path is still structurally wrong for this target:
 
-That produces the feel you want:
+- the preview controller still knows about draft behavior
+- the browser session still carries "published bundle plus overlay" assumptions
+- the shell UI still exposes publish/draft semantics
+- server mode and browser mode still share too much behavior
 
-- editing updates the runtime loop
-- the UI stays responsive
-- the preview is not treated like a full page refresh target
+Those are not polish issues. They are architectural mismatches.
 
-## What `fuwa` Does Today
+## Target Behavior
 
-The current `fuwa` flow is closer to a draft pipeline:
+Browser mode in `fuwa` should behave like this:
 
-- editor emits a change event
-- preview controller batches edits
-- draft writes are persisted on a debounce
-- `Publish + run` is still the obvious user action
-- file changes still lead to larger workspace swaps than they should
+1. user types in CodeMirror
+2. editor emits `{ path, contents }`
+3. browser runtime session updates its in-memory sources immediately
+4. browser runtime session schedules one debounced live run
+5. worker receives the full in-memory source map
+6. worker recompiles and runs in-browser
+7. tenant bridge swaps returned HTML into the mounted runtime root
 
-That is why it feels wrong in browser mode.
+The path above must not hit:
 
-## Goal
+- `/draft/...`
+- `/save/...`
+- `write_payload_file`
+- `compile_payload`
+- route-backed preview refresh
 
-Make the browser IDE behave like this:
+## Required Refactor
 
-1. typing updates the in-memory runtime session
-2. the preview and terminal reflect the change automatically
-3. publish remains an explicit action for durable writes
-4. file selection does not recreate the iframe
-5. the workspace shell keeps the preview mount stable
+### Step 1: Split browser mode from server mode completely
 
-## Implementation Plan
+Do not keep one hybrid live-update controller.
 
-### Step 1: Separate edit state from publish state
+`preview.js` should stop being the owner of browser editing semantics.
+Its job should become:
 
-The current system mixes these two concerns too much.
+- mode toggle
+- browser driver mount/dispose
+- server driver mount/dispose
+- nothing else
 
-Do this:
-
-- keep an editor-side transient "dirty" state
-- keep a publish state for persisted files
-- keep a runtime-session state for live preview
-
-Do not let `Publish + run` remain the only path that feels alive.
-
-Acceptance:
-
-- typing in the editor marks the file dirty
-- publish is clearly different from live edit feedback
-
-### Step 2: Make editor changes drive the runtime session directly
-
-The editor hook already emits `fuwa:editor-change`.
-Use that event as the input to the runtime-session loop instead of treating it
-as a draft-only signal.
-
-The live path should:
-
-- update the selected file contents in memory
-- schedule a short debounced runtime refresh
-- preserve unsaved text in the editor
-- avoid re-mounting the whole shell
-
-This is the `fuwa` equivalent of `/IDE`'s `session.updateCode(value)`.
+Browser mode should have its own direct runtime-session loop.
 
 Acceptance:
 
-- typing causes an automatic live refresh path
-- there is no need to press `Publish + run` just to see the edit take effect
+- browser typing no longer depends on any draft/publish logic
+- server mode may still exist separately, but browser mode does not share its
+  persistence model
 
-### Step 3: Narrow the HTMX swap targets
+### Step 2: Make `runtime-session.js` the browser-mode owner
 
-The current shell still swaps too much of the workspace.
+`runtime-session.js` should become the exact equivalent of `/IDE`'s
+`RuntimeSession`.
 
-Refactor the fragment boundaries so that:
+It must own:
 
-- file clicks update only the editor/workspace subregion they actually need
-- the preview iframe mount is not destroyed on simple file selection
-- the terminal area is not rebuilt just because the active file changed
+- current in-memory file map
+- active file content
+- live reload debounce
+- worker run requests
+- terminal output
+- tenant swap commands
 
-Practical rule:
+It must **not** rely on:
 
-- `#ide-workspace` should not be the swap target for every sub-action
-- the preview mount needs a stable container
-- sub-panels should be swappable independently
-
-Acceptance:
-
-- clicking a file does not reload the mounted preview iframe
-- the shell keeps the preview node stable across editor navigation
-
-### Step 4: Promote the preview controller to the session orchestrator
-
-`shell/hooks/preview.js` is currently where the split runtime logic lives.
-It should become the authoritative host-side coordinator for:
-
-- editor change events
-- draft writes
-- browser runtime mode
-- server runtime mode
-- refresh behavior
-
-The controller should decide:
-
-- browser mode: send the edit into the browser runtime session and refresh the
-  worker-backed preview
-- server mode: persist the draft and refresh the route-backed preview without
-  replacing the shell
+- draft overlay files
+- server-built preview routes
+- any "publish first" concept
 
 Acceptance:
 
-- the UI behavior changes by runtime mode, but the editor path stays the same
+- browser live reload is driven by session state only
 
-### Step 5: Make publish an explicit durability action
+### Step 3: Add `updateCode(path, contents)`
 
-Keep `Publish + run`, but demote it from the default "this is how I make things
-move" behavior.
+`fuwa` cannot copy `/IDE`'s single-file `updateCode(next)` API exactly because
+the shell passes file paths explicitly.
 
-The button should mean:
+So the `fuwa` browser session should expose:
 
-- persist the current draft to the real payload source
-- compile or rebuild from durable sources
-- refresh the preview from the durable path
+```js
+session.updateCode(path, contents)
+```
 
-It should not be required for ordinary typing feedback.
+That method must:
 
-Acceptance:
+- update the authoritative in-memory source map
+- update the selected file contents immediately
+- mark the runtime session dirty in memory only
+- schedule the live run internally
 
-- publish is for durable writes
-- live typing is for immediate feedback
+It must not:
 
-### Step 6: Preserve draft recovery
-
-One thing the current `fuwa` shell does well is preserve unsaved edits across
-swaps.
-
-Keep that behavior:
-
-- if the workspace rerenders, restore pending text
-- if the file is still dirty, keep that state visible
-- do not destroy the user's work because a panel refreshed
+- write to disk
+- fetch draft routes
+- refresh the server preview
 
 Acceptance:
 
-- file swap or shell swap does not drop edits already typed into CodeMirror
+- editor changes affect browser runtime state immediately
 
-### Step 7: Add tests for the exact regressions
+### Step 4: Remove draft bundle semantics from browser mode
 
-Add or extend tests so these are covered:
+The browser runtime must stop depending on `bundle.json?draft=1`.
 
-- editor change emits a live-update event
-- live update runs without requiring publish
-- file click does not recreate the preview iframe
-- save/publish does not cause full page reload behavior
-- browser mode and server mode both respond to edit changes
+Correct browser-mode model:
 
-Suggested test targets:
+- boot from the published browser bundle once
+- extract the initial source map once
+- after that, use the in-memory source map as truth
+- every live run posts that in-memory source map to the worker
 
-- [tests/dev_server_smoke.lua](/mnt/DATA/development/projects/repos/fuwa/tests/dev_server_smoke.lua)
-- [tests/acceptance/shell_host.lua](/mnt/DATA/development/projects/repos/fuwa/tests/acceptance/shell_host.lua)
-- new tests for the live editor loop
+That matches `/IDE`, where the in-memory file map is the source of truth during
+editing.
 
-## What This Plan Is Not
+Acceptance:
 
-- not a Wasmoon rewrite by itself
-- not a desktop parity project by itself
-- not a mobile port
-- not a new framework
-- not a shift back to JS app ownership
+- browser live reload does not depend on server overlay sources
 
-This is the smallest plan that makes the edit loop feel like `/IDE`.
+### Step 5: Move debounce into the runtime session
+
+The debounce belongs inside the browser runtime session, not in the shell
+preview controller.
+
+Match `/IDE`'s shape:
+
+- editor change -> `session.updateCode(...)`
+- `session.scheduleLiveRun()`
+- worker run
+
+This keeps browser live reload deterministic and removes controller-level
+coupling.
+
+Acceptance:
+
+- no browser-mode debounce logic remains in `preview.js`
+
+### Step 6: Keep `preview-browser.js` thin
+
+`preview-browser.js` should be a driver, not a workflow controller.
+
+It should only:
+
+- mount the runtime iframe
+- create the runtime session
+- bridge tenant messages
+- expose `refresh()` and `dispose()`
+
+It should not:
+
+- own draft logic
+- own live edit semantics
+- own persistence logic
+
+Acceptance:
+
+- browser driver becomes plumbing only
+
+### Step 7: Remove browser-mode draft UI
+
+If browser mode is in-memory only, then browser mode must not show:
+
+- draft indicator
+- discard draft action
+- `Publish + run`
+- server runtime toggle copy that implies persistence semantics
+
+Those controls can only survive if they are explicitly scoped to a separate
+server-mode workflow. They are not part of `/IDE`-style browser live reload.
+
+Acceptance:
+
+- browser mode UI stops advertising draft/publish concepts
+
+### Step 8: Keep the iframe stable
+
+The browser tenant iframe must remain mounted while editing.
+
+Browser live reload should update the tenant root by message/HTML swap, not by:
+
+- iframe recreation
+- shell fragment recreation
+- HTMX workspace replacement
+
+Acceptance:
+
+- typing never recreates the browser runtime iframe
+
+### Step 9: Preserve tenant request handling
+
+After the refactor, tenant HTMX requests inside the browser runtime still need
+to flow through the worker-backed request loop.
+
+That means the browser session must continue to support:
+
+- request -> worker run
+- worker html -> tenant reply
+- same iframe/root
+
+This is still the `/IDE` bridge model.
+
+Acceptance:
+
+- browser live reload and browser HTMX requests share one runtime session
+
+### Step 10: Treat persistence as a separate future feature
+
+If persistence comes back later, it must be added as a **separate** feature
+after browser parity exists.
+
+It must not contaminate the core browser live-reload loop.
+
+That means:
+
+- no "temporary publish"
+- no "background draft save"
+- no "overlay but hidden"
+
+Persistence is out of scope for this plan.
+
+## File-by-File Target
+
+- [editor.js](/mnt/DATA/development/projects/repos/fuwa/shell/hooks/editor.js)
+  - keep emitting `{ path, contents }`
+  - no persistence semantics
+
+- [preview.js](/mnt/DATA/development/projects/repos/fuwa/shell/hooks/preview.js)
+  - reduce to mode toggle and driver lifecycle only
+  - remove browser draft/publish logic
+
+- [preview-browser.js](/mnt/DATA/development/projects/repos/fuwa/shell/hooks/preview-browser.js)
+  - mount iframe
+  - create runtime session
+  - bridge messages
+  - no workflow ownership
+
+- [runtime-session.js](/mnt/DATA/development/projects/repos/fuwa/shell/hooks/runtime-session.js)
+  - own browser editing state
+  - add `updateCode(path, contents)`
+  - own live reload debounce
+  - run worker from in-memory source state
+
+- [runtime-worker.js](/mnt/DATA/development/projects/repos/fuwa/shell/hooks/runtime-worker.js)
+  - continue to accept source-driven runs
+  - no draft overlay dependence
+
+- [tenant-runtime.js](/mnt/DATA/development/projects/repos/fuwa/shell/hooks/tenant-runtime.js)
+  - keep stable swap/reply behavior
+
+- [workspace.fuwa](/mnt/DATA/development/projects/repos/fuwa/shell/views/fragments/workspace.fuwa)
+  - remove browser-mode draft/publish affordances from the target UI
 
 ## Acceptance Criteria
 
-The plan is complete when:
+The plan is complete when all of these are true:
 
-1. typing in CodeMirror visibly affects the runtime loop without needing
-   `Publish + run`
-2. the editor preserves unsaved text across shell swaps
-3. file selection no longer reloads the preview iframe unnecessarily
-4. publish remains available as the durable-write path
-5. browser mode and server mode both preserve the same direct editor-change
-   mental model
+1. typing in browser mode updates preview without publish
+2. typing in browser mode does not hit `/draft/...`
+3. typing in browser mode does not hit `/save/...`
+4. typing in browser mode does not write to disk
+5. browser-mode debounce lives in the runtime session
+6. browser-mode source of truth is in-memory only
+7. browser runtime iframe stays mounted during edits
+8. tenant HTMX requests still work through the worker runtime
+9. browser mode no longer exposes draft/publish UI concepts
 
+## One Sentence Summary
+
+Port `/IDE`'s browser runtime loop exactly: editor change -> runtime session
+state update -> debounced worker run -> tenant DOM swap, with no draft,
+publish, server compile, or persistence concerns in the live path.
