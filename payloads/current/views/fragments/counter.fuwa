@@ -12,7 +12,7 @@
     @click="pressed = !pressed"
     :class="pressed ? 'scale-95 ring-2 ring-offset-2' : ''"
   >
-    Ping the stack
+    Ping the stackjkkkk
   </button>
   <p class="counter-note">HTMX posts server state. petite-vue flips pressed locally.</p>
 </section>
