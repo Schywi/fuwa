@@ -459,6 +459,16 @@ local function test_draft_overlay_routes()
 		assert_true(plain_bundle.body:find("runtime/stdlib/compiler/package_web.lua", 1, true) == nil,
 			"expected no compiler in the plain bundle")
 
+		-- The compiler's init.lua requires the host trace module (which pulls in
+		-- log); the draft bundle must ship both or the in-worker compile crashes
+		-- with "decoration.target is null" on every keystroke.
+		assert_true(draft_bundle.body:find('"runtime/trace.lua"', 1, true) ~= nil,
+			"expected runtime/trace.lua in the draft bundle VFS")
+		assert_true(draft_bundle.body:find('"runtime/log.lua"', 1, true) ~= nil,
+			"expected runtime/log.lua in the draft bundle VFS")
+		assert_true(plain_bundle.body:find('"runtime/trace.lua"', 1, true) == nil,
+			"expected no host trace module in the plain bundle")
+
 		-- Static traversal is rejected on mount routes.
 		local traversal = run_command(
 			"printf 'GET /payload/current/../../README.md HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
