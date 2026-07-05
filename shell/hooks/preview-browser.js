@@ -147,7 +147,7 @@
 		function mount() {
 			if (!stage || !ensureSession()) {
 				log('runtime:mount:blocked');
-				return false;
+				return Promise.resolve(false);
 			}
 
 			tenant_ready = false;
@@ -168,8 +168,9 @@
 			});
 			stage.appendChild(runtime_iframe);
 
-			void refresh();
-			return true;
+			return refresh().then(function () {
+				return true;
+			});
 		}
 
 		function dispose() {

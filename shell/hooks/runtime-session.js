@@ -157,11 +157,13 @@
 				throw new Error('payload build failed');
 			}
 			bundle = parsed;
-			// Initialize in-memory files from bundle sources (once).
-			files.clear();
+			// Seed in-memory files from bundle sources, but preserve any edits
+			// that arrived before bundle loaded (user typed while booting).
 			if (bundle.sources) {
 				for (const key of Object.keys(bundle.sources)) {
-					files.set(key, bundle.sources[key]);
+					if (!files.has(key)) {
+						files.set(key, bundle.sources[key]);
+					}
 				}
 			}
 			return bundle;
@@ -272,7 +274,8 @@
 		async function refresh() {
 			clearLiveReloadTimer();
 			bundle = null;
-			files.clear();
+			// Don't clear files here - loadBundle() will seed missing files from
+			// bundle.sources while preserving any in-flight edits.
 			await loadBundle();
 			return run({ kind: 'request', method: 'GET', path: '/', body: '' });
 		}
@@ -281,9 +284,8 @@
 		// debounced live run. No HTTP, no disk, no draft overlay.
 		function updateCode(path, contents) {
 			files.set(path, contents);
-			if (!bundle) {
-				return refresh();
-			}
+			// Schedule live run regardless of bundle state. If bundle isn't loaded
+			// yet, run() will load it first (and preserve this edit via loadBundle).
 			scheduleLiveRun();
 			return Promise.resolve(true);
 		}
