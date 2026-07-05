@@ -187,6 +187,142 @@ t.test("bundle build compiles payload sources plus the stdlib VFS", function()
 	t.truthy(#broken.diagnostics > 0, "expected diagnostics text")
 end)
 
+t.test("dev bundles ship raw sources for in-worker compiles", function()
+	local sources = {
+		["app.fuwa"] = table.concat({
+			"module App",
+			"",
+			"import",
+			'  Home "pages/home"',
+			"end",
+			"",
+			"routes do",
+			'  GET "/" Home.index',
+			"end",
+		}, "\n"),
+		["pages/home.fuwa"] = table.concat({
+			"module Home",
+			"",
+			"action index(req) do",
+			'  return "<h1>hi</h1>"',
+			"end",
+		}, "\n"),
+		["view.fuwa"] = "<main>&unsafe body</main>\n",
+	}
+	local stdlib = { ["runtime/stdlib/result.lua"] = "return {}" }
+
+	local plain = browser.bundle.build(sources, stdlib)
+	t.falsy(plain.sources, "expected no raw sources in the plain bundle")
+	t.falsy(browser.bundle.to_json(plain):find('"sources":', 1, true) ~= nil,
+		"expected no sources key in plain bundle JSON")
+
+	local dev_bundle = browser.bundle.build(sources, stdlib, { include_sources = true })
+	t.truthy(dev_bundle.ok, "expected clean dev bundle build")
+	t.eq(dev_bundle.sources["app.fuwa"], sources["app.fuwa"], "expected raw app source in dev bundle")
+	t.eq(dev_bundle.sources["view.fuwa"], sources["view.fuwa"], "expected raw view source in dev bundle")
+	t.contains(browser.bundle.to_json(dev_bundle), '"sources":', "expected sources key in dev bundle JSON")
+end)
+
+t.test("the compiler runs in a worker-shaped sandbox and recompiles edits", function()
+	-- Collect the compiler + stdlib into a VFS, exactly what a dev bundle ships.
+	local vfs = {}
+	local pipe = assert(io.popen("find runtime/stdlib -name '*.lua' 2>/dev/null | sort", "r"))
+	for path in pipe:lines() do
+		vfs[path] = read_file(path)
+	end
+	pipe:close()
+
+	local sources = {
+		["app.fuwa"] = table.concat({
+			"module App",
+			"",
+			"import",
+			'  Home "pages/home"',
+			"end",
+			"",
+			"routes do",
+			'  GET "/" Home.index',
+			"end",
+		}, "\n"),
+		["pages/home.fuwa"] = table.concat({
+			"module Home",
+			"",
+			"action index(req) do",
+			'  return "<h1>before-edit</h1>"',
+			"end",
+		}, "\n"),
+		["view.fuwa"] = "<main>&unsafe body</main>\n",
+	}
+
+	-- Worker-shaped environment: VFS-only searcher, no io, no os.
+	local saved_loaded = {}
+	for name in pairs(package.loaded) do
+		if name:match("^runtime%.stdlib") then
+			saved_loaded[name] = package.loaded[name]
+			package.loaded[name] = nil
+		end
+	end
+	local saved_searchers = package.searchers
+	package.searchers = { saved_searchers[1], function(modname)
+		local path = modname:gsub("%.", "/") .. ".lua"
+		local code = vfs[path]
+		if code then
+			return load(code, "@" .. path)
+		end
+		return "\n\tno file '" .. path .. "' in VFS"
+	end }
+	local real_io, real_os = io, os
+	io = setmetatable({}, { __index = function(_, k) error("io." .. k .. " called in sandbox") end })
+	os = setmetatable({}, { __index = function(_, k) error("os." .. k .. " called in sandbox") end })
+
+	local ok, result = pcall(function()
+		local package_web = require("runtime.stdlib.compiler.package_web")
+		local diag = require("runtime.stdlib.compiler.diagnostics")
+
+		local function all_output(build)
+			local names = {}
+			for name in pairs(build.run_files) do
+				names[#names + 1] = name
+			end
+			table.sort(names)
+			local parts = {}
+			for _, name in ipairs(names) do
+				parts[#parts + 1] = build.run_files[name]
+			end
+			return table.concat(parts, "\n")
+		end
+
+		local first = package_web.build(sources)
+		assert(not diag.has_errors(first.diagnostics), "first sandbox build failed")
+		assert(all_output(first):find("before-edit", 1, true), "expected first build output")
+
+		-- Simulate a live edit and recompile, like the worker does per change.
+		local edited = {}
+		for name, code in pairs(sources) do
+			edited[name] = code
+		end
+		edited["pages/home.fuwa"] = edited["pages/home.fuwa"]:gsub("before%-edit", "after-edit")
+		local second = package_web.build(edited)
+		assert(not diag.has_errors(second.diagnostics), "edited sandbox build failed")
+		return all_output(second)
+	end)
+
+	io, os = real_io, real_os
+	package.searchers = saved_searchers
+	for name in pairs(package.loaded) do
+		if name:match("^runtime%.stdlib") then
+			package.loaded[name] = nil
+		end
+	end
+	for name, module in pairs(saved_loaded) do
+		package.loaded[name] = module
+	end
+
+	t.truthy(ok, "sandbox compile failed: " .. tostring(result))
+	t.contains(result, "after-edit", "expected the edited source in the recompiled output")
+	t.falsy(result:find("before-edit", 1, true) ~= nil, "expected the old output to be gone")
+end)
+
 t.test("json encoder escapes strings and keeps arrays", function()
 	local json = browser.json.encode({
 		list = { 1, 2, 3 },

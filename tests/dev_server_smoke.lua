@@ -450,6 +450,14 @@ local function test_draft_overlay_routes()
 		local plain_bundle = dev.build_bundle_response("current")
 		assert_true(plain_bundle.status == 200, "expected plain bundle to build")
 		assert_true(plain_bundle.body:find(marker, 1, true) == nil, "expected plain bundle to ignore drafts")
+		assert_true(plain_bundle.body:find('"sources":', 1, true) == nil, "expected no raw sources in plain bundle")
+
+		-- Dev bundles carry the compiler and raw sources for in-worker compiles.
+		assert_true(draft_bundle.body:find('"sources":', 1, true) ~= nil, "expected raw sources in draft bundle")
+		assert_true(draft_bundle.body:find("runtime/stdlib/compiler/package_web.lua", 1, true) ~= nil,
+			"expected the compiler in the draft bundle VFS")
+		assert_true(plain_bundle.body:find("runtime/stdlib/compiler/package_web.lua", 1, true) == nil,
+			"expected no compiler in the plain bundle")
 
 		-- Static traversal is rejected on mount routes.
 		local traversal = run_command(

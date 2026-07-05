@@ -184,6 +184,17 @@
 			return;
 		}
 
+		// Browser mode gets instant feedback: the worker recompiles the edits
+		// in-VM while the draft POST persists them concurrently. Server mode
+		// waits for the POST, then re-renders through /preview/<id>/.
+		if (runtime_mode === 'browser' && browser_driver) {
+			const edits = {};
+			for (const entry of entries) {
+				edits[entry[0]] = entry[1];
+			}
+			browser_driver.liveUpdate(edits);
+		}
+
 		const id = encodeURIComponent(payloadId());
 		const writes = entries.map(function (entry) {
 			return fetch('/draft/' + id, {
@@ -201,7 +212,9 @@
 			.then(function () {
 				log('draft:written', { files: entries.length });
 				setDraftDirty(true);
-				refreshActiveDriver();
+				if (runtime_mode !== 'browser') {
+					refreshActiveDriver();
+				}
 			})
 			.catch(function (error) {
 				log('draft:error', { message: String(error && error.message ? error.message : error) });

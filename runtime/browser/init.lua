@@ -163,7 +163,12 @@ end
 -- resolves inside the worker VFS.
 M.bundle = {}
 
-function M.bundle.build(source_files, stdlib_sources)
+-- opts.include_sources: ship the raw .fuwa sources alongside the compiled
+-- files so the worker can recompile edits locally (the stdlib_sources map
+-- must then also carry the compiler modules). The compiler is worker-safe:
+-- it touches no io/os and resolves requires through the VFS searcher.
+function M.bundle.build(source_files, stdlib_sources, opts)
+	opts = opts or {}
 	local build = package_web.build(source_files)
 	local has_errors = diagnostics.has_errors(build.diagnostics)
 
@@ -181,6 +186,12 @@ function M.bundle.build(source_files, stdlib_sources)
 		for path, source in pairs(stdlib_sources or {}) do
 			bundle.files[path] = source
 		end
+		if opts.include_sources then
+			bundle.sources = {}
+			for name, source in pairs(source_files or {}) do
+				bundle.sources[name] = source
+			end
+		end
 	end
 
 	return bundle
@@ -191,6 +202,7 @@ function M.bundle.to_json(bundle)
 		ok = bundle.ok,
 		entry = bundle.entry,
 		files = bundle.files,
+		sources = bundle.sources,
 		diagnostics = bundle.diagnostics,
 	})
 end

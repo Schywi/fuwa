@@ -3,7 +3,8 @@
 
 // Browser runtime worker: boots Wasmoon (Lua 5.4 in WASM) plus a SQLite-WASM
 // backed DB provider, then serves run/request messages from the host session.
-// Message contract mirrors runtime/browser/init.lua: in — boot, run;
+// Message contract mirrors runtime/browser/init.lua: in — boot, run
+// (optionally carrying raw `sources` to compile in-VM before running);
 // out — booted, boot_error, stdout, stderr, html, done. All messages carry
 // the __fuwaBrowser marker.
 //
@@ -281,13 +282,49 @@ function moduleCacheResetScript(files) {
 	);
 }
 
-async function runCode(id, files, target) {
+// Compiles raw .fuwa sources inside the Lua VM (the compiler ships in the
+// dev bundle VFS) and returns the compiled run files, or throws with the
+// formatted diagnostics. Keeps one compiler implementation: this is the same
+// package_web.build the server runs at publish time.
+const LUA_COMPILE_SCRIPT = [
+	'local package_web = require("runtime.stdlib.compiler.package_web")',
+	'local diagnostics = require("runtime.stdlib.compiler.diagnostics")',
+	'local build = package_web.build(__fuwa_sources)',
+	'if diagnostics.has_errors(build.diagnostics) then',
+	'  __fuwa_build_errors = diagnostics.format(build.diagnostics)',
+	'  __fuwa_run_files = nil',
+	'else',
+	'  __fuwa_build_errors = nil',
+	'  __fuwa_run_files = build.run_files',
+	'end'
+].join('\n');
+
+async function compileSources(sources) {
+	lua.global.set('__fuwa_sources', sources);
+	await lua.doString(LUA_COMPILE_SCRIPT);
+	const buildErrors = lua.global.get('__fuwa_build_errors');
+	if (buildErrors) {
+		throw new Error('[build] ' + String(buildErrors));
+	}
+	const runFiles = lua.global.get('__fuwa_run_files');
+	if (!runFiles || typeof runFiles !== 'object') {
+		throw new Error('[build] compiler returned no run files');
+	}
+	return runFiles;
+}
+
+async function runCode(id, files, target, sources) {
 	const started = Date.now();
 	try {
 		vfs = files || {};
 		await boot();
 		if (!lua) {
 			throw new Error('Lua did not boot');
+		}
+
+		if (sources && Object.keys(sources).length > 0) {
+			const compiled = await compileSources(sources);
+			vfs = Object.assign({}, files || {}, compiled);
 		}
 
 		const resetScript = moduleCacheResetScript(vfs);
@@ -348,7 +385,7 @@ self.onmessage = function (event) {
 	if (message.type === 'run') {
 		runQueue = runQueue
 			.then(function () {
-				return runCode(message.id, message.files, message.target);
+				return runCode(message.id, message.files, message.target, message.sources);
 			})
 			.catch(function (error) {
 				const text = error instanceof Error ? error.message : String(error);
