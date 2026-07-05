@@ -1,18 +1,20 @@
 (function () {
 	'use strict';
 
-	// Host-side runtime session: the fuwa equivalent of the IDE RuntimeSession +
-	// adapter pair. Owns the Wasmoon worker lifecycle, the compiled payload
-	// bundle, the run/reset loop, and terminal streaming. The tenant command
+	// Host-side runtime session: the fuwa equivalent of the IDE RuntimeSession.
+	// Owns the Wasmoon worker lifecycle, in-memory file state, the run/reset
+	// loop, live reload debounce, and terminal streaming. The tenant command
 	// relay lives in preview-browser.js. The worker protocol lives in
 	// runtime/browser/init.lua (contract) and shell/hooks/runtime-worker.js.
+	//
+	// Browser mode is in-memory only: boot from bundle once, then own the file
+	// state. No draft overlays, no server round-trips on edit.
+
+	const LIVE_RELOAD_DEBOUNCE_MS = 200;
 
 	function create(options) {
 		const worker_url = options.workerUrl;
 		const bundle_url = options.bundleUrl;
-		// Preview sessions compile with the draft overlay; an empty overlay makes
-		// ?draft=1 identical to the published bundle, so this is always safe.
-		const use_draft_bundle = options.draft === true;
 		const on_terminal = options.onTerminal || function () {};
 		const on_status = options.onStatus || function () {};
 		const send_tenant_command = options.sendTenantCommand || function () {};
@@ -24,9 +26,9 @@
 		let bundle = null;
 		let message_id = 0;
 		const pending_runs = new Map();
-		// Unpublished edits layered over bundle.sources; while any exist, every
-		// run ships the merged raw sources so the worker recompiles in-VM.
-		const source_edits = new Map();
+		// In-memory file state: after boot, this is the source of truth.
+		const files = new Map();
+		let live_reload_timer = null;
 		let current_request = null;
 
 		function normalizeBasePath(value) {
@@ -148,14 +150,20 @@
 		}
 
 		async function loadBundle() {
-			const request_url = use_draft_bundle ? bundle_url + '?draft=1' : bundle_url;
-			const response = await fetch(request_url, { credentials: 'same-origin' });
+			const response = await fetch(bundle_url, { credentials: 'same-origin' });
 			const parsed = await response.json();
 			if (!parsed.ok) {
 				terminal('[lua][build] ' + (parsed.diagnostics || 'build failed') + '\n');
 				throw new Error('payload build failed');
 			}
 			bundle = parsed;
+			// Initialize in-memory files from bundle sources (once).
+			files.clear();
+			if (bundle.sources) {
+				for (const key of Object.keys(bundle.sources)) {
+					files.set(key, bundle.sources[key]);
+				}
+			}
 			return bundle;
 		}
 
@@ -197,15 +205,30 @@
 			return Object.assign({}, bundle ? bundle.files : {});
 		}
 
-		function mergedSources() {
-			if (source_edits.size === 0 || !bundle || !bundle.sources) {
-				return null;
+		function currentSources() {
+			if (files.size === 0) {
+				return bundle && bundle.sources ? bundle.sources : null;
 			}
-			const sources = Object.assign({}, bundle.sources);
-			for (const entry of source_edits) {
+			const sources = Object.assign({}, bundle ? bundle.sources : {});
+			for (const entry of files) {
 				sources[entry[0]] = entry[1];
 			}
 			return sources;
+		}
+
+		function clearLiveReloadTimer() {
+			if (live_reload_timer) {
+				clearTimeout(live_reload_timer);
+				live_reload_timer = null;
+			}
+		}
+
+		function scheduleLiveRun() {
+			clearLiveReloadTimer();
+			live_reload_timer = setTimeout(function () {
+				live_reload_timer = null;
+				run({ kind: 'request', method: 'GET', path: '/', body: '' });
+			}, LIVE_RELOAD_DEBOUNCE_MS);
 		}
 
 		async function run(target) {
@@ -238,7 +261,7 @@
 					files: bundleFiles(),
 					target: worker_target
 				};
-				const sources = mergedSources();
+				const sources = currentSources();
 				if (sources) {
 					message.sources = sources;
 				}
@@ -247,23 +270,22 @@
 		}
 
 		async function refresh() {
+			clearLiveReloadTimer();
 			bundle = null;
-			source_edits.clear();
+			files.clear();
 			await loadBundle();
 			return run({ kind: 'request', method: 'GET', path: '/', body: '' });
 		}
 
-		// In-worker live update: layer raw edits over the bundle sources and
-		// re-run. No HTTP, no disk — the worker compiles with the same
-		// package_web the server uses at publish time.
-		function updateSources(edits) {
-			for (const key of Object.keys(edits || {})) {
-				source_edits.set(key, edits[key]);
-			}
-			if (!bundle || !bundle.sources) {
+		// IDE-style live update: mutate in-memory files immediately, schedule
+		// debounced live run. No HTTP, no disk, no draft overlay.
+		function updateCode(path, contents) {
+			files.set(path, contents);
+			if (!bundle) {
 				return refresh();
 			}
-			return run({ kind: 'request', method: 'GET', path: '/', body: '' });
+			scheduleLiveRun();
+			return Promise.resolve(true);
 		}
 
 		function handleTenantRequest(request) {
@@ -277,12 +299,13 @@
 		}
 
 		function dispose() {
+			clearLiveReloadTimer();
 			worker?.terminate();
 			worker = null;
 			boot_promise = null;
 			bundle = null;
 			pending_runs.clear();
-			source_edits.clear();
+			files.clear();
 			current_request = null;
 			setState('idle');
 		}
@@ -291,7 +314,7 @@
 			boot: boot,
 			run: run,
 			refresh: refresh,
-			updateSources: updateSources,
+			updateCode: updateCode,
 			handleTenantRequest: handleTenantRequest,
 			dispose: dispose,
 			get state() {

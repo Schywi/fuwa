@@ -189,11 +189,11 @@
 		}
 	}
 
-	function liveUpdateActiveBrowserDriver(edits) {
+	function updateBrowserCode(path, contents) {
 		if (runtime_mode !== 'browser' || !browser_driver) {
 			return false;
 		}
-		browser_driver.liveUpdate(edits);
+		browser_driver.updateCode(path, contents);
 		return true;
 	}
 
@@ -241,12 +241,11 @@
 			return;
 		}
 		if (runtime_mode === 'browser') {
-			liveUpdateActiveBrowserDriver({
-				[detail.path]: detail.contents || ''
-			});
-			setDraftDirty(false);
+			// Browser mode: in-memory only, session owns debounce.
+			updateBrowserCode(detail.path, detail.contents || '');
 			return;
 		}
+		// Server mode: draft persistence path (unchanged).
 		pending_drafts.set(detail.path, detail.contents || '');
 		setDraftDirty(true);
 		if (draft_timer) {
