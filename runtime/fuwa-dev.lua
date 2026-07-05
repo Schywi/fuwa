@@ -728,6 +728,17 @@ local function collect_stdlib_sources()
 	return sources
 end
 
+-- Dev bundles additionally carry the compiler so the worker can recompile
+-- draft edits locally without a server round trip.
+local function collect_compiler_sources(sources)
+	for relative_path, contents in pairs(collect_find_output(root_dir .. "/runtime/stdlib/compiler")) do
+		if relative_path:sub(-4) == ".lua" then
+			sources["runtime/stdlib/compiler/" .. relative_path] = contents
+		end
+	end
+	return sources
+end
+
 -- Browser runtime bundle: compiled run files plus the stdlib VFS the
 -- Wasmoon worker needs. Served as JSON at /runtime/<payload_id>/bundle.json.
 function M.build_bundle_response(payload_id, opts)
@@ -750,7 +761,13 @@ function M.build_bundle_response(payload_id, opts)
 		overlay_root = drafts_root .. "/" .. safe_id
 	end
 	local source_files = M.collect_payload_files(payloads_root .. "/" .. safe_id, overlay_root)
-	local bundle = browser_runtime.bundle.build(source_files, collect_stdlib_sources())
+	local stdlib_sources = collect_stdlib_sources()
+	if opts.draft then
+		collect_compiler_sources(stdlib_sources)
+	end
+	local bundle = browser_runtime.bundle.build(source_files, stdlib_sources, {
+		include_sources = opts.draft == true,
+	})
 	local body = browser_runtime.bundle.to_json(bundle)
 
 	return {

@@ -24,6 +24,9 @@
 		let bundle = null;
 		let message_id = 0;
 		const pending_runs = new Map();
+		// Unpublished edits layered over bundle.sources; while any exist, every
+		// run ships the merged raw sources so the worker recompiles in-VM.
+		const source_edits = new Map();
 		let current_request = null;
 
 		function normalizeBasePath(value) {
@@ -194,6 +197,17 @@
 			return Object.assign({}, bundle ? bundle.files : {});
 		}
 
+		function mergedSources() {
+			if (source_edits.size === 0 || !bundle || !bundle.sources) {
+				return null;
+			}
+			const sources = Object.assign({}, bundle.sources);
+			for (const entry of source_edits) {
+				sources[entry[0]] = entry[1];
+			}
+			return sources;
+		}
+
 		async function run(target) {
 			await boot();
 			if (!bundle) {
@@ -218,18 +232,37 @@
 			return new Promise(function (resolve) {
 				pending_runs.set(id, resolve);
 				const worker_target = current_request || target || { kind: 'request', method: 'GET', path: '/', body: '' };
-				post({
+				const message = {
 					type: 'run',
 					id: id,
 					files: bundleFiles(),
 					target: worker_target
-				});
+				};
+				const sources = mergedSources();
+				if (sources) {
+					message.sources = sources;
+				}
+				post(message);
 			});
 		}
 
 		async function refresh() {
 			bundle = null;
+			source_edits.clear();
 			await loadBundle();
+			return run({ kind: 'request', method: 'GET', path: '/', body: '' });
+		}
+
+		// In-worker live update: layer raw edits over the bundle sources and
+		// re-run. No HTTP, no disk — the worker compiles with the same
+		// package_web the server uses at publish time.
+		function updateSources(edits) {
+			for (const key of Object.keys(edits || {})) {
+				source_edits.set(key, edits[key]);
+			}
+			if (!bundle || !bundle.sources) {
+				return refresh();
+			}
 			return run({ kind: 'request', method: 'GET', path: '/', body: '' });
 		}
 
@@ -249,6 +282,7 @@
 			boot_promise = null;
 			bundle = null;
 			pending_runs.clear();
+			source_edits.clear();
 			current_request = null;
 			setState('idle');
 		}
@@ -257,6 +291,7 @@
 			boot: boot,
 			run: run,
 			refresh: refresh,
+			updateSources: updateSources,
 			handleTenantRequest: handleTenantRequest,
 			dispose: dispose,
 			get state() {
