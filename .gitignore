@@ -12,3 +12,7 @@ docs/refactoring/*
 AGENTS.md
 CLAUDE.md
 .git
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
