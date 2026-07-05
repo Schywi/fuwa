@@ -1,11 +1,13 @@
 (function () {
 	'use strict';
 
-	// The workspace fragment is swapped by htmx on file select and save, so the
-	// editor remounts per swap. Unsaved edits are kept per file path in
-	// pending_edits and restored on remount, mirroring the IDE runtime session
-	// file-state behavior. Each edit also emits `fuwa:editor-change` so the
-	// browser runtime session can schedule live reloads.
+	// The editor remounts on htmx swaps of its containing fragment and on
+	// client-side file switches (see switchFile, driven by preview.js). Unsaved
+	// edits are kept per file path in pending_edits and restored on remount,
+	// mirroring the IDE runtime session file-state behavior. Each edit also
+	// emits `fuwa:editor-change` so the browser runtime session can schedule
+	// live reloads. There is no save/publish path here: browser mode is
+	// live-preview only.
 	const ROOT_SELECTOR = '[data-editor-root]';
 	const mounted_roots = new WeakMap();
 	const pending_edits = new Map();
@@ -450,42 +452,12 @@
 				}),
 				parent: host
 			});
-			const form = contents_field.form;
-			const can_submit = form instanceof HTMLFormElement && form.hasAttribute('hx-post');
-			const handleSubmit = function () {
-				log('submit:sync-contents', { filePath: file_path });
-				contents_field.value = editor_view.state.doc.toString();
-			};
-			const handleKeydown = function (event) {
-				if ((event.metaKey || event.ctrlKey) && event.key === 's') {
-					event.preventDefault();
-					log('keydown:sync-contents', { filePath: file_path });
-					handleSubmit();
-					if (can_submit && form instanceof HTMLFormElement) {
-						if (window.htmx && typeof window.htmx.trigger === 'function') {
-							window.htmx.trigger(form, 'submit');
-						} else {
-							form.requestSubmit();
-						}
-					}
-				}
-			};
-
-			if (can_submit && form instanceof HTMLFormElement) {
-				form.addEventListener('submit', handleSubmit);
-			}
-			root.addEventListener('keydown', handleKeydown);
-
 			root.setAttribute('data-widget-state', 'mounted');
 			root.setAttribute('data-widget-kind', 'editor');
 			log('mount:success', describeRoot(root));
 
 			const cleanup = function () {
 				log('cleanup', describeRoot(root));
-				if (form instanceof HTMLFormElement) {
-					form.removeEventListener('submit', handleSubmit);
-				}
-				root.removeEventListener('keydown', handleKeydown);
 				editor_view.destroy();
 				root.removeAttribute('data-widget-state');
 				root.removeAttribute('data-widget-kind');
@@ -566,24 +538,35 @@
 		refresh(scope);
 	}
 
-	// A successful save means the server now owns the submitted contents;
-	// drop the pending edit for that path so the next mount uses the response.
-	document.addEventListener('htmx:beforeSwap', function (event) {
-		const xhr = event.detail?.xhr;
-		const source = event.detail?.requestConfig?.elt;
-		if (!xhr || xhr.status !== 200 || !(source instanceof HTMLFormElement)) {
+	// Client-side file switch: mirrors /IDE's setActiveFile — swap the editor
+	// root to a new path/content pair without a server round trip. Reuses the
+	// existing pending_edits restore path in mount(), so an unsaved edit made
+	// before switching away is still there when the user switches back.
+	function switchFile(root, file_path, contents) {
+		if (!(root instanceof Element) || typeof file_path !== 'string' || file_path === '') {
 			return;
 		}
-		const path_input = source.querySelector('input[name="path"]');
-		if (path_input instanceof HTMLInputElement) {
-			pending_edits.delete(path_input.value);
+
+		const contents_field = findContentsField(root);
+		if (contents_field instanceof HTMLInputElement) {
+			contents_field.value = contents || '';
 		}
-	});
+
+		const path_field = root.closest('form')?.querySelector('input[name="path"]');
+		if (path_field instanceof HTMLInputElement) {
+			path_field.value = file_path;
+		}
+
+		root.setAttribute('data-file-path', file_path);
+		unmount(root);
+		void mount(root);
+	}
 
 	window.FuwaShellEditor = {
 		mount,
 		unmount,
 		refresh,
+		switchFile,
 		pendingEdits: pending_edits,
 		selector: ROOT_SELECTOR
 	};
