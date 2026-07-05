@@ -1,0 +1,12 @@
+<div class="fg-receipt">
+  <div class="fg-receipt-head">🧾 レシート Receipt</div>
+  <div class="fg-receipt-list" data-ref="receipt"></div>
+  <div class="fg-receipt-total">
+    <span class="fg-receipt-total-label">合計 Total</span>
+    <span class="fg-receipt-dots"></span>
+    <span class="fg-receipt-total-val" data-ref="total">-¥0</span>
+  </div>
+  <div class="fg-seed" data-ref="seed" hidden>
+    <i f-for="r in receipt" data-id="&r.item"></i>
+  </div>
+</div>
