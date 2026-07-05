@@ -326,6 +326,18 @@ local function test_browser_runtime_routes()
 	assert_true(bundle_response.body:find('"main.lua":', 1, true) ~= nil, "expected compiled main.lua in bundle")
 	assert_true(bundle_response.body:find("runtime/stdlib/db.lua", 1, true) ~= nil, "expected stdlib VFS in bundle")
 
+	-- Browser-only mode is the default: the worker recompiles edits in-VM, so
+	-- every bundle must ship the raw .fuwa sources and the compiler modules.
+	-- Without them the in-worker require("...compiler.package_web") fails and
+	-- live reload dies (surfacing as "decoration.target is null" per keystroke).
+	assert_true(bundle_response.body:find('"sources":', 1, true) ~= nil, "expected raw sources in default bundle")
+	assert_true(bundle_response.body:find("runtime/stdlib/compiler/package_web.lua", 1, true) ~= nil,
+		"expected the compiler in the default bundle VFS")
+	assert_true(bundle_response.body:find('"runtime/trace.lua"', 1, true) ~= nil,
+		"expected runtime/trace.lua in the default bundle VFS")
+	assert_true(bundle_response.body:find('"runtime/log.lua"', 1, true) ~= nil,
+		"expected runtime/log.lua in the default bundle VFS")
+
 	local invalid = dev.build_bundle_response("../etc")
 	assert_true(invalid.status == 404, "expected invalid payload id to 404")
 
@@ -416,24 +428,6 @@ local function test_draft_overlay_routes()
 		local plain_bundle = dev.build_bundle_response("current")
 		assert_true(plain_bundle.status == 200, "expected plain bundle to build")
 		assert_true(plain_bundle.body:find(marker, 1, true) == nil, "expected plain bundle to ignore drafts")
-		assert_true(plain_bundle.body:find('"sources":', 1, true) == nil, "expected no raw sources in plain bundle")
-
-		-- Dev bundles carry the compiler and raw sources for in-worker compiles.
-		assert_true(draft_bundle.body:find('"sources":', 1, true) ~= nil, "expected raw sources in draft bundle")
-		assert_true(draft_bundle.body:find("runtime/stdlib/compiler/package_web.lua", 1, true) ~= nil,
-			"expected the compiler in the draft bundle VFS")
-		assert_true(plain_bundle.body:find("runtime/stdlib/compiler/package_web.lua", 1, true) == nil,
-			"expected no compiler in the plain bundle")
-
-		-- The compiler's init.lua requires the host trace module (which pulls in
-		-- log); the draft bundle must ship both or the in-worker compile crashes
-		-- with "decoration.target is null" on every keystroke.
-		assert_true(draft_bundle.body:find('"runtime/trace.lua"', 1, true) ~= nil,
-			"expected runtime/trace.lua in the draft bundle VFS")
-		assert_true(draft_bundle.body:find('"runtime/log.lua"', 1, true) ~= nil,
-			"expected runtime/log.lua in the draft bundle VFS")
-		assert_true(plain_bundle.body:find('"runtime/trace.lua"', 1, true) == nil,
-			"expected no host trace module in the plain bundle")
 
 		-- Static traversal is rejected on mount routes.
 		local traversal = run_command(

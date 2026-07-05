@@ -772,11 +772,14 @@ function M.build_bundle_response(payload_id, opts)
 	end
 	local source_files = M.collect_payload_files(payloads_root .. "/" .. safe_id, overlay_root)
 	local stdlib_sources = collect_stdlib_sources()
-	if opts.draft then
-		collect_compiler_sources(stdlib_sources)
-	end
+	-- Browser-only mode is the default and recompiles edits in the Wasmoon
+	-- worker VM (the fuwa analog of IDE's in-browser compile). That requires
+	-- the compiler modules and the raw .fuwa sources to ride along in every
+	-- bundle, not just draft ones — otherwise the worker's in-VM
+	-- require("runtime.stdlib.compiler.package_web") fails and live reload dies.
+	collect_compiler_sources(stdlib_sources)
 	local bundle = browser_runtime.bundle.build(source_files, stdlib_sources, {
-		include_sources = opts.draft == true,
+		include_sources = true,
 	})
 	local body = browser_runtime.bundle.to_json(bundle)
 
