@@ -231,6 +231,10 @@ t.test("the compiler runs in a worker-shaped sandbox and recompiles edits", func
 		vfs[path] = read_file(path)
 	end
 	pipe:close()
+	-- The compiler's init.lua reaches out to the host trace module (which pulls
+	-- in log); the dev bundle ships both, so the sandbox VFS must too.
+	vfs["runtime/trace.lua"] = read_file("runtime/trace.lua")
+	vfs["runtime/log.lua"] = read_file("runtime/log.lua")
 
 	local sources = {
 		["app.fuwa"] = table.concat({
@@ -257,7 +261,7 @@ t.test("the compiler runs in a worker-shaped sandbox and recompiles edits", func
 	-- Worker-shaped environment: VFS-only searcher, no io, no os.
 	local saved_loaded = {}
 	for name in pairs(package.loaded) do
-		if name:match("^runtime%.stdlib") then
+		if name:match("^runtime%.") then
 			saved_loaded[name] = package.loaded[name]
 			package.loaded[name] = nil
 		end
@@ -273,7 +277,14 @@ t.test("the compiler runs in a worker-shaped sandbox and recompiles edits", func
 	end }
 	local real_io, real_os = io, os
 	io = setmetatable({}, { __index = function(_, k) error("io." .. k .. " called in sandbox") end })
-	os = setmetatable({}, { __index = function(_, k) error("os." .. k .. " called in sandbox") end })
+	-- Mirror the worker (openStandardLibs: true, but no real filesystem/process):
+	-- allow the benign clock/env reads the compiler's trace dependency performs,
+	-- while still trapping disk/process side effects (execute, remove, exit, …).
+	os = setmetatable({
+		getenv = function() return nil end,
+		time = real_os.time,
+		clock = real_os.clock,
+	}, { __index = function(_, k) error("os." .. k .. " called in sandbox") end })
 
 	local ok, result = pcall(function()
 		local package_web = require("runtime.stdlib.compiler.package_web")
@@ -310,7 +321,7 @@ t.test("the compiler runs in a worker-shaped sandbox and recompiles edits", func
 	io, os = real_io, real_os
 	package.searchers = saved_searchers
 	for name in pairs(package.loaded) do
-		if name:match("^runtime%.stdlib") then
+		if name:match("^runtime%.") then
 			package.loaded[name] = nil
 		end
 	end
