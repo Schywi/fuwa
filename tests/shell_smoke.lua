@@ -111,7 +111,7 @@ assert_true(html:find('"@codemirror/state": "/vendor/codemirror/state-6.6.0.js"'
 assert_true(html:find('&quot;@codemirror/state&quot;', 1, true) == nil, "shell should not escape import map JSON")
 assert_true(html:find('/shell/hooks/editor.js', 1, true) ~= nil, "shell should load the editor hook")
 assert_true(html:find('/shell/hooks/terminal.js', 1, true) ~= nil, "shell should load the terminal hook")
-assert_true(html:find('hx-post="/switch/lesson"', 1, true) ~= nil, "shell should expose a payload switch button")
+assert_true(html:find('hx-post="/switch/fuwa-gomen"', 1, true) ~= nil, "shell should expose a payload switch button")
 assert_true(html:find('hx-target="#shell-content"', 1, true) ~= nil, "shell should target the workspace fragment")
 assert_true(html:find('hx-post="/save/current"', 1, true) == nil, "shell should not expose a save action")
 assert_true(html:find('Publish + run', 1, true) == nil, "shell should not expose publish and run")

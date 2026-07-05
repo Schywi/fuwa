@@ -97,7 +97,7 @@ return function(t)
 		t.truthy(response.body:find("tenant-bridge.js", 1, true) == nil, "expected no tenant bridge script")
 		t.truthy(response.body:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected local htmx loader")
 		t.truthy(response.body:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected local petite-vue loader")
-		t.truthy(response.body:find('hx-post="/switch/lesson"', 1, true) ~= nil, "expected lesson switcher")
+		t.truthy(response.body:find('hx-post="/switch/fuwa-gomen"', 1, true) ~= nil, "expected fuwa-gomen switcher")
 		t.truthy(response.body:find('hx-target="#shell-content"', 1, true) ~= nil, "expected fragment swap target")
 	end)
 
