@@ -10,6 +10,7 @@ docs/refactoring/*
 .env
 .agent
 AGENTS.md
+.beads
 CLAUDE.md
 .git
 
