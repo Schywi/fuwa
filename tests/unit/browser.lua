@@ -1,6 +1,8 @@
 package.path = "./?.lua;./?/init.lua;./?/?.lua;" .. package.path
 
 local browser = require("runtime.browser")
+local dev = require("runtime.fuwa-dev")
+local db = require("runtime.db")
 
 local results = {
 	passed = 0,
@@ -121,16 +123,29 @@ t.test("runtime tenant document ships the vendor widget stack and bridge", funct
 end)
 
 t.test("fuwa-gomen uses the full-bleed phone shell root contract", function()
+	local layout = read_file("payloads/fuwa-gomen/views/layout.fuwa")
+	local view = read_file("payloads/fuwa-gomen/views/gomen.fuwa")
+	t.contains(layout, 'class="phone-screen relative flex flex-col w-full h-full min-h-full overflow-hidden"', "expected phone-screen shell contract")
+	t.contains(layout, "script defer src=\"browser.js\"", "expected local browser asset tag")
+	t.contains(view, 'class="relative flex-1 self-stretch w-full min-h-0 overflow-hidden flex flex-col', "expected full-bleed gomen root")
+	t.contains(view, ":data-mood=\"moodKey\"", "expected reactive root binding")
+	t.contains(view, "v-scope=\"FuwaGomen.createScope({ balance: &balance, spent: &spent, pokes: &pokes })\"", "expected reactive scope binding")
+end)
+
+t.test("fuwa-gomen layout loads its browser asset", function()
+	local response = dev.build_response("payloads/fuwa-gomen", "GET", "/", "", {
+		db_provider = db.new("memory"),
+	})
+
+	t.truthy(response.status == 200, "expected payload response to succeed")
+	t.contains(response.body, 'script defer src="browser.js"', "expected local browser asset")
+	t.falsy(response.body:find("__BROWSER_JS__", 1, true) ~= nil, "expected browser asset placeholder to be resolved")
+end)
+
+t.test("fuwa-gomen browser bundle skips tenant auto-mounting in the iframe runtime", function()
 	local browser_js = read_file("payloads/fuwa-gomen/browser.js")
-	t.contains(browser_js, "main.phone-screen{", "expected phone-screen root styles")
-	t.contains(browser_js, "width:100%;", "expected full-width root")
-	t.contains(browser_js, "height:100%;", "expected full-height root")
-	t.contains(browser_js, "min-height:100%;", "expected full-height minimum")
-	t.contains(browser_js, "#gomen{", "expected gomen root styles")
-	t.contains(browser_js, "flex:1 1 auto;", "expected flex-growing root")
-	t.contains(browser_js, "align-self:stretch;", "expected stretched root")
-	t.contains(browser_js, "min-height:0;", "expected zero min-height root")
-	t.contains(browser_js, "overflow:hidden;", "expected clipped overflow root")
+	t.contains(browser_js, "document.body && document.body.dataset && document.body.dataset.browserRuntime === 'tenant'", "expected browser runtime guard")
+	t.contains(browser_js, "window.PetiteVue.createApp().mount(G.bootstrap.root)", "expected direct-route mount")
 end)
 
 t.test("browser worker imports sqlite-wasm instead of sql.js", function()

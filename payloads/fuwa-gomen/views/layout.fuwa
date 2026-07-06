@@ -1,5 +1,46 @@
-<main class="phone-screen" data-phone-title="Fuwa Gomen">
+<main class="phone-screen relative flex flex-col w-full h-full min-h-full overflow-hidden" data-phone-title="Fuwa Gomen">
+  <script src="/vendor/petite-vue/petite-vue-0.4.1.iife.js"></script>
+  <script src="/vendor/htmx/htmx-1.9.12.min.js"></script>
+  <script src="/vendor/unocss/runtime-mini-66.7.0.js"></script>
+
+  <style>
+    [v-cloak] { display: none; }
+    #gomen {
+      --ink: #2a2320;
+      --cream: #fff8ef;
+      --pink: #f9a8c4;
+      --pink-deep: #e7558b;
+      --sakura: #f472b6;
+      background:
+        radial-gradient(#f0ddc8 1.4px, transparent 1.4px) 0 0 / 22px 22px,
+        linear-gradient(180deg, #fff8ef 0%, #fdeede 100%);
+      font-family: 'M PLUS Rounded 1c', 'Nunito', system-ui, sans-serif;
+    }
+    #gomen * { box-sizing: border-box; }
+    #gomen .fg-bubble::after {
+      content: '';
+      position: absolute;
+      bottom: -9px;
+      left: 50%;
+      transform: translateX(-50%);
+      border-width: 9px 7px 0;
+      border-style: solid;
+      border-color: var(--ink) transparent transparent;
+    }
+    #gomen .fg-kao .blush { color: var(--sakura); }
+    #gomen[data-mood="tantrum"] .fg-kao { color: #dc2626; }
+    #gomen[data-mood="annoyed"] .fg-kao { color: #b45309; }
+    #gomen[data-mood="stern"] .fg-kao { color: #9a6a2f; }
+    #gomen[data-mood="worried"] .fg-kao { color: #a16207; }
+    #gomen[data-mood="happy"] .fg-kao { color: var(--pink-deep); }
+    #gomen[data-mood="crying"] .fg-kao { color: #5b6b8c; }
+    #gomen .fg-receipt-row,
+    #gomen .fg-receipt-total {
+      font-family: 'Nunito', monospace;
+    }
+  </style>
+
   <include src="views/gomen.fuwa" />
 
-  <script src="__BROWSER_JS__"></script>
+  <script defer src="browser.js"></script>
 </main>
