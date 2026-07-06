@@ -1,26 +1,29 @@
 <div
   id="gomen"
-  v-scope="FuwaGomen.createScope()"
+  v-scope="FuwaGomen.createScope({ balance: &balance, spent: &spent, pokes: &pokes })"
   v-cloak
-  data-balance="&balance"
-  data-spent="&spent"
-  data-pokes="&pokes"
+  :data-mood="moodKey"
+  class="relative flex-1 self-stretch w-full min-h-0 overflow-hidden flex flex-col gap-[10px] pt-[38px] px-[14px] pb-[18px] text-[color:var(--ink)] select-none [-webkit-tap-highlight-color:transparent]"
 >
-  <div class="fg-bar">
-    <div class="fg-fill" data-ref="fill"></div>
-    <span class="fg-bar-text" data-ref="bar-text"></span>
+  <div class="fg-bar relative h-[24px] border-[2px] border-[color:var(--ink)] rounded-full bg-[#efe6da] overflow-hidden">
+    <div
+      class="fg-fill absolute inset-y-0 left-0 h-full bg-[linear-gradient(90deg,#86efac,#4ade80)] transition-[width] duration-400"
+      :class="{ 'is-low': balance < 300 }"
+      :style="{ width: barPercent + '%' }"
+    ></div>
+    <span class="fg-bar-text absolute inset-0 flex items-center justify-center text-[11px] font-extrabold whitespace-nowrap text-[color:var(--ink)] [text-shadow:0_1px_0_rgba(255,255,255,.7)]">{{ barText }}</span>
   </div>
 
-  <div class="fg-bubble">
-    <b data-ref="bubble-jp"></b>
-    <span data-ref="bubble-en"></span>
+  <div class="fg-bubble relative self-center max-w-[92%] mt-[2px] px-[14px] py-[8px] bg-white border-[2px] border-[color:var(--ink)] rounded-[14px] shadow-[2px_3px_0_var(--sakura)] text-center flex flex-col gap-[1px]">
+    <b class="text-[14px] font-black">{{ currentMood.jp }}</b>
+    <span class="text-[11px] font-bold text-[#6b5e57]">{{ currentMood.en }}</span>
   </div>
 
-  <div class="fg-kao" data-ref="mouth"></div>
-  <div class="fg-name">ママ</div>
+  <div class="fg-kao self-center font-black leading-none whitespace-nowrap text-[color:var(--ink)] [will-change:transform] text-[clamp(44px,17vw,58px)]" data-ref="mouth">{{ face }}</div>
+  <div class="fg-name self-center text-[10px] font-extrabold tracking-[.22em] text-[#b7a79e]">ママ</div>
 
-  <div class="fg-papa" data-ref="papa">
-    <span class="fg-papa-kao">( ；▽； )</span>
+  <div class="fg-papa flex self-center items-center gap-[6px] px-[12px] py-[4px] bg-[#e0ecff] border-[2px] border-[#3b5b8c] rounded-[12px] text-[11px] font-extrabold text-[#2d4a78]" v-show="papaVisible">
+    <span class="fg-papa-kao text-[15px] font-black">( ；▽； )</span>
     <span>Papa-money all gone…</span>
   </div>
 

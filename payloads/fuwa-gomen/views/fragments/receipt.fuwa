@@ -1,10 +1,18 @@
-<div class="fg-receipt">
-  <div class="fg-receipt-head">🧾 レシート Receipt</div>
-  <div class="fg-receipt-list" data-ref="receipt"></div>
-  <div class="fg-receipt-total">
-    <span class="fg-receipt-total-label">合計 Total</span>
-    <span class="fg-receipt-dots"></span>
-    <span class="fg-receipt-total-val" data-ref="total">-¥0</span>
+<div class="fg-receipt bg-[#fffdf8] border-[2px] border-dashed border-[#cdbfae] rounded-[10px] px-[10px] py-[6px]">
+  <div class="fg-receipt-head text-[9px] font-black tracking-[.18em] text-[#a8907a] text-center mb-[4px]">🧾 レシート Receipt</div>
+  <div class="fg-receipt-list flex flex-col gap-[3px] max-h-[96px] overflow-y-auto">
+    <div class="fg-receipt-row flex items-center gap-[5px] text-[12px] font-extrabold text-[#5c4d44]" v-for="row in receiptRows" :key="row.id">
+      <span class="fg-receipt-icon shrink-0 text-[14px]">{{ row.icon }}</span>
+      <span class="fg-receipt-name shrink-0">{{ row.name }}</span>
+      <span class="fg-receipt-qty shrink-0 text-[11px] text-[#a8907a]">×{{ row.qty }}</span>
+      <span class="fg-receipt-dots flex-1 border-b-[1.5px] border-dotted border-[#d8cab8] h-0 min-w-[8px]"></span>
+      <span class="fg-receipt-price shrink-0 text-[#b45309]">-¥{{ row.lineTotal }}</span>
+    </div>
+  </div>
+  <div class="fg-receipt-total flex items-center gap-[5px] mt-[5px] pt-[5px] border-t-[2px] border-[#cdbfae] text-[13px] font-black text-[#2a2320]">
+    <span class="fg-receipt-total-label shrink-0">合計 Total</span>
+    <span class="fg-receipt-dots flex-1 border-b-[1.5px] border-dotted border-[#d8cab8] h-0 min-w-[8px]"></span>
+    <span class="fg-receipt-total-val shrink-0 text-[#b45309]">{{ totalText }}</span>
   </div>
   <div class="fg-seed" data-ref="seed" hidden>
     <i f-for="r in receipt" data-id="&r.item"></i>

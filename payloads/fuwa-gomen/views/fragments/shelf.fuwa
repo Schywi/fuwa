@@ -1,18 +1,18 @@
-<div class="fg-shelf">
-  <button type="button" class="fg-food" @click="feed('onigiri', $event)">
-    <span class="fg-food-icon">🍙</span>
-    <span class="fg-food-price">¥50</span>
+<div class="fg-shelf flex gap-[6px] mt-[2px]">
+  <button type="button" class="fg-food flex-1 min-w-0 flex flex-col items-center gap-[2px] px-[4px] py-[6px] bg-white border-[2px] border-[color:var(--ink)] rounded-[10px] shadow-[0_3px_0_var(--ink)] cursor-pointer transition-[transform,box-shadow] duration-75 active:translate-y-[3px] active:shadow-[0_0_0_var(--ink)]" @click="feed('onigiri', $event)">
+    <span class="fg-food-icon text-[24px] leading-none">🍙</span>
+    <span class="fg-food-price text-[10px] font-black px-[6px] bg-[#fde68a] border-[1.5px] border-[color:var(--ink)] rounded-[7px] text-[#5c3b00]">¥50</span>
   </button>
-  <button type="button" class="fg-food" @click="feed('ramen', $event)">
-    <span class="fg-food-icon">🍜</span>
-    <span class="fg-food-price">¥120</span>
+  <button type="button" class="fg-food flex-1 min-w-0 flex flex-col items-center gap-[2px] px-[4px] py-[6px] bg-white border-[2px] border-[color:var(--ink)] rounded-[10px] shadow-[0_3px_0_var(--ink)] cursor-pointer transition-[transform,box-shadow] duration-75 active:translate-y-[3px] active:shadow-[0_0_0_var(--ink)]" @click="feed('ramen', $event)">
+    <span class="fg-food-icon text-[24px] leading-none">🍜</span>
+    <span class="fg-food-price text-[10px] font-black px-[6px] bg-[#fde68a] border-[1.5px] border-[color:var(--ink)] rounded-[7px] text-[#5c3b00]">¥120</span>
   </button>
-  <button type="button" class="fg-food" @click="feed('takoyaki', $event)">
-    <span class="fg-food-icon">🐙</span>
-    <span class="fg-food-price">¥200</span>
+  <button type="button" class="fg-food flex-1 min-w-0 flex flex-col items-center gap-[2px] px-[4px] py-[6px] bg-white border-[2px] border-[color:var(--ink)] rounded-[10px] shadow-[0_3px_0_var(--ink)] cursor-pointer transition-[transform,box-shadow] duration-75 active:translate-y-[3px] active:shadow-[0_0_0_var(--ink)]" @click="feed('takoyaki', $event)">
+    <span class="fg-food-icon text-[24px] leading-none">🐙</span>
+    <span class="fg-food-price text-[10px] font-black px-[6px] bg-[#fde68a] border-[1.5px] border-[color:var(--ink)] rounded-[7px] text-[#5c3b00]">¥200</span>
   </button>
-  <button type="button" class="fg-food" @click="feed('sushi', $event)">
-    <span class="fg-food-icon">🍣</span>
-    <span class="fg-food-price">¥300</span>
+  <button type="button" class="fg-food flex-1 min-w-0 flex flex-col items-center gap-[2px] px-[4px] py-[6px] bg-white border-[2px] border-[color:var(--ink)] rounded-[10px] shadow-[0_3px_0_var(--ink)] cursor-pointer transition-[transform,box-shadow] duration-75 active:translate-y-[3px] active:shadow-[0_0_0_var(--ink)]" @click="feed('sushi', $event)">
+    <span class="fg-food-icon text-[24px] leading-none">🍣</span>
+    <span class="fg-food-price text-[10px] font-black px-[6px] bg-[#fde68a] border-[1.5px] border-[color:var(--ink)] rounded-[7px] text-[#5c3b00]">¥300</span>
   </button>
 </div>

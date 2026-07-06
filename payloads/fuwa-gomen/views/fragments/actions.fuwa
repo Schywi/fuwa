@@ -1,5 +1,5 @@
-<div class="fg-actions">
-  <button type="button" class="fg-btn" @click="poke()">Poke (≖ᴗ≖✿)</button>
-  <button type="button" class="fg-btn" @click="pet()">Pet ( ˶˘ ³˘)</button>
-  <button type="button" class="fg-btn" @click="askPapa()">Papa (-人-)</button>
+<div class="fg-actions flex gap-[6px] mt-[2px]">
+  <button type="button" class="fg-btn flex-1 px-[4px] py-[8px] border-[2px] border-[color:var(--ink)] rounded-[10px] bg-white text-[color:var(--ink)] text-[12px] font-black cursor-pointer shadow-[0_3px_0_var(--ink)] whitespace-nowrap transition-[transform,box-shadow] duration-75 active:translate-y-[3px] active:shadow-[0_0_0_var(--ink)]" @click="poke()">Poke (≖ᴗ≖✿)</button>
+  <button type="button" class="fg-btn flex-1 px-[4px] py-[8px] border-[2px] border-[color:var(--ink)] rounded-[10px] bg-white text-[color:var(--ink)] text-[12px] font-black cursor-pointer shadow-[0_3px_0_var(--ink)] whitespace-nowrap transition-[transform,box-shadow] duration-75 active:translate-y-[3px] active:shadow-[0_0_0_var(--ink)]" @click="pet()">Pet ( ˶˘ ³˘)</button>
+  <button type="button" class="fg-btn flex-1 px-[4px] py-[8px] border-[2px] border-[color:var(--ink)] rounded-[10px] bg-white text-[color:var(--ink)] text-[12px] font-black cursor-pointer shadow-[0_3px_0_var(--ink)] whitespace-nowrap transition-[transform,box-shadow] duration-75 active:translate-y-[3px] active:shadow-[0_0_0_var(--ink)]" @click="askPapa()">Papa (-人-)</button>
 </div>
