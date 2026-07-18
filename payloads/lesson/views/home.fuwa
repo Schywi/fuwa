@@ -1,8 +1,0 @@
-<main class="lesson-stage">
-  <section class="lesson-card">
-    <p class="lesson-kicker">Lesson payload</p>
-    <h1>&title</h1>
-    <p class="lesson-summary">&summary</p>
-    <div class="lesson-badge">Switch target</div>
-  </section>
-</main>
