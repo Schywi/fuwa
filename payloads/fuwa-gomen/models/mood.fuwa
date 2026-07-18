@@ -1,0 +1,9 @@
+module Mood
+
+-- Mama's patience, in a SEPARATE table from the wallet. This is the whole
+-- point of the lesson: two schemas, two concerns. `pokes` counts how many
+-- times you have poked her since she was last calmed down.
+schema "gomen_mood" do
+  field key: string required unique
+  field pokes: integer default 0
+end
