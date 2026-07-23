@@ -3,7 +3,7 @@
 
 	const G = window.FuwaGomen || (window.FuwaGomen = {});
 
-	const blush = (s) => `<span class="blush">˶</span>${s}<span class="blush">˶</span>`;
+	const blush = (s) => `˶${s}˶`;
 
 	G.content = {
 		FACES: {

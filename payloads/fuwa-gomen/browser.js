@@ -60,7 +60,7 @@
 
 	const G = window.FuwaGomen || (window.FuwaGomen = {});
 
-	const blush = (s) => `<span class="blush">˶</span>${s}<span class="blush">˶</span>`;
+	const blush = (s) => `˶${s}˶`;
 
 	G.content = {
 		FACES: {
@@ -392,16 +392,69 @@
 		return scope;
 	};
 
-	const mountApp = () => {
+	let booted = false;
+	let retry_timer = null;
+
+	function dependenciesReady() {
+		return (
+			window.PetiteVue &&
+			typeof window.PetiteVue.createApp === 'function' &&
+			window.htmx &&
+			typeof window.htmx.process === 'function'
+		);
+	}
+
+	function mount(scope) {
 		const isTenantRuntime = document.body && document.body.dataset && document.body.dataset.browserRuntime === 'tenant';
-		if (!isTenantRuntime && window.PetiteVue && typeof window.PetiteVue.createApp === 'function' && G.bootstrap.root) {
-			window.PetiteVue.createApp().mount(G.bootstrap.root);
+		if (!(scope instanceof Element) || isTenantRuntime) {
+			return;
 		}
-	};
+
+		try {
+			window.PetiteVue.createApp().mount(scope);
+		} catch (error) {
+			console.error('[fuwa-gomen] petite-vue mount failed', error);
+		}
+
+		if (window.htmx && window.htmx.config) {
+			window.htmx.config.allowScriptTags = false;
+		}
+
+		if (window.htmx && typeof window.htmx.process === 'function') {
+			window.htmx.process(scope);
+		}
+	}
+
+	function handleSwap(event) {
+		mount(event.detail?.target || event.target || document.body);
+	}
+
+	document.addEventListener('htmx:afterSwap', handleSwap);
+
+	function boot() {
+		document.documentElement.dataset.fuwaBrowser = 'fuwa-gomen';
+
+		if (!dependenciesReady()) {
+			if (!retry_timer) {
+				retry_timer = setTimeout(function () {
+					retry_timer = null;
+					boot();
+				}, 16);
+			}
+			return;
+		}
+
+		if (booted) {
+			return;
+		}
+
+		booted = true;
+		mount(document.body);
+	}
 
 	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', mountApp, { once: true });
+		document.addEventListener('DOMContentLoaded', boot, { once: true });
 	} else {
-		mountApp();
+		boot();
 	}
 })();
