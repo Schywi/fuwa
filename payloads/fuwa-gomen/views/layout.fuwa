@@ -8,22 +8,6 @@
     <script src="/vendor/htmx/htmx-1.9.12.min.js"></script>
     <script src="/vendor/petite-vue/petite-vue-0.4.1.iife.js"></script>
     <style>
-      :root {
-        color-scheme: dark;
-        --bg: #09090b;
-        --panel: rgba(24, 24, 27, 0.82);
-        --panel-strong: rgba(17, 24, 39, 0.94);
-        --ink: #f5f5f4;
-        --muted: #a1a1aa;
-        --line: rgba(255, 255, 255, 0.08);
-        --accent: #d97706;
-        --accent-soft: rgba(217, 119, 6, 0.16);
-        --accent-strong: #f59e0b;
-        --ok: #10b981;
-        --warn: #f59e0b;
-        --danger: #f87171;
-      }
-
       [v-cloak] {
         display: none;
       }
@@ -31,12 +15,7 @@
       body {
         margin: 0;
         min-height: 100vh;
-        background:
-          radial-gradient(circle at top left, rgba(245, 158, 11, 0.18), transparent 24%),
-          radial-gradient(circle at 84% 18%, rgba(96, 165, 250, 0.1), transparent 22%),
-          linear-gradient(180deg, #050608 0%, var(--bg) 100%);
-        color: var(--ink);
-        font-family: Avenir Next, Segoe UI, system-ui, sans-serif;
+        background: #0f172a;
       }
 
       .phone-screen {
@@ -48,15 +27,15 @@
 
       .gomen-shell {
         width: min(26rem, 100%);
-        min-height: 30rem;
-        border-radius: 28px;
-        border: 1px solid var(--line);
-        background: var(--panel-strong);
-        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.3);
         overflow: hidden;
       }
 
       .fg-root {
+        --ink: #2a2320;
+        --cream: #fff8ef;
+        --pink: #f9a8c4;
+        --pink-deep: #e7558b;
+        --sakura: #f472b6;
         min-height: 100%;
         display: flex;
         flex-direction: column;
@@ -64,9 +43,10 @@
         padding: 38px 14px 18px;
         box-sizing: border-box;
         background:
-          radial-gradient(circle at top, rgba(245, 158, 11, 0.1), transparent 24%),
-          linear-gradient(180deg, rgba(17, 24, 39, 0.98) 0%, rgba(9, 9, 11, 0.98) 100%);
+          radial-gradient(#f0ddc8 1.4px, transparent 1.4px) 0 0 / 22px 22px,
+          linear-gradient(180deg, #fff8ef 0%, #fdeede 100%);
         color: var(--ink);
+        font-family: "M PLUS Rounded 1c", "Nunito", system-ui, sans-serif;
         -webkit-tap-highlight-color: transparent;
         user-select: none;
       }
@@ -79,9 +59,9 @@
       .fg-bar {
         position: relative;
         height: 24px;
-        border: 1px solid var(--line);
+        border: 2px solid var(--ink);
         border-radius: 999px;
-        background: rgba(255, 255, 255, 0.06);
+        background: #efe6da;
         overflow: hidden;
       }
 
@@ -89,12 +69,12 @@
         position: absolute;
         inset: 0 auto 0 0;
         height: 100%;
-        background: linear-gradient(90deg, var(--ok), #34d399);
+        background: linear-gradient(90deg, #86efac, #4ade80);
         transition: width 0.4s cubic-bezier(.34, 1.4, .5, 1);
       }
 
       .fg-fill.is-low {
-        background: linear-gradient(90deg, var(--warn), var(--danger));
+        background: linear-gradient(90deg, #fca5a5, #f87171);
       }
 
       .fg-bar-text {
@@ -107,6 +87,7 @@
         font-weight: 800;
         white-space: nowrap;
         color: var(--ink);
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
       }
 
       .fg-bubble {
@@ -115,10 +96,10 @@
         max-width: 92%;
         margin-top: 2px;
         padding: 8px 14px;
-        background: var(--panel);
-        border: 1px solid var(--line);
+        background: #fff;
+        border: 2px solid var(--ink);
         border-radius: 14px;
-        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
+        box-shadow: 2px 3px 0 var(--sakura);
         text-align: center;
         display: flex;
         flex-direction: column;
@@ -133,7 +114,7 @@
         transform: translateX(-50%);
         border-width: 9px 7px 0;
         border-style: solid;
-        border-color: rgba(39, 39, 42, 0.96) transparent transparent;
+        border-color: var(--ink) transparent transparent;
       }
 
       .fg-bubble-jp {
@@ -145,7 +126,7 @@
       .fg-bubble-en {
         font-size: 11px;
         font-weight: 700;
-        color: var(--muted);
+        color: #6b5e57;
       }
 
       .fg-kao {
@@ -156,30 +137,31 @@
         white-space: nowrap;
         will-change: transform;
         color: var(--ink);
+        font-family: "M PLUS Rounded 1c", sans-serif;
       }
 
       #gomen[data-mood="tantrum"] .fg-kao {
-        color: var(--danger);
+        color: #dc2626;
       }
 
       #gomen[data-mood="annoyed"] .fg-kao {
-        color: var(--accent-strong);
+        color: #b45309;
       }
 
       #gomen[data-mood="stern"] .fg-kao {
-        color: #d4d4d8;
+        color: #9a6a2f;
       }
 
       #gomen[data-mood="worried"] .fg-kao {
-        color: var(--warn);
+        color: #a16207;
       }
 
       #gomen[data-mood="happy"] .fg-kao {
-        color: #34d399;
+        color: var(--pink-deep);
       }
 
       #gomen[data-mood="crying"] .fg-kao {
-        color: #93c5fd;
+        color: #5b6b8c;
       }
 
       .fg-name {
@@ -187,7 +169,7 @@
         font-size: 10px;
         font-weight: 800;
         letter-spacing: .22em;
-        color: var(--muted);
+        color: #b7a79e;
       }
 
       .fg-papa {
@@ -196,12 +178,12 @@
         align-items: center;
         gap: 6px;
         padding: 4px 12px;
-        background: rgba(96, 165, 250, 0.12);
-        border: 1px solid rgba(96, 165, 250, 0.28);
+        background: #e0ecff;
+        border: 2px solid #3b5b8c;
         border-radius: 12px;
         font-size: 11px;
         font-weight: 800;
-        color: #dbeafe;
+        color: #2d4a78;
       }
 
       .fg-papa-kao {
@@ -218,25 +200,20 @@
 
       .fg-food,
       .fg-btn {
-        border: 1px solid var(--line);
-        border-radius: 999px;
-        background: rgba(39, 39, 42, 0.9);
+        border: 2px solid var(--ink);
+        border-radius: 10px;
+        background: #fff;
         color: var(--ink);
         font-family: inherit;
         cursor: pointer;
-        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
-        transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease;
-      }
-
-      .fg-food:hover,
-      .fg-btn:hover {
-        transform: translateY(-1px);
-        background: rgba(63, 63, 70, 0.95);
+        box-shadow: 0 3px 0 var(--ink);
+        transition: transform .08s, box-shadow .08s;
       }
 
       .fg-food:active,
       .fg-btn:active {
-        transform: translateY(0);
+        transform: translateY(3px);
+        box-shadow: 0 0 0 var(--ink);
       }
 
       .fg-food {
@@ -258,15 +235,15 @@
         font-size: 10px;
         font-weight: 900;
         padding: 0 6px;
-        background: var(--accent-soft);
-        color: #fcd9ad;
-        border: 1px solid rgba(245, 158, 11, 0.22);
+        background: #fde68a;
+        color: #5c3b00;
+        border: 1.5px solid var(--ink);
         border-radius: 7px;
       }
 
       .fg-receipt {
-        background: rgba(13, 16, 24, 0.92);
-        border: 1px solid var(--line);
+        background: #fffdf8;
+        border: 2px dashed #cdbfae;
         border-radius: 10px;
         padding: 6px 10px;
       }
@@ -275,7 +252,7 @@
         font-size: 9px;
         font-weight: 900;
         letter-spacing: .18em;
-        color: var(--accent-strong);
+        color: #a8907a;
         text-align: center;
         margin-bottom: 4px;
       }
@@ -297,9 +274,10 @@
         display: flex;
         align-items: center;
         gap: 5px;
+        font-family: "Nunito", monospace;
         font-size: 12px;
         font-weight: 800;
-        color: var(--ink);
+        color: #5c4d44;
       }
 
       .fg-receipt-icon,
@@ -317,19 +295,19 @@
 
       .fg-receipt-qty {
         font-size: 11px;
-        color: var(--muted);
+        color: #a8907a;
       }
 
       .fg-receipt-dots {
         flex: 1;
         min-width: 8px;
         height: 0;
-        border-bottom: 1.5px dotted rgba(255, 255, 255, 0.12);
+        border-bottom: 1.5px dotted #d8cab8;
       }
 
       .fg-receipt-price,
       .fg-receipt-total-val {
-        color: var(--accent-strong);
+        color: #b45309;
       }
 
       .fg-receipt-total {
@@ -338,10 +316,11 @@
         gap: 5px;
         margin-top: 5px;
         padding-top: 5px;
-        border-top: 1px solid var(--line);
+        border-top: 2px solid #cdbfae;
+        font-family: "Nunito", monospace;
         font-size: 13px;
         font-weight: 900;
-        color: var(--ink);
+        color: #2a2320;
       }
 
       .fg-btn {
