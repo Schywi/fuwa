@@ -3,9 +3,6 @@
 
 	const G = window.FuwaGomen || (window.FuwaGomen = {});
 
-	// Blush cheeks (˶) are wrapped so CSS can tint them pink; rendered via innerHTML.
-	// All glyphs are taken from the proven feed-me set so they render with the
-	// rounded font instead of falling back to tofu.
 	const blush = (s) => `<span class="blush">˶</span>${s}<span class="blush">˶</span>`;
 
 	G.content = {
@@ -17,7 +14,6 @@
 			worried: `( ${blush('˃ ⤙ ˂')} )`,
 			happy: `( ${blush('≧ ᗜ ≦')} )`,
 			crying: '( ╥﹏╥ )',
-			// transient (animation only)
 			open: `( ${blush('• 〇 •')} )`,
 			chew: `( ${blush('> ﹏ <')} )`,
 			angry: '( ಠ ∧ ಠ )'

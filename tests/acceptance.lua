@@ -39,6 +39,7 @@ end
 
 local modules = {
 	"current_payload",
+	"fuwa_gomen",
 	"shell_host"
 }
 

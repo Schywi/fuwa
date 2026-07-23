@@ -5,12 +5,8 @@
 // --- hooks/style.js ---
 (function () {
 	'use strict';
-	// Styling lives in UnoCSS utility classes (scanned live from views/*.fuwa
-	// markup by the runtime loaded in views/layout.fuwa) plus a small static
-	// <style> block in views/layout.fuwa for the handful of rules that aren't
-	// expressible as utilities: pseudo-elements, CSS custom properties, the
-	// mood-based attribute-selector color overrides, and the layered background.
 })();
+
 // --- hooks/bootstrap.js ---
 (function () {
 	'use strict';
@@ -24,9 +20,6 @@
 		document.head.appendChild(node);
 	};
 
-	// Reliable kaomoji depend on the rounded font being present; GSAP drives the
-	// feed animation. The font is loaded from Google Fonts; GSAP is vendored
-	// locally (petite-vue and htmx are loaded directly by views/layout.fuwa).
 	const ensureExternalDependencies = () => {
 		loadOnce('fuwa-gomen-fonts', () => {
 			const link = document.createElement('link');
@@ -42,18 +35,15 @@
 		});
 	};
 
-	// Hot-swap cleanup from a previous mount (decay timer, etc).
 	if (typeof window.__fuwaGomenCleanup === 'function') {
 		try {
 			window.__fuwaGomenCleanup();
 		} catch (error) {
-			/* previous cleanup failed — ignore */
 		}
 		window.__fuwaGomenCleanup = null;
 	}
 
 	ensureExternalDependencies();
-	console.log('[browser] Fuwa Gomen ready');
 
 	const root = document.getElementById('gomen');
 
@@ -70,9 +60,6 @@
 
 	const G = window.FuwaGomen || (window.FuwaGomen = {});
 
-	// Blush cheeks (˶) are wrapped so CSS can tint them pink; rendered via innerHTML.
-	// All glyphs are taken from the proven feed-me set so they render with the
-	// rounded font instead of falling back to tofu.
 	const blush = (s) => `<span class="blush">˶</span>${s}<span class="blush">˶</span>`;
 
 	G.content = {
@@ -84,12 +71,10 @@
 			worried: `( ${blush('˃ ⤙ ˂')} )`,
 			happy: `( ${blush('≧ ᗜ ≦')} )`,
 			crying: '( ╥﹏╥ )',
-			// transient (animation only)
 			open: `( ${blush('• 〇 •')} )`,
 			chew: `( ${blush('> ﹏ <')} )`,
 			angry: '( ಠ ∧ ಠ )'
 		},
-
 		COPY: {
 			neutral: { jp: 'ふむ…', en: 'Mama is watching.' },
 			stern: { jp: 'こら。', en: 'Behave yourself.' },
@@ -100,14 +85,12 @@
 			crying: { jp: 'ぜんぶ使ったの…', en: 'Papa is crying...' },
 			refuse: { jp: 'おかね、ない！', en: 'No money left!' }
 		},
-
 		ITEMS: [
 			{ id: 'onigiri', icon: '🍙', name: 'Onigiri', price: 50 },
 			{ id: 'ramen', icon: '🍜', name: 'Ramen', price: 120 },
 			{ id: 'takoyaki', icon: '🐙', name: 'Takoyaki', price: 200 },
 			{ id: 'sushi', icon: '🍣', name: 'Sushi', price: 300 }
 		],
-
 		CONFIG: {
 			allowance: 1000,
 			decayMs: 4000,
@@ -123,9 +106,6 @@
 
 	const G = window.FuwaGomen || (window.FuwaGomen = {});
 
-	// Single source of truth for Mama's face. Pure function of the two schemas'
-	// numbers (wallet.balance + mood.pokes). Guard order = mood priority; the
-	// first matching rule wins. Mirrors the agreed matrix exactly.
 	G.mood = {
 		derive(balance, pokes) {
 			const F = G.content.FACES;
@@ -157,8 +137,6 @@
 
 	const G = window.FuwaGomen || (window.FuwaGomen = {});
 
-	// GSAP animation layer. Everything degrades gracefully to "instant" when GSAP
-	// has not loaded yet, so gameplay never blocks on the CDN.
 	G.fx = {
 		createFx(root, queryRef) {
 			const cfg = G.content.CONFIG;
@@ -175,8 +153,8 @@
 				const icon = foodEl.querySelector('.fg-food-icon') || foodEl;
 				const fr = icon.getBoundingClientRect();
 				const mr = mouth.getBoundingClientRect();
-
 				const clone = icon.cloneNode(true);
+
 				clone.style.position = 'fixed';
 				clone.style.left = `${fr.left}px`;
 				clone.style.top = `${fr.top}px`;
@@ -255,11 +233,6 @@
 
 	const G = window.FuwaGomen || (window.FuwaGomen = {});
 
-	// petite-vue provides the @click wiring via v-scope. The returned object IS
-	// the reactive scope: state fields, computed getters, and action methods
-	// all live on one object so petite-vue's proxy tracks every read/write and
-	// the template re-renders itself — no manual DOM painting. The server owns
-	// durability: each action fires a fire-and-forget XHR to its Fuwa route.
 	G.createScope = function createScope(serverData) {
 		const boot = G.bootstrap;
 		const C = G.content;
@@ -267,23 +240,16 @@
 		const fx = G.fx.createFx(boot.root, boot.queryRef);
 
 		const byId = {};
-		C.ITEMS.forEach((it) => {
-			byId[it.id] = it;
+		C.ITEMS.forEach((item) => {
+			byId[item.id] = item;
 		});
 
 		const persist = (url) => {
 			try {
-				// Use XMLHttpRequest, not fetch: the runtime bridge shims
-				// window.XMLHttpRequest to route same-origin app routes into the
-				// in-browser Lua server (which writes the DB). A raw fetch()
-				// bypasses that shim and hits the real origin, so the Fuwa action
-				// never runs. Fire-and-forget — we ignore the reply (no DOM swap),
-				// the client already painted optimistically.
 				const xhr = new XMLHttpRequest();
 				xhr.open('GET', url);
 				xhr.send();
 			} catch (error) {
-				/* offline / sandbox — client stays optimistic */
 			}
 		};
 
@@ -291,11 +257,9 @@
 			balance: Number.isFinite(serverData.balance) ? serverData.balance : cfg.allowance,
 			spent: Number.isFinite(serverData.spent) ? serverData.spent : 0,
 			pokes: Number.isFinite(serverData.pokes) ? serverData.pokes : 0,
-			counts: {}, // item id -> quantity bought
+			counts: {},
 			animating: false,
 			animatedTotal: 0,
-			// Transient overrides on top of the derived mood: a refused purchase
-			// flashes an angry face, and eating has its own open/chew frames.
 			refusing: false,
 			eatingPhase: null,
 
@@ -309,8 +273,8 @@
 			},
 			get currentMood() {
 				if (this.refusing) return C.COPY.refuse;
-				const d = G.mood.derive(this.balance, this.pokes);
-				return { jp: d.jp, en: d.en };
+				const derived = G.mood.derive(this.balance, this.pokes);
+				return { jp: derived.jp, en: derived.en };
 			},
 			get papaVisible() {
 				return this.balance <= 0;
@@ -322,12 +286,12 @@
 				return `¥${this.balance} · spent ¥${this.spent}`;
 			},
 			get receiptRows() {
-				return C.ITEMS.filter((it) => this.counts[it.id]).map((it) => ({
-					id: it.id,
-					icon: it.icon,
-					name: it.name,
-					qty: this.counts[it.id],
-					lineTotal: this.counts[it.id] * it.price
+				return C.ITEMS.filter((item) => this.counts[item.id]).map((item) => ({
+					id: item.id,
+					icon: item.icon,
+					name: item.name,
+					qty: this.counts[item.id],
+					lineTotal: this.counts[item.id] * item.price
 				}));
 			},
 			get total() {
@@ -403,10 +367,6 @@
 			}
 		};
 
-		// Seed purchase counts from the server-rendered ledger rows. The view
-		// compiler has no JSON encoding for array/table bindings (only scalar
-		// `&expr` interpolation), so the receipt list still arrives via a hidden
-		// server-rendered `f-for` seed rather than a v-scope argument.
 		const seed = boot.queryRef('seed');
 		if (seed) {
 			seed.querySelectorAll('[data-id]').forEach((el) => {
@@ -417,7 +377,6 @@
 		}
 		scope.animatedTotal = scope.total;
 
-		// Anger cools down on its own; /cooldown keeps the DB in step.
 		const decayTimer = window.setInterval(() => {
 			if (scope.pokes > 0) {
 				scope.pokes -= 1;
@@ -433,12 +392,6 @@
 		return scope;
 	};
 
-	// petite-vue's vendored IIFE build only self-mounts when its <script> tag
-	// carries an `init` attribute (views/layout.fuwa doesn't set one, to match
-	// payloads/current's convention), so we mount explicitly once G.createScope
-	// is defined and the DOM is ready. The browser tenant iframe already mounts
-	// the document once the tenant scripts are replayed, so we skip the direct
-	// mount there to avoid double-hydrating the same tree.
 	const mountApp = () => {
 		const isTenantRuntime = document.body && document.body.dataset && document.body.dataset.browserRuntime === 'tenant';
 		if (!isTenantRuntime && window.PetiteVue && typeof window.PetiteVue.createApp === 'function' && G.bootstrap.root) {

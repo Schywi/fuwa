@@ -3,8 +3,6 @@
 
 	const G = window.FuwaGomen || (window.FuwaGomen = {});
 
-	// GSAP animation layer. Everything degrades gracefully to "instant" when GSAP
-	// has not loaded yet, so gameplay never blocks on the CDN.
 	G.fx = {
 		createFx(root, queryRef) {
 			const cfg = G.content.CONFIG;
@@ -21,8 +19,8 @@
 				const icon = foodEl.querySelector('.fg-food-icon') || foodEl;
 				const fr = icon.getBoundingClientRect();
 				const mr = mouth.getBoundingClientRect();
-
 				const clone = icon.cloneNode(true);
+
 				clone.style.position = 'fixed';
 				clone.style.left = `${fr.left}px`;
 				clone.style.top = `${fr.top}px`;

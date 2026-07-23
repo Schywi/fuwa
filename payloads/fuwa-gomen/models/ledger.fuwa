@@ -1,8 +1,5 @@
 module Ledger
 
--- The receipt. Unlike wallet/mood (single rows keyed by "main"), this is a
--- NON-singleton table: one row per purchase. That is the one-to-many lesson —
--- `create` inserts a line, `all()` lists them, `delete` clears them.
 schema "gomen_ledger" do
   field item: string
   field price: integer default 0
