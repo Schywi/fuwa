@@ -11,8 +11,8 @@
 	};
 
 	// Reliable kaomoji depend on the rounded font being present; GSAP drives the
-	// feed animation. The font is loaded from Google Fonts; GSAP is vendored
-	// locally (petite-vue and htmx are loaded directly by views/layout.fuwa).
+	// feed animation. The font is loaded from Google Fonts; GSAP stays vendored
+	// locally so the Lua runtime does not depend on a CDN to animate.
 	const ensureExternalDependencies = () => {
 		loadOnce('fuwa-gomen-fonts', () => {
 			const link = document.createElement('link');
@@ -42,10 +42,17 @@
 	console.log('[browser] Fuwa Gomen ready');
 
 	const root = document.getElementById('gomen');
+	const ds = root ? root.dataset : {};
 
 	G.bootstrap = {
 		root,
 		queryRef: (name) => (root ? root.querySelector(`[data-ref="${name}"]`) : null),
-		queryRefs: (name) => (root ? Array.from(root.querySelectorAll(`[data-ref="${name}"]`)) : [])
+		queryRefs: (name) => (root ? Array.from(root.querySelectorAll(`[data-ref="${name}"]`)) : []),
+		// Seeded by the Fuwa index action via data-* on the root (real DB state).
+		initialState: {
+			balance: Number(ds.balance),
+			spent: Number(ds.spent),
+			pokes: Number(ds.pokes)
+		}
 	};
 })();

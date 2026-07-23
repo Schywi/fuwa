@@ -8,7 +8,7 @@ import
 end
 
 action index(req) do
-  dashboard = Dashboard.build(host, "current", req.query.file)
+  dashboard = Dashboard.build(host, "fuwa-gomen", req.query.file)
   render "home", doctype: "<!DOCTYPE html>", title: "Fuwa Shell", dashboard: dashboard
 end
 
@@ -21,5 +21,11 @@ end
 
 action switch(req) do
   dashboard = Dashboard.build(host, req.params.payload_id)
+  return ShellViews.render_fragment("home", { dashboard = dashboard })
+end
+
+action switch_form(req) do
+  payload_id = req.form.payload_id
+  dashboard = Dashboard.build(host, payload_id)
   return ShellViews.render_fragment("home", { dashboard = dashboard })
 end

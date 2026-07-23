@@ -1,14 +1,6 @@
 <section id="shell-content" class="shell-content">
   <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()">
     <section class="ide-island ide-preview-island">
-      <div class="ide-preview-head">
-        <div>
-          <p class="shell-kicker">&dashboard.preview_heading</p>
-          <p class="ide-preview-note">&dashboard.preview_note</p>
-        </div>
-        <div class="shell-badge">Browser runtime</div>
-      </div>
-
       <div
         class="ide-preview-stage"
         data-preview-stage
@@ -20,48 +12,38 @@
       >
         &unsafe dashboard.preview_html
       </div>
-
-      <div class="ide-preview-foot">
-        <div class="shell-badge">In-memory live session</div>
-      </div>
     </section>
 
     <div class="ide-panel">
       <header class="ide-island ide-header">
-        <div class="owner">
-          <div class="owner-avatar">FW</div>
-          <div class="owner-meta">
-            <div class="owner-name">&dashboard.title</div>
-            <div class="owner-sub">&dashboard.eyebrow · &dashboard.active.file_count files</div>
-          </div>
-        </div>
-
-        <div class="stats">
-          <div class="stat-item">
-            <span class="stat-label">payload</span>
-            <span class="stat-value">&dashboard.active.label</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">entry</span>
-            <span id="ide-entry-stat" class="stat-value">&dashboard.active.selected_file</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">runtime</span>
-            <span id="ide-runtime-state" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
-          </div>
-          <div class="stat-item ide-switcher">
-            <span class="stat-label">switch</span>
-            <div class="ide-switcher-buttons">
-              <button
-                f-for="payload in dashboard.payloads"
-                type="button"
-                class="shell-button ide-switch-button"
-                data-active="&payload.active"
-                hx-post="&payload.switch_route"
-                hx-target="#shell-content"
-                hx-swap="outerHTML"
-              >&payload.label</button>
+        <div class="header-top">
+          <div class="owner">
+            <div class="owner-avatar">DB</div>
+            <div class="owner-meta">
+              <div class="owner-name">&dashboard.title</div>
+              <div class="owner-sub">&dashboard.owner_sub</div>
             </div>
+          </div>
+
+          <div class="stats">
+            <div class="stat-item asset-item">
+              <span class="stat-label">asset</span>
+              <span class="stat-value">&dashboard.active.label</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">entry</span>
+              <span id="ide-entry-stat" class="stat-value">&dashboard.active.selected_file</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-label">runtime</span>
+              <span id="ide-runtime-state" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
+            </div>
+            <form class="asset-switcher" hx-post="/switch" hx-target="#shell-content" hx-swap="outerHTML">
+              <label class="stat-label" for="asset-switcher">switch</label>
+              <select id="asset-switcher" name="payload_id" hx-trigger="change">
+                <option f-for="payload in dashboard.payloads" value="&payload.id">&payload.label</option>
+              </select>
+            </form>
           </div>
         </div>
       </header>

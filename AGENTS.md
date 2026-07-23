@@ -47,6 +47,9 @@ IMPORTANT WRITE COMPREENSIVE UNIT tests for changes
 - **One change, one purpose.** Do not reformat or refactor unrelated code in the
   same edit. Do not add dependencies or APIs that are not already here — if you
   need one, stop and ask.
+- **Commit every code change immediately.** Any tracked or untracked code you
+  touch must be committed in the current branch. Never leave modified code
+  uncommitted at handoff.
 - **Verify before you claim done**, and report honestly.
 
 These rules override the immediate task when they conflict. If a task requires
@@ -164,3 +167,5 @@ For more details, see README.md and docs/QUICKSTART.md.
 - NEVER stop before pushing - that leaves work stranded locally
 - NEVER say "ready to push when you are" - YOU must push
 - If push fails, resolve and retry until it succeeds
+- NEVER leave touched code uncommitted or untracked - every code change must be
+  committed before handoff

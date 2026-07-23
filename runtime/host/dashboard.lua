@@ -26,9 +26,11 @@ local function choose_selected_file(files, requested_file)
 	end
 
 	local preferred = {
+		"app.fuwa",
+		"pages/gomen.fuwa",
 		"pages/home.fuwa",
 		"view.fuwa",
-		"app.fuwa",
+		"views/gomen.fuwa",
 		"views/home.fuwa",
 		"views/layout.fuwa",
 	}
@@ -96,10 +98,12 @@ end
 local function build_terminal_state(run_result)
 	if type(run_result) == "table" and type(run_result.output) == "string" and run_result.output ~= "" then
 		local output = run_result.output
+		local failed = run_result.success == false
 		return {
 			output = output,
-			status = run_result.status or (run_result.success == false and "error" or "ok"),
-			label = run_result.success == false and "Build failed" or "Build ok",
+			status = run_result.status or (failed and "error" or "ready"),
+			label = failed and "failed" or "ready",
+			build_label = failed and "failed" or "ok",
 			run_id = hash_text(output) .. "-" .. tostring(os.time()),
 		}
 	end
@@ -107,16 +111,24 @@ local function build_terminal_state(run_result)
 	return {
 		output = "No run yet.\nSave a file to compile and refresh the preview.",
 		status = "idle",
-		label = "Idle",
+		label = "idle",
+		build_label = "ok",
 		run_id = "idle",
 	}
 end
 
 function M.build(host, payload_id, requested_file, run_result)
-	payload_id = tostring(payload_id or "current")
+	payload_id = tostring(payload_id or "fuwa-gomen")
 
 	local payloads = {}
-	for _, id in ipairs({ "current", "fuwa-gomen" }) do
+	local ordered_ids = { payload_id }
+	for _, id in ipairs({ "fuwa-gomen", "current" }) do
+		if id ~= payload_id then
+			ordered_ids[#ordered_ids + 1] = id
+		end
+	end
+
+	for _, id in ipairs(ordered_ids) do
 		local descriptor = host.describe_payload(id)
 		if descriptor ~= nil then
 			payloads[#payloads + 1] = {
@@ -125,6 +137,7 @@ function M.build(host, payload_id, requested_file, run_result)
 				route = descriptor.route or ("/payload/" .. id .. "/"),
 				file_count = descriptor.file_count or 0,
 				active = id == payload_id,
+				form_selected = id == payload_id and "selected" or nil,
 				switch_route = "/switch/" .. encode_query_component(id),
 				summary = id == payload_id and "Active payload" or "Switch target",
 			}
@@ -153,12 +166,14 @@ function M.build(host, payload_id, requested_file, run_result)
 	active.terminal_output = terminal.output
 	active.terminal_status = terminal.status
 	active.terminal_label = terminal.label
+	active.build_label = terminal.build_label
 	active.terminal_run_id = terminal.run_id
 	active.bundle_url = "/runtime/" .. encode_query_component(active.id) .. "/bundle.json"
 
 	return {
-		eyebrow = "Browser shell",
-		title = "Fuwa Shell",
+		eyebrow = "static",
+		title = "pipeline smoke test",
+		owner_sub = tostring(active.file_count) .. " documents · build " .. tostring(active.build_label),
 		summary = "The host shell mounts a browser runtime session, exposes the payload workspace, and reports compile output in the terminal panel.",
 		breadcrumb = {
 			{ label = "payloads", active = false },
@@ -166,8 +181,8 @@ function M.build(host, payload_id, requested_file, run_result)
 			{ label = active.selected_file ~= "" and active.selected_file or "no file", active = true },
 		},
 		runtime_state = terminal.status == "error" and "error" or "ready",
-		preview_heading = "Browser runtime",
-		preview_note = "In-memory live session",
+		preview_heading = "runtime",
+		preview_note = "",
 		runtime_tenant_url = "/runtime/tenant.html",
 		runtime_worker_url = "/shell/hooks/runtime-worker.js",
 		payloads = payloads,
