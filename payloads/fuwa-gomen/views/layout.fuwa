@@ -8,6 +8,22 @@
     <script src="/vendor/htmx/htmx-1.9.12.min.js"></script>
     <script src="/vendor/petite-vue/petite-vue-0.4.1.iife.js"></script>
     <style>
+      :root {
+        color-scheme: dark;
+        --bg: #09090b;
+        --panel: rgba(24, 24, 27, 0.82);
+        --panel-strong: rgba(17, 24, 39, 0.94);
+        --ink: #f5f5f4;
+        --muted: #a1a1aa;
+        --line: rgba(255, 255, 255, 0.08);
+        --accent: #d97706;
+        --accent-soft: rgba(217, 119, 6, 0.16);
+        --accent-strong: #f59e0b;
+        --ok: #10b981;
+        --warn: #f59e0b;
+        --danger: #f87171;
+      }
+
       [v-cloak] {
         display: none;
       }
@@ -15,9 +31,12 @@
       body {
         margin: 0;
         min-height: 100vh;
-        background: linear-gradient(180deg, #0f172a 0%, #020617 100%);
-        color: #2a2320;
-        font-family: "M PLUS Rounded 1c", "Nunito", system-ui, sans-serif;
+        background:
+          radial-gradient(circle at top left, rgba(245, 158, 11, 0.18), transparent 24%),
+          radial-gradient(circle at 84% 18%, rgba(96, 165, 250, 0.1), transparent 22%),
+          linear-gradient(180deg, #050608 0%, var(--bg) 100%);
+        color: var(--ink);
+        font-family: Avenir Next, Segoe UI, system-ui, sans-serif;
       }
 
       .phone-screen {
@@ -31,15 +50,13 @@
         width: min(26rem, 100%);
         min-height: 30rem;
         border-radius: 28px;
-        background: #0b1220;
-        box-shadow: 0 30px 80px rgba(2, 6, 23, 0.45);
+        border: 1px solid var(--line);
+        background: var(--panel-strong);
+        box-shadow: 0 28px 90px rgba(0, 0, 0, 0.3);
         overflow: hidden;
       }
 
       .fg-root {
-        --ink: #2a2320;
-        --pink-deep: #e7558b;
-        --sakura: #f472b6;
         min-height: 100%;
         display: flex;
         flex-direction: column;
@@ -47,8 +64,8 @@
         padding: 38px 14px 18px;
         box-sizing: border-box;
         background:
-          radial-gradient(#f0ddc8 1.4px, transparent 1.4px) 0 0 / 22px 22px,
-          linear-gradient(180deg, #fff8ef 0%, #fdeede 100%);
+          radial-gradient(circle at top, rgba(245, 158, 11, 0.1), transparent 24%),
+          linear-gradient(180deg, rgba(17, 24, 39, 0.98) 0%, rgba(9, 9, 11, 0.98) 100%);
         color: var(--ink);
         -webkit-tap-highlight-color: transparent;
         user-select: none;
@@ -62,9 +79,9 @@
       .fg-bar {
         position: relative;
         height: 24px;
-        border: 2px solid var(--ink);
+        border: 1px solid var(--line);
         border-radius: 999px;
-        background: #efe6da;
+        background: rgba(255, 255, 255, 0.06);
         overflow: hidden;
       }
 
@@ -72,12 +89,12 @@
         position: absolute;
         inset: 0 auto 0 0;
         height: 100%;
-        background: linear-gradient(90deg, #86efac, #4ade80);
+        background: linear-gradient(90deg, var(--ok), #34d399);
         transition: width 0.4s cubic-bezier(.34, 1.4, .5, 1);
       }
 
       .fg-fill.is-low {
-        background: linear-gradient(90deg, #fca5a5, #f87171);
+        background: linear-gradient(90deg, var(--warn), var(--danger));
       }
 
       .fg-bar-text {
@@ -89,7 +106,7 @@
         font-size: 11px;
         font-weight: 800;
         white-space: nowrap;
-        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.7);
+        color: var(--ink);
       }
 
       .fg-bubble {
@@ -98,10 +115,10 @@
         max-width: 92%;
         margin-top: 2px;
         padding: 8px 14px;
-        background: #fff;
-        border: 2px solid var(--ink);
+        background: var(--panel);
+        border: 1px solid var(--line);
         border-radius: 14px;
-        box-shadow: 2px 3px 0 var(--sakura);
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.24);
         text-align: center;
         display: flex;
         flex-direction: column;
@@ -116,18 +133,19 @@
         transform: translateX(-50%);
         border-width: 9px 7px 0;
         border-style: solid;
-        border-color: var(--ink) transparent transparent;
+        border-color: rgba(39, 39, 42, 0.96) transparent transparent;
       }
 
       .fg-bubble-jp {
         font-size: 14px;
         font-weight: 900;
+        color: var(--ink);
       }
 
       .fg-bubble-en {
         font-size: 11px;
         font-weight: 700;
-        color: #6b5e57;
+        color: var(--muted);
       }
 
       .fg-kao {
@@ -137,30 +155,31 @@
         line-height: 1;
         white-space: nowrap;
         will-change: transform;
+        color: var(--ink);
       }
 
       #gomen[data-mood="tantrum"] .fg-kao {
-        color: #dc2626;
+        color: var(--danger);
       }
 
       #gomen[data-mood="annoyed"] .fg-kao {
-        color: #b45309;
+        color: var(--accent-strong);
       }
 
       #gomen[data-mood="stern"] .fg-kao {
-        color: #9a6a2f;
+        color: #d4d4d8;
       }
 
       #gomen[data-mood="worried"] .fg-kao {
-        color: #a16207;
+        color: var(--warn);
       }
 
       #gomen[data-mood="happy"] .fg-kao {
-        color: var(--pink-deep);
+        color: #34d399;
       }
 
       #gomen[data-mood="crying"] .fg-kao {
-        color: #5b6b8c;
+        color: #93c5fd;
       }
 
       .fg-name {
@@ -168,7 +187,7 @@
         font-size: 10px;
         font-weight: 800;
         letter-spacing: .22em;
-        color: #b7a79e;
+        color: var(--muted);
       }
 
       .fg-papa {
@@ -177,12 +196,12 @@
         align-items: center;
         gap: 6px;
         padding: 4px 12px;
-        background: #e0ecff;
-        border: 2px solid #3b5b8c;
+        background: rgba(96, 165, 250, 0.12);
+        border: 1px solid rgba(96, 165, 250, 0.28);
         border-radius: 12px;
         font-size: 11px;
         font-weight: 800;
-        color: #2d4a78;
+        color: #dbeafe;
       }
 
       .fg-papa-kao {
@@ -199,20 +218,25 @@
 
       .fg-food,
       .fg-btn {
-        border: 2px solid var(--ink);
-        border-radius: 10px;
-        background: #1f4d46;
-        color: #fff;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(39, 39, 42, 0.9);
+        color: var(--ink);
         font-family: inherit;
         cursor: pointer;
-        box-shadow: 0 3px 0 #0f2d29;
-        transition: transform .08s, box-shadow .08s;
+        box-shadow: 0 14px 28px rgba(0, 0, 0, 0.18);
+        transition: transform .16s ease, box-shadow .16s ease, background-color .16s ease;
+      }
+
+      .fg-food:hover,
+      .fg-btn:hover {
+        transform: translateY(-1px);
+        background: rgba(63, 63, 70, 0.95);
       }
 
       .fg-food:active,
       .fg-btn:active {
-        transform: translateY(3px);
-        box-shadow: 0 0 0 #0f2d29;
+        transform: translateY(0);
       }
 
       .fg-food {
@@ -234,14 +258,15 @@
         font-size: 10px;
         font-weight: 900;
         padding: 0 6px;
-        background: rgba(255, 255, 255, 0.12);
-        border: 1.5px solid rgba(255, 255, 255, 0.18);
+        background: var(--accent-soft);
+        color: #fcd9ad;
+        border: 1px solid rgba(245, 158, 11, 0.22);
         border-radius: 7px;
       }
 
       .fg-receipt {
-        background: #fffdf8;
-        border: 2px dashed #cdbfae;
+        background: rgba(13, 16, 24, 0.92);
+        border: 1px solid var(--line);
         border-radius: 10px;
         padding: 6px 10px;
       }
@@ -250,7 +275,7 @@
         font-size: 9px;
         font-weight: 900;
         letter-spacing: .18em;
-        color: #a8907a;
+        color: var(--accent-strong);
         text-align: center;
         margin-bottom: 4px;
       }
@@ -274,7 +299,7 @@
         gap: 5px;
         font-size: 12px;
         font-weight: 800;
-        color: #5c4d44;
+        color: var(--ink);
       }
 
       .fg-receipt-icon,
@@ -292,19 +317,19 @@
 
       .fg-receipt-qty {
         font-size: 11px;
-        color: #a8907a;
+        color: var(--muted);
       }
 
       .fg-receipt-dots {
         flex: 1;
         min-width: 8px;
         height: 0;
-        border-bottom: 1.5px dotted #d8cab8;
+        border-bottom: 1.5px dotted rgba(255, 255, 255, 0.12);
       }
 
       .fg-receipt-price,
       .fg-receipt-total-val {
-        color: #b45309;
+        color: var(--accent-strong);
       }
 
       .fg-receipt-total {
@@ -313,10 +338,10 @@
         gap: 5px;
         margin-top: 5px;
         padding-top: 5px;
-        border-top: 2px solid #cdbfae;
+        border-top: 1px solid var(--line);
         font-size: 13px;
         font-weight: 900;
-        color: #2a2320;
+        color: var(--ink);
       }
 
       .fg-btn {
