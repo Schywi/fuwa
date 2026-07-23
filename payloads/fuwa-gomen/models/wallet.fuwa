@@ -1,7 +1,5 @@
 module Wallet
 
--- Papa's allowance. A single persisted row (key = "main") tracks how much
--- money is left and how much has been spent so far. Two numbers, one table.
 schema "gomen_wallet" do
   field key: string required unique
   field balance: integer default 1000

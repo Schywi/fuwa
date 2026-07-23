@@ -28,8 +28,6 @@
   </div>
 
   <include src="views/fragments/shelf.fuwa" />
-
   <include src="views/fragments/receipt.fuwa" />
-
   <include src="views/fragments/actions.fuwa" />
 </div>

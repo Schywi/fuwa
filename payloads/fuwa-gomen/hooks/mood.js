@@ -3,9 +3,6 @@
 
 	const G = window.FuwaGomen || (window.FuwaGomen = {});
 
-	// Single source of truth for Mama's face. Pure function of the two schemas'
-	// numbers (wallet.balance + mood.pokes). Guard order = mood priority; the
-	// first matching rule wins. Mirrors the agreed matrix exactly.
 	G.mood = {
 		derive(balance, pokes) {
 			const F = G.content.FACES;

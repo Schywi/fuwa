@@ -6,15 +6,6 @@ import
   Ledger "models/ledger"
 end
 
--- ── helpers ──────────────────────────────────────────────────────────────
--- Both rows are singletons keyed by "main". Every action that touches a table
--- starts by loading (or seeding) its row, so the page always has real DB state.
-
--- ── index ────────────────────────────────────────────────────────────────
--- Bootstrap only. We read BOTH schemas (wallet + mood) and seed the raw numbers
--- onto the page; the client (hooks/*.js) derives Mama's face from them and runs
--- the game. The face is never stored — it is computed, client-side, from balance
--- and pokes.
 action index(req) do
   w = Wallet.find_by({ key = "main" })
   w = w or Wallet.create({ key = "main", balance = 1000, spent = 0 })?
@@ -27,8 +18,6 @@ action index(req) do
   render "gomen", balance: w.balance, spent: w.spent, pokes: m.pokes, receipt: receipt
 end
 
--- ── poke ─────────────────────────────────────────────────────────────────
--- Touches ONLY the mood table. Every poke chips away at Mama's patience.
 action poke(req) do
   m = Mood.find_by({ key = "main" })
   m = m or Mood.create({ key = "main", pokes = 0 })?
@@ -36,9 +25,6 @@ action poke(req) do
   redirect "/"
 end
 
--- ── cooldown ──────────────────────────────────────────────────────────────
--- Anger rolls back over time. The client ticks this while pokes remain, so the
--- DB follows the visual decay. The guard stops it from going below zero.
 action cooldown(req) do
   m = Mood.find_by({ key = "main" })
   m = m or Mood.create({ key = "main", pokes = 0 })?
@@ -47,9 +33,6 @@ action cooldown(req) do
   redirect "/"
 end
 
--- ── buying food ───────────────────────────────────────────────────────────
--- Each item is its own route. The guard clause is real backend validation:
--- if you cannot afford it, the purchase is silently refused and we bounce home.
 action buy_onigiri(req) do
   w = Wallet.find_by({ key = "main" })
   w = w or Wallet.create({ key = "main", balance = 1000, spent = 0 })?
@@ -86,8 +69,6 @@ action buy_sushi(req) do
   redirect "/"
 end
 
--- ── calm ──────────────────────────────────────────────────────────────────
--- Pet her. Resets the mood table only — money is untouched.
 action calm(req) do
   m = Mood.find_by({ key = "main" })
   m = m or Mood.create({ key = "main", pokes = 0 })?
@@ -95,8 +76,6 @@ action calm(req) do
   redirect "/"
 end
 
--- ── reset ─────────────────────────────────────────────────────────────────
--- Ask Papa for more. Refills the wallet AND calms Mama — both schemas at once.
 action reset(req) do
   w = Wallet.find_by({ key = "main" })
   w = w or Wallet.create({ key = "main", balance = 1000, spent = 0 })?

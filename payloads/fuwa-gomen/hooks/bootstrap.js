@@ -10,9 +10,6 @@
 		document.head.appendChild(node);
 	};
 
-	// Reliable kaomoji depend on the rounded font being present; GSAP drives the
-	// feed animation. The font is loaded from Google Fonts; GSAP is vendored
-	// locally (petite-vue and htmx are loaded directly by views/layout.fuwa).
 	const ensureExternalDependencies = () => {
 		loadOnce('fuwa-gomen-fonts', () => {
 			const link = document.createElement('link');
@@ -28,18 +25,15 @@
 		});
 	};
 
-	// Hot-swap cleanup from a previous mount (decay timer, etc).
 	if (typeof window.__fuwaGomenCleanup === 'function') {
 		try {
 			window.__fuwaGomenCleanup();
 		} catch (error) {
-			/* previous cleanup failed — ignore */
 		}
 		window.__fuwaGomenCleanup = null;
 	}
 
 	ensureExternalDependencies();
-	console.log('[browser] Fuwa Gomen ready');
 
 	const root = document.getElementById('gomen');
 
