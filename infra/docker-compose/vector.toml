@@ -22,9 +22,7 @@ address = "0.0.0.0:8687"
 type = "remap"
 inputs = ["fuwa_http"]
 source = '''
-if !exists(.timestamp) {
-  .timestamp = now()
-}
+.timestamp = format_timestamp!(now(), format: "%F %T")
 
 .trace_id = to_string(.trace_id) ?? ""
 .span_id = ""

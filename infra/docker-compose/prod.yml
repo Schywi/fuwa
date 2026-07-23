@@ -1,0 +1,7 @@
+include:
+  - app.prod.yml
+  - openresty.prod.yml
+  - observability.yml
+
+volumes:
+  openresty_logs:

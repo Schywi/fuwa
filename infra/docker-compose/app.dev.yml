@@ -1,0 +1,19 @@
+services:
+  fuwa:
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/fuwa-dev.Dockerfile
+    working_dir: /workspace
+    command: ["./dev.sh"]
+    environment:
+      PORT: ${PORT:-8080}
+      LUA_BIN: ${LUA_BIN:-lua5.4}
+      FUWA_VECTOR_URL: ${FUWA_VECTOR_URL:-http://vector-router:8687/}
+    ports:
+      - "${PORT:-8080}:8080"
+    volumes:
+      - ../..:/workspace
+    depends_on:
+      vector-router:
+        condition: service_started
+    restart: unless-stopped

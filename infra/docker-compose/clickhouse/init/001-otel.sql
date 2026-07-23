@@ -2,7 +2,7 @@ CREATE DATABASE IF NOT EXISTS otel;
 
 CREATE TABLE IF NOT EXISTS otel.otel_spans
 (
-  timestamp DateTime64(9, 'UTC'),
+  timestamp DateTime,
   trace_id String,
   span_id String,
   parent_span_id String,
@@ -27,7 +27,7 @@ SETTINGS index_granularity = 8192;
 
 CREATE TABLE IF NOT EXISTS otel.otel_logs
 (
-  timestamp DateTime64(9, 'UTC'),
+  timestamp DateTime,
   trace_id String,
   span_id String,
   service_name LowCardinality(String),

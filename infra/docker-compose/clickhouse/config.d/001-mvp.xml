@@ -3,6 +3,9 @@
     <level>warning</level>
   </logger>
 
+  <listen_host>0.0.0.0</listen_host>
+  <interserver_listen_host>0.0.0.0</interserver_listen_host>
+
   <max_server_memory_usage>805306368</max_server_memory_usage>
   <max_server_memory_usage_to_ram_ratio>0.6</max_server_memory_usage_to_ram_ratio>
   <mark_cache_size>134217728</mark_cache_size>

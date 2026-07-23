@@ -1,0 +1,17 @@
+services:
+  fuwa:
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/fuwa-dev.Dockerfile
+    working_dir: /workspace
+    command: ["/bin/sh", "infra/docker-compose/fuwa-prod.sh"]
+    environment:
+      FUWA_VECTOR_URL: ${FUWA_VECTOR_URL:-http://vector-router:8687/}
+    expose:
+      - "8080"
+    volumes:
+      - ../..:/workspace
+    depends_on:
+      vector-router:
+        condition: service_started
+    restart: unless-stopped

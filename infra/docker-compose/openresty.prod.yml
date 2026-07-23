@@ -1,0 +1,13 @@
+services:
+  openresty:
+    image: openresty/openresty:1.27.1.2-0-alpine
+    depends_on:
+      fuwa:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-8080}:8080"
+    volumes:
+      - ../openresty/prod/nginx.conf:/usr/local/openresty/nginx/conf/nginx.conf:ro
+      - ../openresty/prod/lua:/etc/openresty/lua:ro
+      - openresty_logs:/var/log/openresty
+    restart: unless-stopped
