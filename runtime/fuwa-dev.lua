@@ -226,6 +226,12 @@ local function dev_trace_sink(event)
 		return
 	end
 
+	-- Forward structured event to user-defined hook. Set _G.__fuwa_trace_hook
+	-- to a function(event) to receive raw trace objects (e.g. JSON-encode and
+	-- send to the browser).
+	local hook = rawget(_G, "__fuwa_trace_hook")
+	if type(hook) == "function" then hook(event) end
+
 	if event.kind == "request" then
 		local status = event.status
 		if status == nil and event.failed then
