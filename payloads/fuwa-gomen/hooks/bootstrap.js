@@ -11,6 +11,13 @@
 	};
 
 	const ensureExternalDependencies = () => {
+		loadOnce('fuwa-gomen-fonts', () => {
+			const link = document.createElement('link');
+			link.rel = 'stylesheet';
+			link.href =
+				'https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800;900&family=Nunito:wght@600;700;800;900&display=swap';
+			return link;
+		});
 		loadOnce('fuwa-gomen-gsap', () => {
 			const script = document.createElement('script');
 			script.src = '/vendor/gsap/gsap-3.15.0.min.js';
