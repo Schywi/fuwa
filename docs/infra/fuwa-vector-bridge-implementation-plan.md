@@ -59,7 +59,8 @@ Actual stack from code:
 
 Actual ports from code:
 
-- Vector API / HTTP source candidate: `8686`
+- Vector API in copied `shop` config: `8686`
+- Vector HTTP source candidate for `fuwa`: `8687`
 - Vector OTLP gRPC: `4317`
 - Vector OTLP HTTP: `4318`
 - VictoriaMetrics: `8428`
@@ -74,7 +75,7 @@ Bridge shape:
 1. Keep `fuwa` telemetry generation unchanged.
 2. Intercept only the existing request-close event.
 3. Convert that event into one JSON document.
-4. POST that JSON to a Vector `http_server` source on `vector-router:8686`.
+4. POST that JSON to a Vector `http_server` source on `vector-router:8687`.
 5. In Vector:
    - keep the event as a log-like row for ClickHouse
    - derive metrics from the same event for VictoriaMetrics
@@ -117,7 +118,7 @@ Adapt service naming only where needed for `fuwa`.
 
 ### 2. Add one Vector HTTP source
 
-Add a new `http_server` source listening on `:8686`.
+Add a new `http_server` source listening on `:8687`.
 
 Requirements:
 
@@ -147,7 +148,7 @@ In `fuwa`, add a minimal sink-side forwarder that:
 
 - runs only for `event.kind == "request"`
 - serializes one JSON payload
-- posts asynchronously to `http://vector-router:8686/...`
+- posts asynchronously to `http://vector-router:8687/...`
 - never fails the request when Vector is unavailable
 
 The default local sink output should remain visible during development.
