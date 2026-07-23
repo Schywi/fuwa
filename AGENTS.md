@@ -162,5 +162,7 @@ For more details, see README.md and docs/QUICKSTART.md.
 **CRITICAL RULES:**
 - Work is NOT complete until code changes are committed locally
 - NEVER stop before committing code - that leaves work stranded in the worktree
+- ALWAYS stage local repo changes with `git add` as part of the default completion flow
+- ALWAYS create the local commit yourself once tests pass
 - NEVER push as part of the default session-completion flow
 - NEVER say "ready to commit when you are" - YOU must commit
