@@ -1,0 +1,82 @@
+data_dir = "/var/lib/vector"
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+[sources.internal_metrics]
+type = "internal_metrics"
+scrape_interval_secs = 30
+
+[sources.fuwa_http]
+type = "http_server"
+address = "0.0.0.0:8687"
+
+  [sources.fuwa_http.decoding]
+  codec = "json"
+
+  [sources.fuwa_http.framing]
+  method = "bytes"
+
+[transforms.fuwa_logs_clickhouse_rows]
+type = "remap"
+inputs = ["fuwa_http"]
+source = '''
+if !exists(.timestamp) {
+  .timestamp = now()
+}
+
+.trace_id = to_string(.trace_id) ?? ""
+.span_id = ""
+.service_name = to_string(.service) ?? "fuwa"
+.deployment_environment = "development"
+.severity_text = if (to_int(.error_total) ?? 0) > 0 { "ERROR" } else { "INFO" }
+.severity_number = if .severity_text == "ERROR" { 17 } else { 9 }
+.message = (to_string(.method) ?? "GET") + " " + (to_string(.route) ?? "/")
+.attributes_json = encode_json(.)
+.resources_json = "{}"
+'''
+
+[transforms.fuwa_request_metrics]
+type = "log_to_metric"
+inputs = ["fuwa_http"]
+
+  [[transforms.fuwa_request_metrics.metrics]]
+  type = "counter"
+  field = "request_total"
+  name = "http_requests_total"
+  increment_by_value = true
+
+  [[transforms.fuwa_request_metrics.metrics]]
+  type = "counter"
+  field = "error_total"
+  name = "http_request_errors_total"
+  increment_by_value = true
+
+  [[transforms.fuwa_request_metrics.metrics]]
+  type = "gauge"
+  field = "duration_ms"
+  name = "http_request_duration_ms"
+
+[sinks.metrics_victoriametrics]
+type = "prometheus_remote_write"
+inputs = ["fuwa_request_metrics", "internal_metrics"]
+endpoint = "http://victoriametrics:8428/api/v1/write"
+compression = "snappy"
+default_namespace = "fuwa"
+
+  [sinks.metrics_victoriametrics.healthcheck]
+  enabled = false
+
+[sinks.logs_clickhouse]
+type = "clickhouse"
+inputs = ["fuwa_logs_clickhouse_rows"]
+endpoint = "http://clickhouse:8123"
+database = "otel"
+table = "otel_logs"
+format = "json_each_row"
+compression = "gzip"
+skip_unknown_fields = true
+
+  [sinks.logs_clickhouse.healthcheck]
+  enabled = false

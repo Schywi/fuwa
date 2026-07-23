@@ -201,6 +201,7 @@ local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local package_web = require("runtime.stdlib.compiler.package_web")
 local browser_runtime = require("runtime.browser")
 local host_caps = require("runtime.host.capabilities")
+local vector_bridge = require("runtime.host.vector_bridge")
 local runtime_db = require("runtime.db")
 local trace = require("runtime.trace")
 local log = require("runtime.log")
@@ -253,7 +254,7 @@ local function dev_trace_sink(event)
 	log.pretty_sink(event)
 end
 
-trace.set_sink(dev_trace_sink)
+trace.set_sink(vector_bridge.wrap_sink(dev_trace_sink))
 
 local function register_runtime_preloads()
 	for module_name, relative_path in pairs(runtime_preloads) do

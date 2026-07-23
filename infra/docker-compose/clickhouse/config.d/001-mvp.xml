@@ -1,0 +1,18 @@
+<clickhouse>
+  <logger>
+    <level>warning</level>
+  </logger>
+
+  <max_server_memory_usage>805306368</max_server_memory_usage>
+  <max_server_memory_usage_to_ram_ratio>0.6</max_server_memory_usage_to_ram_ratio>
+  <mark_cache_size>134217728</mark_cache_size>
+  <uncompressed_cache_size>0</uncompressed_cache_size>
+
+  <profiles>
+    <default>
+      <max_memory_usage>536870912</max_memory_usage>
+      <use_uncompressed_cache>0</use_uncompressed_cache>
+      <load_balancing>random</load_balancing>
+    </default>
+  </profiles>
+</clickhouse>

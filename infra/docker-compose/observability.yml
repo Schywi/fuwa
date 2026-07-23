@@ -1,0 +1,53 @@
+services:
+  vector-router:
+    image: timberio/vector:0.50.0-alpine
+    ports:
+      - "8686:8686"
+      - "8687:8687"
+    volumes:
+      - ./vector.toml:/etc/vector/vector.toml:ro
+    depends_on:
+      victoriametrics:
+        condition: service_started
+      clickhouse:
+        condition: service_started
+    restart: unless-stopped
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.102.1
+    ports:
+      - "8428:8428"
+    command:
+      - "--retentionPeriod=14d"
+      - "--storageDataPath=/vmetrics-data"
+    volumes:
+      - vm_data:/vmetrics-data
+    restart: unless-stopped
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:24.8.4.13-alpine
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/init:/docker-entrypoint-initdb.d:ro
+      - ./clickhouse/config.d:/etc/clickhouse-server/config.d:ro
+    restart: unless-stopped
+
+  uptrace:
+    image: uptrace/uptrace:2.0.2
+    ports:
+      - "14317:14317"
+      - "14318:14318"
+    environment:
+      UPTRACE_CLICKHOUSE_ADDR: clickhouse:9000
+      UPTRACE_CLICKHOUSE_DATABASE: uptrace
+    depends_on:
+      clickhouse:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  vm_data:
+  clickhouse_data:
