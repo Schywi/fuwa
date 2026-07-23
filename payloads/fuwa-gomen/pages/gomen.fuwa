@@ -15,7 +15,7 @@ action index(req) do
 
   receipt = Ledger.all()
 
-  render "gomen", balance: w.balance, spent: w.spent, pokes: m.pokes, receipt: receipt
+  render "gomen", doctype: "<!DOCTYPE html>", title: "Fuwa Gomen", balance: w.balance, spent: w.spent, pokes: m.pokes, receipt: receipt
 end
 
 action poke(req) do

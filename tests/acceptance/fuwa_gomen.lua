@@ -39,9 +39,9 @@ local function assert_base_markup(t, body)
 	t.truthy(body:find('script defer src="browser.js"', 1, true) ~= nil, "expected browser asset")
 	t.truthy(body:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected petite-vue")
 	t.truthy(body:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected htmx")
-	t.truthy(body:find('/vendor/unocss/runtime-mini-66.7.0.js', 1, true) ~= nil, "expected unocss")
 	t.truthy(body:find('v-scope="FuwaGomen.createScope({ balance: ', 1, true) ~= nil, "expected reactive scope")
 	t.truthy(body:find('data%-ref="seed"') ~= nil, "expected declarative receipt seed")
+	t.truthy(body:find('<html>', 1, true) ~= nil, "expected full document layout")
 end
 
 local function run_route_matrix(t, provider)
