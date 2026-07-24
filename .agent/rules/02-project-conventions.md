@@ -82,6 +82,10 @@ When HTMX swaps a subtree, put `v-scope` on the closest stable ancestor that is
 not replaced by that swap. Stateful shell chrome should live above the swap
 boundary or be explicitly preserved; do not attach petite-vue state to the node
 HTMX is about to replace and then expect the state to survive.
+For shell widgets mounted inside swapped workspace fragments, follow the existing
+CodeMirror/xterm hook pattern: mount against the current root, unmount/detach on
+swap, and remount after swap. Do not add extra persistent UI state just to fake
+"resume" on a DOM node that HTMX replaced.
 
 ## `.fuwa` language work
 

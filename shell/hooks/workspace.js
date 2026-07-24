@@ -189,7 +189,10 @@
 		// Cleanup previous obs view
 		var prev = workspace.getAttribute('data-active-view');
 		if (prev === 'obs' && window.FuwaShellObservability) {
-			window.FuwaShellObservability.unmount();
+			var prevObsRoot = workspace.querySelector('[data-obs-root]');
+			if (prevObsRoot) {
+				window.FuwaShellObservability.unmount(prevObsRoot);
+			}
 		}
 
 		log('view-switch', {
