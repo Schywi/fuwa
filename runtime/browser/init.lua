@@ -11,7 +11,7 @@ local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local M = {}
 
 -- Worker protocol. Host -> worker: boot, run. Worker -> host: booted,
--- boot_error, stdout, stderr, html, done.
+-- boot_error, stdout, stderr, html, trace, done.
 local message_types = {
 	"boot",
 	"booted",
@@ -20,6 +20,7 @@ local message_types = {
 	"stdout",
 	"stderr",
 	"html",
+	"trace",
 	"done",
 }
 
