@@ -214,6 +214,46 @@ test("humanize_payload_id: already capitalized", function()
 end)
 
 --------------------------------------------------------------------------------
+-- encode_json
+--------------------------------------------------------------------------------
+test("encode_json: nil -> null", function()
+  eq(util.encode_json(nil), "null")
+end)
+test("encode_json: booleans", function()
+  eq(util.encode_json(true), "true")
+  eq(util.encode_json(false), "false")
+end)
+test("encode_json: numbers", function()
+  eq(util.encode_json(42), "42")
+  eq(util.encode_json(3.14), "3.14")
+  eq(util.encode_json(0), "0")
+  eq(util.encode_json(-1), "-1")
+end)
+test("encode_json: plain string", function()
+  eq(util.encode_json("hello"), '"hello"')
+end)
+test("encode_json: string with escapes", function()
+  eq(util.encode_json('say "hello"'), '"say \\"hello\\""')
+  eq(util.encode_json("line1\nline2"), '"line1\\nline2"')
+  eq(util.encode_json("tab\there"), '"tab\\there"')
+  eq(util.encode_json("back\\slash"), '"back\\\\slash"')
+end)
+test("encode_json: empty array", function()
+  eq(util.encode_json({}), "[]")
+end)
+test("encode_json: array with values", function()
+  eq(util.encode_json({1, "two", true}), '[1,"two",true]')
+end)
+test("encode_json: empty object", function()
+  eq(util.encode_json({a = 1}), '{"a":1}')
+end)
+test("encode_json: nested structure", function()
+  local result = util.encode_json({name = "test", items = {1, 2}})
+  truthy(result:find('"name":"test"', 1, true))
+  truthy(result:find('"items":[1,2]', 1, true))
+end)
+
+--------------------------------------------------------------------------------
 -- Report
 --------------------------------------------------------------------------------
 if results.failed > 0 then

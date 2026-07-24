@@ -4,60 +4,6 @@ local util = require("runtime.util")
 
 local M = {}
 
-local function escape_json_string(value)
-	return tostring(value)
-		:gsub("\\", "\\\\")
-		:gsub('"', '\\"')
-		:gsub("\b", "\\b")
-		:gsub("\f", "\\f")
-		:gsub("\n", "\\n")
-		:gsub("\r", "\\r")
-		:gsub("\t", "\\t")
-end
-
-local function encode_json(value)
-	local value_type = type(value)
-	if value == nil then
-		return "null"
-	end
-	if value_type == "boolean" then
-		return value and "true" or "false"
-	end
-	if value_type == "number" then
-		return tostring(value)
-	end
-	if value_type == "string" then
-		return string.format("%q", value):gsub("\\\n", "\\n")
-	end
-	if value_type ~= "table" then
-		error("cannot encode type " .. value_type)
-	end
-
-	local array, count = util.is_array(value)
-	local parts = {}
-
-	if array then
-		for index = 1, count do
-			parts[#parts + 1] = encode_json(value[index])
-		end
-		return "[" .. table.concat(parts, ",") .. "]"
-	end
-
-	for key in pairs(value) do
-		parts[#parts + 1] = key
-	end
-	table.sort(parts, function(left, right)
-		return tostring(left) < tostring(right)
-	end)
-
-	local encoded = {}
-	for _, key in ipairs(parts) do
-		encoded[#encoded + 1] = string.format("%q:%s", tostring(key), encode_json(value[key]))
-	end
-
-	return "{" .. table.concat(encoded, ",") .. "}"
-end
-
 local function ensure_parent_dir(path)
 	local parent = util.dirname(path)
 	os.execute("mkdir -p " .. util.shell_quote(parent))
@@ -96,7 +42,7 @@ function M.new(opts)
 			ensure_parent_dir(db_path)
 
 			local command_path = os.tmpname()
-			util.write_all(command_path, encode_json(command))
+			util.write_all(command_path, util.encode_json(command))
 			span:log("helper dispatch", {
 				path = db_path,
 			})
