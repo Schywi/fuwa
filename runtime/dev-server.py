@@ -7,10 +7,13 @@ Start with:  ./dev.sh           (wrapper)
 
 - Auto-port: kills old fuwa on the port, or picks the next free port.
 - Live reload: polls for file changes; SSE endpoint handled by fuwa-dev.lua.
+- Observability: reads __VECTOR__ lines from Lua stderr, ring buffer + Vector POST.
+- Dev API: /__dev/traces, /__dev/proxy/vector/*, /__dev/proxy/vm/*, /__dev/proxy/clickhouse/*
 - Clean shutdown: Ctrl+C kills everything immediately.
 - Foreground only: closing the terminal kills the server.
 """
 
+import json
 import os
 import sys
 import signal
@@ -18,7 +21,10 @@ import socket
 import subprocess
 import threading
 import time
+from collections import deque
 from pathlib import Path
+from urllib.error import URLError
+from urllib.request import Request, urlopen
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -30,6 +36,18 @@ RELOAD_TOKEN = os.path.join(DEV_DIR, "reload-token")
 POLL_INTERVAL = 0.5
 
 _running = True
+
+# ── Observability state (shared across connections) ─────────────────────────
+
+_trace_buffer: deque[str] = deque(maxlen=200)
+_trace_lock = threading.Lock()
+_vector_url = os.environ.get("FUWA_VECTOR_URL", "http://127.0.0.1:8687/")
+
+_SERVICES = {
+    "vector":      ("127.0.0.1", 8686),
+    "vm":          ("127.0.0.1", 8428),
+    "clickhouse":  ("127.0.0.1", 8123),
+}
 
 
 # ── Port discovery ──────────────────────────────────────────────────────────
@@ -77,7 +95,6 @@ def find_port(start: int = DEFAULT_PORT) -> int:
 def setup_dev_dir() -> None:
     os.makedirs(DEV_DIR, exist_ok=True)
     os.makedirs(WATCH_DIR, exist_ok=True)
-
     Path(RELOAD_TOKEN).touch()
 
     state_path = os.path.join(DEV_DIR, "state.lua")
@@ -117,85 +134,245 @@ def file_watcher() -> None:
         time.sleep(POLL_INTERVAL)
 
 
+# ── Observability pipeline ─────────────────────────────────────────────────
+
+def _post_to_vector(event_json: str) -> None:
+    """Fire-and-forget POST to Vector."""
+    try:
+        req = Request(
+            _vector_url,
+            data=event_json.encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+        urlopen(req, timeout=1)
+    except Exception:
+        pass  # Vector may be down — traces still appear via ring buffer
+
+
+def add_trace(event_json: str) -> None:
+    """Push trace into ring buffer and fire-and-forget to Vector."""
+    with _trace_lock:
+        _trace_buffer.append(event_json)
+    threading.Thread(target=_post_to_vector, args=(event_json,), daemon=True).start()
+
+
+def _stderr_reader(proc: subprocess.Popen) -> None:
+    """Read Lua stderr line-by-line.  __VECTOR__ lines → ring buffer + Vector.
+    Everything else → terminal stderr."""
+    try:
+        for line in proc.stderr:  # type: ignore[union-attr]
+            line_str = line.decode("utf-8", errors="replace").rstrip("\r\n")
+            if line_str.startswith("__VECTOR__"):
+                add_trace(line_str[len("__VECTOR__"):])
+            else:
+                if line_str:
+                    sys.stderr.write(line_str + "\n")
+                    sys.stderr.flush()
+    except (OSError, ValueError):
+        pass
+
+
+# ── HTTP helpers ────────────────────────────────────────────────────────────
+
+def _read_http_request(
+    client_sock: socket.socket,
+) -> tuple[str, str, dict[str, str], bytes, bytes] | None:
+    """Read HTTP request line + headers + body.  Returns (method, path, headers, raw, body)
+    or None if the client disconnected."""
+    raw = b""
+    client_sock.settimeout(10)
+    while b"\r\n\r\n" not in raw:
+        try:
+            chunk = client_sock.recv(65536)
+        except socket.timeout:
+            return None
+        if not chunk:
+            return None
+        raw += chunk
+        if len(raw) > 131072:  # 128 KB max headers
+            return None
+
+    header_end = raw.index(b"\r\n\r\n") + 4
+    header_bytes = raw[:header_end]
+    body_bytes = raw[header_end:]
+
+    header_str = header_bytes.decode("utf-8", errors="replace")
+    lines = header_str.split("\r\n")
+    if not lines:
+        return None
+
+    first_line = lines[0]
+    parts = first_line.split(" ", 2)
+    if len(parts) < 2:
+        return None
+
+    method = parts[0]
+    path = parts[1]
+
+    headers: dict[str, str] = {}
+    for line in lines[1:]:
+        if ":" in line:
+            name, value = line.split(":", 1)
+            headers[name.strip().lower()] = value.strip()
+
+    cl = int(headers.get("content-length", "0"))
+    while len(body_bytes) < cl:
+        try:
+            chunk = client_sock.recv(min(65536, cl - len(body_bytes)))
+        except socket.timeout:
+            break
+        if not chunk:
+            break
+        body_bytes += chunk
+
+    return method, path, headers, raw, body_bytes
+
+
+def _send_response(
+    client_sock: socket.socket,
+    status: str,
+    content_type: str,
+    body: bytes | str,
+) -> None:
+    """Send a minimal HTTP response and close the socket."""
+    body_bytes = body if isinstance(body, bytes) else body.encode("utf-8")
+    response = (
+        "HTTP/1.1 %s\r\n"
+        "Content-Type: %s\r\n"
+        "Content-Length: %d\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Connection: close\r\n"
+        "\r\n"
+    ) % (status, content_type, len(body_bytes))
+    try:
+        client_sock.sendall(response.encode("ascii") + body_bytes)
+    except OSError:
+        pass
+    finally:
+        try:
+            client_sock.close()
+        except OSError:
+            pass
+
+
+# ── Dev API routes ──────────────────────────────────────────────────────────
+
+def _handle_dev_traces(client_sock: socket.socket) -> None:
+    """GET /__dev/traces — return ring buffer as JSON array."""
+    with _trace_lock:
+        traces: list[object] = []
+        for t in _trace_buffer:
+            try:
+                traces.append(json.loads(t))
+            except json.JSONDecodeError:
+                traces.append({"raw": t})
+    body = json.dumps({"traces": traces})
+    _send_response(client_sock, "200 OK", "application/json", body)
+
+
+def _handle_dev_proxy(client_sock: socket.socket, path: str) -> None:
+    """GET /__dev/proxy/<service>/<...> — CORS-safe proxy to observability backends."""
+    # path: /__dev/proxy/vector/health  or  /__dev/proxy/vm/api/v1/query?query=...
+    sub_path = path[len("/__dev/proxy/"):]
+    service, _, target = sub_path.partition("/")
+
+    if service not in _SERVICES:
+        _send_response(client_sock, "404 Not Found", "application/json",
+                       json.dumps({"error": "Unknown proxy service: %s" % service}))
+        return
+
+    host, port = _SERVICES[service]
+    url = "http://%s:%d/%s" % (host, port, target)
+
+    try:
+        req = Request(url, headers={"Accept": "application/json"})
+        with urlopen(req, timeout=2) as resp:
+            body = resp.read()
+            ct = resp.headers.get("Content-Type", "application/json")
+            _send_response(client_sock, "200 OK", ct, body)
+    except URLError as e:
+        _send_response(client_sock, "502 Bad Gateway", "application/json",
+                       json.dumps({"error": str(e.reason), "service": service}))
+    except Exception as e:
+        _send_response(client_sock, "500 Internal Server Error", "text/plain", str(e))
+
+
 # ── Connection handler ─────────────────────────────────────────────────────
 
 def handle_connection(client_sock: socket.socket) -> None:
-    """Forward one TCP connection to a fresh lua5.4 fuwa-dev.lua process."""
+    """Parse HTTP request, intercept /__dev/ routes, forward everything else to Lua."""
 
+    parsed = _read_http_request(client_sock)
+    if parsed is None:
+        try:
+            client_sock.close()
+        except OSError:
+            pass
+        return
+
+    method, path, _headers, raw, body = parsed
+
+    # ── /__dev/ API routes ──────────────────────────────────────────────
+    if path == "/__dev/traces":
+        _handle_dev_traces(client_sock)
+        return
+
+    if path.startswith("/__dev/proxy/"):
+        _handle_dev_proxy(client_sock, path)
+        return
+
+    # ── Forward to Lua ──────────────────────────────────────────────────
     try:
         proc = subprocess.Popen(
             [LUA_BIN, "runtime/fuwa-dev.lua"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=None,
+            stderr=subprocess.PIPE,
             cwd=ROOT_DIR,
         )
     except FileNotFoundError:
-        msg = (
-            b"HTTP/1.1 500 Internal Server Error\r\n"
-            b"Content-Type: text/plain\r\n"
-            b"Content-Length: %d\r\n"
-            b"\r\n"
-            b"Lua binary not found: %s" % (LUA_BIN.encode())
-        )
-        try:
-            client_sock.sendall(msg)
-        except OSError:
-            pass
-        finally:
-            client_sock.close()
+        _send_response(client_sock, "500 Internal Server Error", "text/plain",
+                       "Lua binary not found: %s" % LUA_BIN)
         return
 
-    def client_to_lua() -> None:
-        try:
-            while True:
-                data = client_sock.recv(65536)
-                if not data:
-                    break
-                proc.stdin.write(data)  # type: ignore[union-attr]
-                proc.stdin.flush()      # type: ignore[union-attr]
-        except (OSError, BrokenPipeError, ValueError):
-            pass
-        finally:
-            try:
-                proc.stdin.close()  # type: ignore[union-attr]
-            except Exception:
-                pass
+    # Background thread: drain stderr → observability pipeline + terminal
+    stderr_thread = threading.Thread(target=_stderr_reader, args=(proc,), daemon=True)
+    stderr_thread.start()
 
-    def lua_to_client() -> None:
-        try:
-            while True:
-                data = proc.stdout.read(65536)  # type: ignore[union-attr]
-                if not data:
-                    break
+    # Feed the full HTTP request (raw + body) to Lua stdin
+    try:
+        proc.stdin.write(raw)  # type: ignore[union-attr]
+        proc.stdin.write(body)  # type: ignore[union-attr]
+        proc.stdin.close()      # type: ignore[union-attr]
+    except (OSError, BrokenPipeError):
+        pass
+
+    # Stream Lua stdout back to client
+    try:
+        while True:
+            data = proc.stdout.read(65536)  # type: ignore[union-attr]
+            if not data:
+                break
+            try:
                 client_sock.sendall(data)
-        except (OSError, BrokenPipeError, ValueError):
+            except OSError:
+                break
+    except (OSError, BrokenPipeError, ValueError):
+        pass
+    finally:
+        try:
+            client_sock.close()
+        except OSError:
             pass
-        finally:
-            try:
-                client_sock.close()
-            except Exception:
-                pass
 
-    t1 = threading.Thread(target=client_to_lua, daemon=True)
-    t2 = threading.Thread(target=lua_to_client, daemon=True)
-    t1.start()
-    t2.start()
-
-    t1.join(timeout=60)
-    t2.join(timeout=5)
-
+    # Reap the Lua process
     try:
         proc.terminate()
         proc.wait(timeout=2)
     except Exception:
         try:
             proc.kill()
-        except Exception:
-            pass
-    finally:
-        try:
-            client_sock.close()
         except Exception:
             pass
 

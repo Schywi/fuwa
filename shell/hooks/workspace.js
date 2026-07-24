@@ -186,6 +186,12 @@
 			active_state.closePopover();
 		}
 
+		// Cleanup previous obs view
+		var prev = workspace.getAttribute('data-active-view');
+		if (prev === 'obs' && window.FuwaShellObservability) {
+			window.FuwaShellObservability.unmount();
+		}
+
 		log('view-switch', {
 			view: view,
 			workspace: describeScope(workspace)
@@ -194,13 +200,19 @@
 			panel.hidden = panel.dataset.view !== view;
 		}
 
-		const toggle = workspace.querySelector('[data-view-toggle]');
-		if (toggle) {
-			toggle.setAttribute('data-view-active', view === 'terminal' ? 'true' : 'false');
+		for (const btn of workspace.querySelectorAll('[data-view-toggle]')) {
+			btn.setAttribute('data-view-active', btn.dataset.viewTarget === view ? 'true' : 'false');
 		}
 
 		if (view === 'terminal' && window.FuwaShellTerminal) {
 			window.FuwaShellTerminal.refresh(workspace);
+		}
+
+		if (view === 'obs' && window.FuwaShellObservability) {
+			var obsRoot = workspace.querySelector('[data-obs-root]');
+			if (obsRoot) {
+				window.FuwaShellObservability.mount(obsRoot);
+			}
 		}
 
 		workspace.setAttribute('data-active-view', view);
@@ -219,7 +231,7 @@
 				log('view-toggle:missing-workspace');
 				return;
 			}
-			const next = workspace.getAttribute('data-active-view') === 'terminal' ? 'code' : 'terminal';
+			const next = viewToggle.dataset.viewTarget || 'code';
 			log('view-toggle:click', { next: next, workspace: describeScope(workspace) });
 			setView(workspace, next);
 		}

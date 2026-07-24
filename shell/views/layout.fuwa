@@ -26,6 +26,7 @@
     <script defer src="/shell/hooks/runtime-session.js"></script>
     <script defer src="/shell/hooks/preview-browser.js"></script>
     <script defer src="/shell/hooks/preview.js"></script>
+    <script defer src="/shell/hooks/observability.js"></script>
     <style>
       :root {
         color-scheme: dark;
@@ -669,6 +670,142 @@
         padding: 20px;
         color: #be185d;
         font-weight: 650;
+      }
+
+      /* ── Observability panel ───────────────────────────────────── */
+
+      .ide-view-obs {
+        background: #09090b;
+        border-radius: 0 0 22px 22px;
+        overflow-y: auto;
+      }
+
+      .obs-panel {
+        padding: 14px 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+        font-size: 0.78rem;
+        min-height: 100%;
+      }
+
+      .obs-section {
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 12px;
+        padding: 12px 14px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .obs-section-title {
+        font-size: 0.62rem;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        color: #7aa2f7;
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+
+      .obs-section-sub {
+        color: #565f89;
+        font-weight: 500;
+        letter-spacing: 0;
+      }
+
+      .obs-health-row {
+        display: flex;
+        gap: 12px;
+        flex-wrap: wrap;
+      }
+
+      .obs-health-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 12px;
+        border-radius: 999px;
+        font-size: 0.72rem;
+        font-weight: 650;
+      }
+
+      .health-up {
+        background: rgba(16, 185, 129, 0.14);
+        color: #34d399;
+      }
+
+      .health-down {
+        background: rgba(244, 63, 94, 0.12);
+        color: #fb7185;
+      }
+
+      .obs-health-icon {
+        font-size: 0.66rem;
+      }
+
+      .obs-health-ms {
+        opacity: 0.7;
+        font-size: 0.64rem;
+        font-weight: 500;
+      }
+
+      .obs-metrics-row {
+        display: flex;
+        gap: 20px;
+        flex-wrap: wrap;
+      }
+
+      .obs-metric {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 90px;
+        padding: 8px 14px;
+        border-radius: 10px;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .obs-metric-label {
+        font-size: 0.6rem;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        color: #8f97bb;
+        font-weight: 700;
+      }
+
+      .obs-metric-value {
+        font-size: 1.1rem;
+        font-weight: 750;
+        color: #c0caf5;
+        font-variant-numeric: tabular-nums;
+      }
+
+      .obs-traces-list {
+        max-height: 280px;
+        overflow-y: auto;
+        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+        font-size: 0.68rem;
+        line-height: 1.65;
+        color: #a9b1d6;
+      }
+
+      .obs-trace-row {
+        padding: 1px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        white-space: nowrap;
+      }
+
+      .obs-trace-empty {
+        color: #565f89;
+        font-style: italic;
+        padding: 8px 0;
+      }
+
+      .obs-footer {
+        margin-top: auto;
+        text-align: center;
+        font-size: 0.64rem;
+        color: #565f89;
+        padding: 6px 0;
       }
 
       @media (max-width: 1080px) {

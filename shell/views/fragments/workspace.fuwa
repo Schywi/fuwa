@@ -36,8 +36,14 @@
       <span f-for="segment in dashboard.breadcrumb" class="breadcrumb-segment" data-active="&segment.active">&segment.label</span>
     </nav>
 
-    <button type="button" class="shell-icon-btn" data-view-toggle aria-label="Toggle terminal">
+    <button type="button" class="shell-icon-btn" data-view-toggle data-view-target="code" aria-label="Code editor">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>
+    </button>
+    <button type="button" class="shell-icon-btn" data-view-toggle data-view-target="terminal" aria-label="Terminal">
       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 11 2-2-2-2" /><path d="M11 13h4" /><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
+    </button>
+    <button type="button" class="shell-icon-btn" data-view-toggle data-view-target="obs" aria-label="Observability">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10" /><path d="M18 20V4" /><path d="M6 20v-4" /></svg>
     </button>
 
     <div class="popover-v2 search-popover" data-popover="search" v-show="open_popover === 'search'" v-cloak @click.stop>
@@ -119,5 +125,61 @@
       <p class="shell-widget-placeholder">xterm mounts here.</p>
     </div>
     <pre hidden data-terminal-seed>&dashboard.active.terminal_output</pre>
+  </div>
+
+  <div class="ide-view ide-view-obs" data-view="obs" data-obs-root hidden>
+    <div class="stage-header">
+      <span class="stage-title">Observability</span>
+      <span class="stage-subtitle">traces · metrics · health</span>
+      <a class="shell-button shell-button-meta" href="http://localhost:14318" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none;">Uptrace ↗</a>
+    </div>
+    <div class="obs-panel" v-scope>
+      <!-- Platform health -->
+      <div class="obs-section">
+        <div class="obs-section-title">PLATFORM HEALTH</div>
+        <div class="obs-health-row">
+          <span f-for="svc in [vector, vm, clickhouse]" class="obs-health-badge" :class="healthClass(svc)">
+            <span class="obs-health-icon">{{ healthIcon(svc) }}</span>
+            <span class="obs-health-label">{{ svc.label }}</span>
+            <span v-if="svc.up" class="obs-health-ms">{{ svc.latencyMs }}ms</span>
+          </span>
+        </div>
+      </div>
+
+      <!-- Live metrics -->
+      <div class="obs-section">
+        <div class="obs-section-title">LIVE METRICS <span class="obs-section-sub">(Last 5m)</span></div>
+        <div class="obs-metrics-row">
+          <div class="obs-metric">
+            <div class="obs-metric-label">Requests/sec</div>
+            <div class="obs-metric-value">{{ reqPerSec }}</div>
+          </div>
+          <div class="obs-metric">
+            <div class="obs-metric-label">Error Rate</div>
+            <div class="obs-metric-value">{{ errorRate }}</div>
+          </div>
+          <div class="obs-metric">
+            <div class="obs-metric-label">p95 Latency</div>
+            <div class="obs-metric-value">{{ p95Ms }}ms</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recent traces -->
+      <div class="obs-section obs-section-traces">
+        <div class="obs-section-title">RECENT TRACES <span class="obs-section-sub">(Live Stream)</span></div>
+        <div class="obs-traces-list">
+          <div f-for="trace in traces" class="obs-trace-row">
+            <span class="obs-trace-time">{{ formatTraceLine(trace) }}</span>
+          </div>
+          <div v-if="traces.length === 0" class="obs-trace-empty">
+            No traces yet. Trigger a request to see data.
+          </div>
+        </div>
+      </div>
+
+      <!-- Footer -->
+      <div class="obs-footer">( •ω•)ﾉ✧ obs-panel ready &middot; tracking <span>{{ traceCount }}</span> events</div>
+    </div>
   </div>
 </section>

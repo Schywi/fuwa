@@ -232,6 +232,16 @@ local function dev_trace_sink(event)
 	local hook = rawget(_G, "__fuwa_trace_hook")
 	if type(hook) == "function" then hook(event) end
 
+	-- Pipe structured event to the Python dev server's observability pipeline
+	-- via stderr. The Python server reads __VECTOR__ lines, pushes them into a
+	-- ring buffer for the /__dev/traces endpoint, and POSTs to Vector:8687
+	-- for ClickHouse → Uptrace.
+	local ok, json = pcall(browser_runtime.json.encode, event)
+	if ok then
+		io.stderr:write("__VECTOR__" .. json .. "\n")
+		io.stderr:flush()
+	end
+
 	if event.kind == "request" then
 		local status = event.status
 		if status == nil and event.failed then
