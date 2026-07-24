@@ -29,7 +29,14 @@ const LUA_BOOT_SCRIPT = [
 	'    return load(code, "@" .. path)',
 	'  end',
 	'  return "\\n\\tno file \'" .. path .. "\' in fuwa VFS"',
-	'end)'
+	'end)',
+	'',
+	'local ok, trace_mod = pcall(require, "runtime.trace")',
+	'if ok then',
+	'  trace_mod.set_sink(function(event)',
+	'    __fuwa_trace_sink(event)',
+	'  end)',
+	'end'
 ].join('\n');
 
 let lua = null;
@@ -258,6 +265,15 @@ async function boot() {
 				return dbOp(command);
 			});
 		});
+		lua.global.set('__fuwa_trace_sink', function (event) {
+			// Lua trace sink → host observability panel. Wasmoon marshals the
+			// Lua table as a JS object; JSON-stringify for the wire.
+			try {
+				post({ type: 'trace', events: [JSON.stringify(event)] });
+			} catch (_) {
+				// trace delivery is best-effort
+			}
+		});
 
 		await lua.doString(LUA_BOOT_SCRIPT);
 		post({ type: 'booted', bootMs: Date.now() - started });
@@ -358,10 +374,28 @@ async function runCode(id, files, target, sources) {
 		if (isRequest) {
 			await lua.doString(
 				[
+					'local trace_mod = package.loaded["runtime.trace"]',
 					'if type(handle_request) == "function" then',
-					'  local result = handle_request(__fuwa_method, __fuwa_path, __fuwa_body)',
+					'  local req_span = nil',
+					'  local render_span = nil',
+					'  if trace_mod then',
+					'    req_span = trace_mod.span("request", {method = __fuwa_method, path = __fuwa_path})',
+					'    render_span = trace_mod.span("render", {method = __fuwa_method, path = __fuwa_path})',
+					'  end',
+					'  local ok, result = pcall(handle_request, __fuwa_method, __fuwa_path, __fuwa_body)',
+					'  if render_span then',
+					'    local html_str = result and tostring(result) or ""',
+					'    render_span:set("bytes", #html_str)',
+					'    if not ok then render_span:set("failed", true) end',
+					'    render_span:close()',
+					'  end',
 					'  if result ~= nil then',
 					'    set_html(tostring(result))',
+					'  end',
+					'  if req_span then',
+					'    req_span:set("status", ok and 200 or 500)',
+					'    if not ok then req_span:set("failed", true) end',
+					'    req_span:close()',
 					'  end',
 					'end'
 				].join('\n')

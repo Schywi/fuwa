@@ -109,6 +109,12 @@
 				send_tenant_command({ type: 'stream', stream: message.type, text: message.text });
 				return;
 			}
+			if (message.type === 'trace') {
+				if (window.FuwaShellObservability && window.FuwaShellObservability.appendEvents) {
+					window.FuwaShellObservability.appendEvents(message.events);
+				}
+				return;
+			}
 			if (message.type === 'html') {
 				const response_url = current_request ? current_request.responseUrl : payload_base_url;
 				if (current_request && current_request.requestId != null) {

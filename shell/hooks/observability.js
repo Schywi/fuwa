@@ -54,6 +54,7 @@
 	}
 
 	function rebuildRequests() {
+		if (!state) return;
 		var byTrace = {};
 		for (var i = 0; i < rawEvents.length; i++) {
 			var ev = rawEvents[i];
@@ -179,7 +180,17 @@
 		}
 	}
 
-	window.FuwaShellObservability = { mount: mount, unmount: unmount, refresh: refresh, selector: ROOT_SELECTOR };
+	window.FuwaShellObservability = {
+		mount: mount, unmount: unmount, refresh: refresh, selector: ROOT_SELECTOR,
+		appendEvents: function (events) {
+			if (!Array.isArray(events)) return;
+			for (var i = 0; i < events.length; i++) {
+				try {
+					appendEvent(JSON.parse(events[i]));
+				} catch (_) {}
+			}
+		}
+	};
 
 	document.addEventListener('htmx:beforeSwap', function (e) {
 		var s = e.detail && e.detail.target;
