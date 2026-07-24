@@ -1,19 +1,6 @@
 local M = {}
 
-local function escape_html(value)
-	local text = tostring(value or "")
-	text = text:gsub("&", "&amp;")
-	text = text:gsub("<", "&lt;")
-	text = text:gsub(">", "&gt;")
-	text = text:gsub('"', "&quot;")
-	text = text:gsub("'", "&#39;")
-	return text
-end
-
-local function humanize_payload_id(payload_id)
-	local text = tostring(payload_id or "current"):gsub("_", " "):gsub("%-", " ")
-	return text:gsub("^%l", string.upper)
-end
+local util = require("runtime.util")
 
 function M.build_srcdoc(opts)
 	opts = opts or {}
@@ -21,7 +8,7 @@ function M.build_srcdoc(opts)
 	local slot = tostring(opts.slot or "preview")
 	local payload_id = tostring(opts.payload_id or "current")
 	local payload_url = tostring(opts.payload_url or ("/payload/" .. payload_id .. "/"))
-	local payload_label = tostring(opts.payload_label or humanize_payload_id(payload_id))
+	local payload_label = tostring(opts.payload_label or util.humanize_payload_id(payload_id))
 
 	return table.concat({
 		"<!DOCTYPE html>",
@@ -29,9 +16,9 @@ function M.build_srcdoc(opts)
 		"  <head>",
 		'    <meta charset="utf-8" />',
 		'    <meta name="viewport" content="width=device-width, initial-scale=1" />',
-		'    <base href="' .. escape_html(payload_url) .. '" />',
+		'    <base href="' .. util.escape_html(payload_url) .. '" />',
 		'    <meta name="htmx-config" content=\'{"historyEnabled":false,"selfRequestsOnly":false,"allowScriptTags":false}\' />',
-		'    <title>' .. escape_html(payload_label) .. "</title>",
+		'    <title>' .. util.escape_html(payload_label) .. "</title>",
 		"    <style>",
 		"      :root {",
 		"        color-scheme: light;",
@@ -86,11 +73,11 @@ function M.build_srcdoc(opts)
 		'    <script src="/vendor/htmx/htmx-1.9.12.min.js"></script>',
 		'    <script defer src="/vendor/petite-vue/petite-vue-0.4.1.iife.js"></script>',
 		"  </head>",
-		'  <body data-host-slot="' .. escape_html(slot) .. '" data-payload-id="' .. escape_html(payload_id) .. '" data-payload-url="' .. escape_html(payload_url) .. '">',
+		'  <body data-host-slot="' .. util.escape_html(slot) .. '" data-payload-id="' .. util.escape_html(payload_id) .. '" data-payload-url="' .. util.escape_html(payload_url) .. '">',
 		'    <main id="app" class="shell-bootstrap-loading">',
 		'      <div>',
 		'        <p class="shell-bootstrap-kicker">Host bootstrap</p>',
-		'        <h2>Loading ' .. escape_html(payload_label) .. "</h2>",
+		'        <h2>Loading ' .. util.escape_html(payload_label) .. "</h2>",
 		"        <p>Host-owned bootstrap is mounting the tenant document.</p>",
 		"      </div>",
 		"    </main>",

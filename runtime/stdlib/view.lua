@@ -7,6 +7,8 @@
 
 local M = {}
 
+local util = require("runtime.util")
+
 local void_tags = {
   area = true,
   base = true,
@@ -36,16 +38,6 @@ local function split_lines(source)
     lines[#lines + 1] = line
   end
   return lines
-end
-
-local function escape_html(s)
-  s = tostring(s or "")
-  s = s:gsub("&", "&amp;")
-  s = s:gsub("<", "&lt;")
-  s = s:gsub(">", "&gt;")
-  s = s:gsub('"', "&quot;")
-  s = s:gsub("'", "&#39;")
-  return s
 end
 
 local function make_error(kind, message, ctx, line)
@@ -150,7 +142,7 @@ local function render_binding(path, env, opts, ctx, raw, line)
     return tostring(value)
   end
 
-  return escape_html(value)
+  return util.escape_html(value)
 end
 
 local function scan_bindings(text, env, opts, ctx, line)
@@ -162,7 +154,7 @@ local function scan_bindings(text, env, opts, ctx, line)
     if ch ~= "&" then
       local next_amp = text:find("&", i, true) or (#text + 1)
       local literal = text:sub(i, next_amp - 1)
-      out[#out + 1] = escape_html(literal)
+      out[#out + 1] = util.escape_html(literal)
       i = next_amp
     else
       if text:sub(i, i + 6) == "&unsafe" and text:sub(i + 7, i + 7):match("%s") then
@@ -558,7 +550,7 @@ render_node = function(node, env, opts, ctx)
 
     if csrf then
       local token = opts.csrf or ""
-      local hidden = '<input type="hidden" name="_csrf" value="' .. escape_html(token) .. '">'
+      local hidden = '<input type="hidden" name="_csrf" value="' .. util.escape_html(token) .. '">'
       children_html = hidden .. children_html
     end
 
