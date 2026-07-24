@@ -159,8 +159,8 @@
         <div class="obs-section-title">LIVE METRICS <span class="obs-section-sub">(Last 5m)</span></div>
         <div class="obs-metrics-row">
           <div class="obs-metric">
-            <div class="obs-metric-label">Requests/sec</div>
-            <div class="obs-metric-value" v-text="reqPerSec"></div>
+            <div class="obs-metric-label">Requests</div>
+            <div class="obs-metric-value" v-text="reqCount"></div>
           </div>
           <div class="obs-metric">
             <div class="obs-metric-label">Error Rate</div>

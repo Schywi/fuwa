@@ -23,21 +23,17 @@
 
 	function createState() {
 		return {
-			// Platform health
-			vector:   { up: false, latencyMs: 0, label: 'vector-router' },
-			vm:       { up: false, latencyMs: 0, label: 'victoriametrics' },
-			clickhouse: { up: false, latencyMs: 0, label: 'clickhouse' },
+			vector:   { up: false, latencyMs: 0 },
+			vm:       { up: false, latencyMs: 0 },
+			clickhouse: { up: false, latencyMs: 0 },
 
-			// Live metrics
-			reqPerSec:   '--',
-			errorRate:   '--',
-			p95Ms:       '--',
+			reqCount:  '--',
+			errorRate: '--',
+			p95Ms:     '--',
 
-			// Recent traces (live stream)
 			traces: [],
 			traceCount: 0,
 
-			// Computed helpers for templates
 			healthClass: function (svc) {
 				return svc.up ? 'health-up' : 'health-down';
 			},
@@ -49,8 +45,18 @@
 
 	// ── API helpers ──────────────────────────────────────────────────────
 
-	function fetchJSON(url) {
-		return fetch(url, { signal: AbortSignal.timeout(2000) })
+	function fetchOK(url, timeout) {
+		timeout = timeout || 2000;
+		return fetch(url, { signal: AbortSignal.timeout(timeout) })
+			.then(function (r) {
+				if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
+				// success — body may be plain text, we don't parse it
+			});
+	}
+
+	function fetchJSON(url, timeout) {
+		timeout = timeout || 2000;
+		return fetch(url, { signal: AbortSignal.timeout(timeout) })
 			.then(function (r) {
 				if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
 				return r.json();
@@ -61,14 +67,14 @@
 
 	function pollHealth() {
 		var services = [
-			{ key: 'vector',    url: '/__dev/proxy/vector/health' },
-			{ key: 'vm',        url: '/__dev/proxy/vm/health' },
+			{ key: 'vector',     url: '/__dev/proxy/vector/health' },
+			{ key: 'vm',         url: '/__dev/proxy/vm/health' },
 			{ key: 'clickhouse', url: '/__dev/proxy/clickhouse/ping' },
 		];
 
 		services.forEach(function (svc) {
 			var started = performance.now();
-			fetchJSON(svc.url).then(function () {
+			fetchOK(svc.url).then(function () {
 				state[svc.key].up = true;
 				state[svc.key].latencyMs = Math.round(performance.now() - started);
 			}).catch(function () {
@@ -78,86 +84,68 @@
 		});
 	}
 
-	function pollMetrics() {
-		// Query VictoriaMetrics for the last 5 minutes of data.
-		var queries = [
-			{ field: 'reqPerSec', q: 'rate(fuwa_http_requests_total[5m])' },
-			{ field: 'p95Ms',     q: 'histogram_quantile(0.95, rate(fuwa_http_request_duration_ms_bucket[5m]))' },
-		];
-
-		queries.forEach(function (q) {
-			var url = '/__dev/proxy/vm/api/v1/query?query=' + encodeURIComponent(q.q);
-			fetchJSON(url).then(function (data) {
-				var result = data && data.data && data.data.result;
-				if (result && result.length > 0) {
-					var val = result[0].value;
-					if (val && val.length >= 2) {
-						state[q.field] = parseFloat(val[1]).toFixed(1);
-					}
-				}
-			}).catch(function () {
-				state[q.field] = '--';
-			});
-		});
-
-		// Error rate is derived from two counters.
-		var errQuery = 'rate(fuwa_http_request_errors_total[5m])';
-		var reqQuery = 'rate(fuwa_http_requests_total[5m])';
-		var url = '/__dev/proxy/vm/api/v1/query?query=' + encodeURIComponent(reqQuery);
-
-		fetchJSON(url).then(function (reqData) {
-			var reqVal = 0;
-			var result = reqData && reqData.data && reqData.data.result;
-			if (result && result.length > 0) {
-				var val = result[0].value;
-				if (val && val.length >= 2) reqVal = parseFloat(val[1]);
-			}
-
-			return fetchJSON('/__dev/proxy/vm/api/v1/query?query=' + encodeURIComponent(errQuery))
-				.then(function (errData) {
-					var errVal = 0;
-					var result = errData && errData.data && errData.data.result;
-					if (result && result.length > 0) {
-						var val = result[0].value;
-						if (val && val.length >= 2) errVal = parseFloat(val[1]);
-					}
-					state.errorRate = reqVal > 0 ? (errVal / reqVal * 100).toFixed(1) + '%' : '0.0%';
-				});
-		}).catch(function () {
-			state.errorRate = '--';
-		});
-	}
-
 	function pollTraces() {
 		fetchJSON('/__dev/traces').then(function (data) {
 			if (data && data.traces) {
 				state.traces = data.traces;
 				state.traceCount = data.traces.length;
+				computeMetrics(data.traces);
 			}
 		}).catch(function () {
 			// dev server may not have traces yet
 		});
 	}
 
+	function computeMetrics(traces) {
+		// Only look at completed request spans (kind === "request", with duration_ms).
+		var requests = [];
+		for (var i = 0; i < traces.length; i++) {
+			var t = traces[i];
+			if (t.kind === 'request' && typeof t.duration_ms === 'number' && !isNaN(t.duration_ms)) {
+				requests.push(t);
+			}
+		}
+
+		if (requests.length === 0) {
+			state.reqCount  = '--';
+			state.errorRate = '--';
+			state.p95Ms     = '--';
+			return;
+		}
+
+		// Request count (total in buffer).
+		state.reqCount = String(requests.length);
+
+		// Error rate: percentage of failed traces.
+		var failed = 0;
+		for (var j = 0; j < requests.length; j++) {
+			if (requests[j].failed) failed++;
+		}
+		state.errorRate = (failed / requests.length * 100).toFixed(1) + '%';
+
+		// p95 latency: sort durations, pick the 95th percentile.
+		var durations = requests.map(function (r) { return r.duration_ms; }).sort(function (a, b) { return a - b; });
+		var idx = Math.ceil(durations.length * 0.95) - 1;
+		if (idx < 0) idx = 0;
+		state.p95Ms = Math.round(durations[idx]);
+	}
+
 	function pollAll() {
 		if (!mounted || !state) return;
 		pollHealth();
-		pollMetrics();
 		pollTraces();
 	}
 
-	function formatTraceTime(ts) {
-		if (!ts) return '--:--:--';
-		var d = new Date(ts * 1000);
-		return d.toTimeString().slice(0, 8);
-	}
+	// ── Trace formatting ─────────────────────────────────────────────────
 
 	function formatTraceLine(trace) {
-		var method = trace.method || '--';
-		var path = trace.path || '--';
-		var status = trace.status || (trace.failed ? 500 : 200);
-		var ms = trace.duration_ms != null ? Math.round(trace.duration_ms) + 'ms' : '--ms';
-		return formatTraceTime(trace.timestamp) + '  ' + method + ' ' + path + '  ' + status + '  ' + ms;
+		// Trace spans have attrs.method, attrs.path, attrs.status as nested fields.
+		var attrs = trace.attrs || {};
+		var method = attrs.method || trace.method || '--';
+		var path   = attrs.path   || trace.path   || '--';
+		var status = attrs.status || trace.status || (trace.failed ? 500 : 200);
+		var ms     = trace.duration_ms != null ? Math.round(trace.duration_ms) + 'ms' : '';
+		return method + ' ' + path + '  ' + status + '  ' + ms;
 	}
 
 	// ── Petite‑vue scope ─────────────────────────────────────────────────
