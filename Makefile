@@ -6,6 +6,7 @@ LUA ?= lua5.4
 
 # Fast, no external deps beyond the Lua interpreter.
 UNIT_TESTS       = tests/unit/compiler.lua tests/unit/browser.lua tests/unit/db.lua tests/unit/host.lua tests/unit/trace.lua tests/unit/vector_bridge.lua
+PYTHON_UNIT_TESTS = tests/unit/otlp_bridge_test.py
 SMOKE_TESTS      = tests/compiler_smoke.lua tests/shell_smoke.lua
 ACCEPTANCE_TESTS = tests/acceptance.lua
 # Needs python3 (the sqlite_local provider shells out to a python helper).
@@ -39,6 +40,7 @@ lint:
 # Stage 3 — fast suites.
 test-unit:
 	@for f in $(UNIT_TESTS); do echo ">> $$f"; $(LUA) $$f || exit 1; done
+	@for f in $(PYTHON_UNIT_TESTS); do echo ">> $$f"; python3 $$f || exit 1; done
 
 test-smoke:
 	@for f in $(SMOKE_TESTS); do echo ">> $$f"; $(LUA) $$f || exit 1; done
