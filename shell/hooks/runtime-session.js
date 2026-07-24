@@ -110,8 +110,11 @@
 				return;
 			}
 			if (message.type === 'trace') {
+				console.debug('[session] trace message', message.events.length, 'events');
 				if (window.FuwaShellObservability && window.FuwaShellObservability.appendEvents) {
 					window.FuwaShellObservability.appendEvents(message.events);
+				} else {
+					console.debug('[session] FuwaShellObservability not ready');
 				}
 				return;
 			}

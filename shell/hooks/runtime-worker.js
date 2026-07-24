@@ -258,14 +258,18 @@ async function boot() {
 				return dbOp(command);
 			});
 		});
-		lua.global.set('__fuwa_trace_sink', function (event) {
-			// Lua trace sink → host observability panel. Wasmoon marshals the
-			// Lua table as a JS object; JSON-stringify for the wire.
+		lua.global.set('__fuwa_trace_sink', function (json_str) {
+			// Lua trace sink → host observability panel. The Lua side JSON-encodes
+			// the event to avoid Wasmoon proxy marshalling issues.
 			try {
-				post({ type: 'trace', events: [JSON.stringify(event)] });
-			} catch (_) {
-				// trace delivery is best-effort
+				console.debug('[worker][trace]', json_str.slice(0, 120));
+				post({ type: 'trace', events: [json_str] });
+			} catch (e) {
+				console.debug('[worker][trace] sink error', e);
 			}
+		});
+		lua.global.set('__fuwa_trace_log', function (msg) {
+			console.debug('[worker][trace][lua]', msg);
 		});
 
 		await lua.doString(LUA_BOOT_SCRIPT);
@@ -343,11 +347,55 @@ async function runCode(id, files, target, sources) {
 		// request spans flow into the observability panel.
 		await lua.doString([
 			'local ok, trace_mod = pcall(require, "runtime.trace")',
-			'if ok then',
-			'  trace_mod.set_sink(function(event)',
-			'    __fuwa_trace_sink(event)',
-			'  end)',
-			'end'
+			'__fuwa_trace_log("trace require: " .. tostring(ok))',
+			'if not ok then',
+			'  __fuwa_trace_log("trace require FAILED: " .. tostring(trace_mod))',
+			'  return',
+			'end',
+			'',
+			'-- Minimal JSON encoder so we send a plain string to JS,',
+			'-- bypassing Wasmoon proxy marshalling of Lua tables.',
+			'local function json_encode(v, depth)',
+			'  depth = depth or 0',
+			'  if depth > 8 then return "null" end',
+			'  local t = type(v)',
+			'  if t == "nil" then return "null"',
+			'  elseif t == "boolean" then return v and "true" or "false"',
+			'  elseif t == "number" then',
+			'    if v % 1 == 0 then return string.format("%d", v)',
+			'    else return string.format("%.14g", v) end',
+			'  elseif t == "string" then',
+			'    return \'"\' .. v:gsub(\'[%c"\\\\]\', function(c)',
+			'      if c == \'"\' then return \'\\\\"\'',
+			'      elseif c == "\\\\" then return "\\\\\\\\"',
+			'      elseif c == "\\n" then return "\\\\n"',
+			'      elseif c == "\\r" then return "\\\\r"',
+			'      elseif c == "\\t" then return "\\\\t"',
+			'      else return string.format("\\\\u%04x", c:byte()) end',
+			'    end) .. \'"\'',
+			'  elseif t == "table" then',
+			'    local keys = {}',
+			'    for k in pairs(v) do keys[#keys + 1] = k end',
+			'    table.sort(keys, function(a,b) return tostring(a) < tostring(b) end)',
+			'    local parts = {}',
+			'    for _, k in ipairs(keys) do',
+			'      local k_str = type(k) == "number" and string.format("%d", k) or \'"\' .. tostring(k) .. \'"\'',
+			'      parts[#parts + 1] = k_str .. ":" .. json_encode(v[k], depth + 1)',
+			'    end',
+			'    return "{" .. table.concat(parts, ",") .. "}"',
+			'  end',
+			'  return "null"',
+			'end',
+			'',
+			'trace_mod.set_sink(function(event)',
+			'  local ok_json, json_str = pcall(json_encode, event)',
+			'  if ok_json then',
+			'    __fuwa_trace_sink(json_str)',
+			'  else',
+			'    __fuwa_trace_log("json encode failed: " .. tostring(json_str))',
+			'  end',
+			'end)',
+			'__fuwa_trace_log("trace sink installed")'
 		].join('\n'));
 
 		if (sources && Object.keys(sources).length > 0) {
@@ -380,6 +428,7 @@ async function runCode(id, files, target, sources) {
 			await lua.doString(
 				[
 					'local trace_mod = package.loaded["runtime.trace"]',
+					'__fuwa_trace_log("request handler: trace_mod=" .. tostring(trace_mod ~= nil) .. " method=" .. __fuwa_method .. " path=" .. __fuwa_path)',
 					'if type(handle_request) == "function" then',
 					'  local req_span = nil',
 					'  local render_span = nil',
