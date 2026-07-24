@@ -1,0 +1,110 @@
+services:
+  # ── SigNoz core (dashboard + API) ─────────────────────────
+  signoz:
+    image: signoz/signoz:v0.134.0
+    ports:
+      - "8082:8080"
+    environment:
+      SIGNOZ_SQLSTORE_PROVIDER: sqlite
+      SIGNOZ_SQLSTORE_SQLITE_PATH: /var/lib/signoz/signoz.db
+      SIGNOZ_TELEMETRYSTORE_PROVIDER: clickhouse
+      SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN: tcp://signoz-clickhouse:9000
+      SIGNOZ_GLOBAL_EXTERNAL__URL: ${SIGNOZ_GLOBAL_EXTERNAL__URL:-http://localhost:8080/dash/signoz}
+      SIGNOZ_TOKENIZER_JWT_SECRET: ${SIGNOZ_TOKENIZER_JWT_SECRET:-fuwa-dev-signoz-jwt-secret}
+    volumes:
+      - signoz_meta:/var/lib/signoz
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      retries: 3
+      start_period: 60s
+      timeout: 10s
+    depends_on:
+      signoz-clickhouse:
+        condition: service_healthy
+      signoz-migrator:
+        condition: service_completed_successfully
+    restart: unless-stopped
+
+  # ── OTel Collector (ingestion on 4317/4318) ───────────────
+  signoz-ingester:
+    image: signoz/signoz-otel-collector:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        /signoz-otel-collector migrate sync check &&
+        /signoz-otel-collector --config=/etc/otel-collector-config.yaml
+          --manager-config=/etc/opamp-config.yaml
+          --copy-path=/var/tmp/collector-config.yaml
+    environment:
+      SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_DSN: tcp://signoz-clickhouse:9000
+      SIGNOZ_OTEL_COLLECTOR_TIMEOUT: 10m
+      LOW_CARDINAL_EXCEPTION_GROUPING: "false"
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    volumes:
+      - ./signoz/ingester.yaml:/etc/otel-collector-config.yaml:ro
+      - ./signoz/opamp.yaml:/etc/opamp-config.yaml:ro
+    depends_on:
+      signoz-clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── Schema migrator (one-shot) ────────────────────────────
+  signoz-migrator:
+    image: signoz/signoz-otel-collector:latest
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        /signoz-otel-collector migrate ready &&
+        /signoz-otel-collector migrate bootstrap &&
+        /signoz-otel-collector migrate sync up &&
+        /signoz-otel-collector migrate async up
+    environment:
+      SIGNOZ_OTEL_COLLECTOR_CLICKHOUSE_DSN: tcp://signoz-clickhouse:9000
+      SIGNOZ_OTEL_COLLECTOR_TIMEOUT: 10m
+    depends_on:
+      signoz-clickhouse:
+        condition: service_healthy
+    restart: on-failure
+
+  # ── ClickHouse (telemetry storage) ────────────────────────
+  signoz-clickhouse:
+    image: clickhouse/clickhouse-server:25.12.5
+    environment:
+      CLICKHOUSE_SKIP_USER_SETUP: "1"
+      CLICKHOUSE_CONFIG: /etc/clickhouse-server/config-0-0.yaml
+    volumes:
+      - signoz_ch_data:/var/lib/clickhouse
+      - ./signoz/clickhouse-config-0-0.yaml:/etc/clickhouse-server/config-0-0.yaml:ro
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:8123/ping"]
+      interval: 10s
+      retries: 5
+      start_period: 30s
+      timeout: 5s
+    depends_on:
+      signoz-keeper:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # ── ClickHouse Keeper (coordination) ──────────────────────
+  signoz-keeper:
+    image: clickhouse/clickhouse-keeper:25.12.5
+    entrypoint: ["/usr/bin/clickhouse-keeper", "--config-file=/etc/clickhouse-keeper/keeper.yaml"]
+    volumes:
+      - signoz_keeper_data:/var/lib/clickhouse-keeper
+      - ./signoz/keeper-0.yaml:/etc/clickhouse-keeper/keeper.yaml:ro
+    healthcheck:
+      test: ["CMD", "clickhouse-keeper-client", "-h", "localhost", "-p", "9181", "-q", "ls"]
+      interval: 10s
+      retries: 5
+      start_period: 20s
+      timeout: 5s
+    restart: unless-stopped
+
+volumes:
+  signoz_meta:
+  signoz_ch_data:
+  signoz_keeper_data:
