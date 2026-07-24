@@ -1,151 +1,36 @@
 (function () {
 	'use strict';
 
-	const LOG_PREFIX = '[shell:obs]';
 	const ROOT_SELECTOR = '[data-obs-root]';
-	const POLL_MS = 5000;
-	const CLOCK_MS = 1000;
 	const MAX_EVENTS = 200;
 	let app = null;
-	let poll_timer = null;
-	let clock_timer = null;
-	let live_source = null;
+	let liveSource = null;
 	let state = null;
-	let raw_events = [];
-	let last_event_at = 0;
-	let last_event_key = '';
-
-	function log(step, detail) {
-		if (detail === undefined) {
-			console.info(LOG_PREFIX + ' ' + step);
-			return;
-		}
-		console.info(LOG_PREFIX + ' ' + step, detail);
-	}
-
-	function describeRoot(root) {
-		if (!(root instanceof Element)) {
-			return null;
-		}
-
-		return {
-			tag: root.tagName.toLowerCase(),
-			id: root.id || null,
-			view: root.getAttribute('data-view') || null,
-			hidden: root.hidden
-		};
-	}
-
-	function resolveScope(scope, reason) {
-		var target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
-		if (target instanceof Element && document.contains(target)) {
-			return target;
-		}
-
-		var fallback = document.querySelector(ROOT_SELECTOR) || document.body || document;
-		if (target instanceof Element) {
-			log(reason + ':fallback', { raw: describeRoot(target), fallback: describeRoot(fallback) });
-		}
-		return fallback;
-	}
+	let rawEvents = [];
 
 	function createState() {
 		return {
-			vector: { up: false, latencyMs: 0 },
-			vm: { up: false, latencyMs: 0 },
-			clickhouse: { up: false, latencyMs: 0 },
-			uptrace: { up: false, latencyMs: 0 },
-			reqCount: '--',
-			errorRate: '--',
-			p95Label: '--',
-			lastEventLabel: 'idle',
-			streamLabel: 'offline',
-			bufferedCount: 0,
 			requests: [],
-			selectedTraceId: '',
-			selectedRequest: null,
-			healthClass: function (svc) {
-				return svc.up ? 'health-up' : 'health-down';
+			expandedTraceId: '',
+			streamLabel: 'connecting',
+			toggleExpand: function (req) {
+				this.expandedTraceId = this.expandedTraceId === req.traceId ? '' : req.traceId;
 			},
-			healthIcon: function (svc) {
-				return svc.up ? '\u25c9' : '\u25ce';
-			},
-			requestTone: function (request) {
-				if (!request) return 'idle';
-				return request.failed || request.status >= 400 ? 'error' : 'ok';
-			},
-			isSelected: function (request) {
-				return !!request && request.traceId === this.selectedTraceId;
-			},
-			selectRequest: function (request) {
-				if (!request) return;
-				this.selectedTraceId = request.traceId;
-				this.selectedRequest = request;
+			statusTone: function (req) {
+				return req && (req.failed || req.status >= 400) ? 'error' : 'ok';
 			}
 		};
 	}
 
-	function fetchOK(url, timeout) {
-		timeout = timeout || 2000;
-		return fetch(url, { signal: AbortSignal.timeout(timeout) }).then(function (response) {
-			if (!response.ok) {
-				throw new Error(response.status + ' ' + response.statusText);
-			}
-		});
-	}
-
-	function fetchJSON(url, timeout) {
-		timeout = timeout || 2000;
-		return fetch(url, { signal: AbortSignal.timeout(timeout) }).then(function (response) {
-			if (!response.ok) {
-				throw new Error(response.status + ' ' + response.statusText);
-			}
-			return response.json();
-		});
-	}
-
-	function roundMs(value) {
-		return typeof value === 'number' && !isNaN(value) ? Math.round(value) : null;
-	}
-
-	function formatMs(value) {
-		var rounded = roundMs(value);
-		return rounded == null ? '--' : String(rounded) + 'ms';
-	}
-
-	function formatRelative(now, then) {
-		if (!then) {
-			return 'idle';
-		}
-
-		var delta = Math.max(0, Math.round((now - then) / 1000));
-		if (delta <= 1) {
-			return 'just now';
-		}
-		if (delta < 60) {
-			return String(delta) + 's ago';
-		}
-
-		var minutes = Math.floor(delta / 60);
-		return String(minutes) + 'm ago';
-	}
-
-	function trimText(value, size) {
-		var text = String(value || '--');
-		if (text.length <= size) {
-			return text;
-		}
-		return text.slice(0, size - 1) + '\u2026';
+	function formatMs(v) {
+		return typeof v === 'number' && !isNaN(v) ? Math.round(v) + 'ms' : '--';
 	}
 
 	function summarizeAttrs(attrs, keys) {
 		var parts = [];
 		for (var i = 0; i < keys.length; i++) {
-			var key = keys[i];
-			if (attrs[key] == null) {
-				continue;
-			}
-			parts.push(key + '=' + String(attrs[key]));
+			var k = keys[i];
+			if (attrs[k] != null) parts.push(k + '=' + String(attrs[k]));
 		}
 		return parts.join(' ');
 	}
@@ -156,7 +41,8 @@
 			return '\u25b6 ' + event.name + ' ' + summarizeAttrs(attrs, ['method', 'path', 'files', 'bytes']);
 		}
 		if (event.kind === 'span_log') {
-			return '\u00b7 ' + trimText(event.message || 'event', 52) + ' ' + summarizeAttrs(event.fields || {}, ['count', 'files', 'path']);
+			var msg = String(event.message || 'event').slice(0, 52);
+			return '\u00b7 ' + msg + ' ' + summarizeAttrs(event.fields || {}, ['count', 'files', 'path']);
 		}
 		if (event.kind === 'span_end') {
 			return '\u25c0 ' + event.name + ' ' + formatMs(event.duration_ms) + ' ' + summarizeAttrs(attrs, ['files', 'modules', 'bytes', 'method', 'path']);
@@ -164,409 +50,151 @@
 		if (event.kind === 'request') {
 			return '\u25c0 request ' + String(event.method || '--') + ' ' + String(event.path || '--') + ' status=' + String(event.status || '--') + ' ' + formatMs(event.duration_ms);
 		}
-		return trimText(JSON.stringify(event), 72);
-	}
-
-	function captureStage(summary, event) {
-		var attrs = event.attrs || {};
-		var label = {
-			name: event.name,
-			duration: formatMs(event.duration_ms),
-			detail: summarizeAttrs(attrs, ['files', 'modules', 'bytes', 'method', 'path'])
-		};
-
-		if (event.name === 'compile') {
-			summary.compileLabel = label.duration;
-		}
-		if (event.name === 'render') {
-			summary.renderLabel = label.duration;
-		}
-
-		summary.stages.push(label);
-	}
-
-	function createSummary(trace_id) {
-		return {
-			traceId: trace_id,
-			method: '--',
-			path: '--',
-			status: 0,
-			statusLabel: '--',
-			durationMs: null,
-			durationLabel: '--',
-			stageSummary: 'awaiting request completion',
-			compileLabel: '--',
-			renderLabel: '--',
-			failed: false,
-			stages: [],
-			logs: [],
-			finalized: false,
-			order: 0
-		};
+		return JSON.stringify(event).slice(0, 72);
 	}
 
 	function rebuildRequests() {
-		var by_trace = {};
-		var order = 0;
+		var byTrace = {};
+		for (var i = 0; i < rawEvents.length; i++) {
+			var ev = rawEvents[i];
+			var tid = ev.trace_id;
+			if (!tid) continue;
 
-		for (var i = 0; i < raw_events.length; i++) {
-			var event = raw_events[i];
-			var trace_id = event.trace_id;
-			if (!trace_id) {
-				continue;
+			var req = byTrace[tid];
+			if (!req) {
+				req = { traceId: tid, method: '--', path: '--', status: 0, statusLabel: '--',
+					durationMs: null, durationLabel: '--', stageSummary: '', failed: false,
+					stages: [], logs: [], finalized: false, order: i };
+				byTrace[tid] = req;
 			}
+			req.order = i;
+			if (req.logs.length < 16) req.logs.push(formatEventLine(ev));
 
-			var summary = by_trace[trace_id];
-			if (!summary) {
-				summary = createSummary(trace_id);
-				by_trace[trace_id] = summary;
+			if (ev.kind === 'span_start' && ev.name === 'request') {
+				var a = ev.attrs || {};
+				req.method = String(a.method || req.method || '--');
+				req.path = String(a.path || req.path || '--');
 			}
-
-			summary.order = i;
-			if (summary.logs.length < 16) {
-				summary.logs.push(formatEventLine(event));
+			if (ev.kind === 'span_end') {
+				var sa = ev.attrs || {};
+				req.stages.push({ name: ev.name, duration: formatMs(ev.duration_ms),
+					detail: summarizeAttrs(sa, ['files', 'modules', 'bytes', 'method', 'path']) });
 			}
-
-			if (event.kind === 'span_start' && event.name === 'request') {
-				var start_attrs = event.attrs || {};
-				summary.method = String(start_attrs.method || summary.method || '--');
-				summary.path = String(start_attrs.path || summary.path || '--');
+			if (ev.kind === 'request') {
+				req.finalized = true;
+				req.method = String(ev.method || req.method || '--');
+				req.path = String(ev.path || req.path || '--');
+				req.status = Number(ev.status || 0);
+				req.statusLabel = String(ev.status || '--');
+				req.durationMs = ev.duration_ms;
+				req.durationLabel = formatMs(ev.duration_ms);
+				req.failed = !!ev.failed;
 			}
-
-			if (event.kind === 'span_end') {
-				captureStage(summary, event);
-			}
-
-			if (event.kind === 'request') {
-				summary.finalized = true;
-				summary.method = String(event.method || summary.method || '--');
-				summary.path = String(event.path || summary.path || '--');
-				summary.status = Number(event.status || 0);
-				summary.statusLabel = String(event.status || '--');
-				summary.durationMs = event.duration_ms;
-				summary.durationLabel = formatMs(event.duration_ms);
-				summary.failed = !!event.failed;
-			}
-			order += 1;
 		}
 
 		var requests = [];
-		for (var trace_id_key in by_trace) {
-			if (!Object.prototype.hasOwnProperty.call(by_trace, trace_id_key)) {
-				continue;
+		for (var k in byTrace) {
+			if (!Object.prototype.hasOwnProperty.call(byTrace, k)) continue;
+			var r = byTrace[k];
+			if (!r.finalized) continue;
+			var parts = [];
+			for (var s = 0; s < r.stages.length; s++) {
+				parts.push(r.stages[s].name + ' ' + r.stages[s].duration);
 			}
-
-			var request = by_trace[trace_id_key];
-			if (!request.finalized) {
-				continue;
-			}
-
-			var stage_parts = [];
-			if (request.compileLabel !== '--') {
-				stage_parts.push('compile ' + request.compileLabel);
-			}
-			if (request.renderLabel !== '--') {
-				stage_parts.push('render ' + request.renderLabel);
-			}
-			if (stage_parts.length === 0) {
-				stage_parts.push('request complete');
-			}
-			request.stageSummary = stage_parts.join(' \u00b7 ');
-			requests.push(request);
+			r.stageSummary = parts.length > 0 ? parts.join(' \u00b7 ') : 'request complete';
+			requests.push(r);
 		}
+		requests.sort(function (a, b) { return b.order - a.order; });
+		if (requests.length > 50) requests = requests.slice(0, 50);
 
-		requests.sort(function (left, right) {
-			return right.order - left.order;
-		});
-
-		if (requests.length > 50) {
-			requests = requests.slice(0, 50);
-		}
-
-		var selected = null;
+		var prevExpanded = state.expandedTraceId;
+		state.requests = requests;
+		state.streamLabel = requests.length + 'r';
+		// Keep the expanded row if it still exists
+		state.expandedTraceId = '';
 		for (var j = 0; j < requests.length; j++) {
-			if (requests[j].traceId === state.selectedTraceId) {
-				selected = requests[j];
+			if (requests[j].traceId === prevExpanded) {
+				state.expandedTraceId = prevExpanded;
 				break;
 			}
 		}
-		if (!selected) {
-			selected = requests[0] || null;
-		}
-
-		var durations = [];
-		var failed = 0;
-		for (var k = 0; k < requests.length; k++) {
-			if (typeof requests[k].durationMs === 'number' && !isNaN(requests[k].durationMs)) {
-				durations.push(requests[k].durationMs);
-			}
-			if (requests[k].failed || requests[k].status >= 400) {
-				failed += 1;
-			}
-		}
-		durations.sort(function (left, right) {
-			return left - right;
-		});
-
-		state.requests = requests;
-		state.reqCount = String(requests.length);
-		state.errorRate = requests.length === 0 ? '--' : (failed / requests.length * 100).toFixed(1) + '%';
-		if (durations.length === 0) {
-			state.p95Label = '--';
-		} else {
-			var idx = Math.ceil(durations.length * 0.95) - 1;
-			if (idx < 0) idx = 0;
-			state.p95Label = formatMs(durations[idx]);
-		}
-		state.selectedRequest = selected;
-		state.selectedTraceId = selected ? selected.traceId : '';
-		state.bufferedCount = raw_events.length;
-	}
-
-	function updateClock() {
-		if (!state) {
-			return;
-		}
-		state.lastEventLabel = formatRelative(Date.now(), last_event_at);
-	}
-
-	function replaceEvents(events) {
-		var next_events = Array.isArray(events) ? events.slice(-MAX_EVENTS) : [];
-		var latest = next_events.length > 0 ? next_events[next_events.length - 1] : null;
-		var latest_key = latest ? JSON.stringify(latest) : '';
-		raw_events = next_events;
-		if (latest_key !== '' && latest_key !== last_event_key) {
-			last_event_key = latest_key;
-			last_event_at = Date.now();
-		}
-		rebuildRequests();
-		updateClock();
 	}
 
 	function appendEvent(event) {
-		raw_events.push(event);
-		if (raw_events.length > MAX_EVENTS) {
-			raw_events = raw_events.slice(-MAX_EVENTS);
-		}
-		last_event_key = JSON.stringify(event);
-		last_event_at = Date.now();
+		rawEvents.push(event);
+		if (rawEvents.length > MAX_EVENTS) rawEvents = rawEvents.slice(-MAX_EVENTS);
 		rebuildRequests();
-		updateClock();
-	}
-
-	function pollHealth() {
-		var services = [
-			{ key: 'vector', url: '/__dev/proxy/vector/health' },
-			{ key: 'vm', url: '/__dev/proxy/vm/health' },
-			{ key: 'clickhouse', url: '/__dev/proxy/clickhouse/ping' },
-			{ key: 'uptrace', url: '/__dev/proxy/uptrace/' }
-		];
-
-		services.forEach(function (svc) {
-			var started = performance.now();
-			fetchOK(svc.url).then(function () {
-				state[svc.key].up = true;
-				state[svc.key].latencyMs = Math.round(performance.now() - started);
-			}).catch(function () {
-				state[svc.key].up = false;
-				state[svc.key].latencyMs = 0;
-			});
-		});
-	}
-
-	function syncTraceSnapshot() {
-		return fetchJSON('/__dev/traces').then(function (data) {
-			if (data && Array.isArray(data.traces)) {
-				replaceEvents(data.traces);
-			}
-		}).catch(function () {
-			state.streamLabel = live_source ? 'reconnecting' : 'offline';
-		});
 	}
 
 	function closeLiveStream() {
-		if (live_source) {
-			live_source.close();
-			live_source = null;
-		}
+		if (liveSource) { liveSource.close(); liveSource = null; }
 	}
 
 	function connectLiveStream() {
 		closeLiveStream();
-		if (typeof EventSource !== 'function') {
-			state.streamLabel = 'polling only';
-			return;
-		}
-
-		live_source = new EventSource('/__dev/traces/live');
+		if (typeof EventSource !== 'function') { state.streamLabel = 'ssc n/a'; return; }
+		liveSource = new EventSource('/__dev/traces/live');
 		state.streamLabel = 'connecting';
-
-		live_source.addEventListener('ready', function () {
+		liveSource.addEventListener('ready', function () { state.streamLabel = 'live'; });
+		liveSource.addEventListener('trace', function (e) {
 			state.streamLabel = 'live';
+			try { appendEvent(JSON.parse(e.data)); } catch (_) { state.streamLabel = 'parse err'; }
 		});
-
-		live_source.addEventListener('trace', function (event) {
-			state.streamLabel = 'live';
-			try {
-				appendEvent(JSON.parse(event.data));
-			} catch (_error) {
-				state.streamLabel = 'stream parse error';
-			}
-		});
-
-		live_source.onerror = function () {
-			state.streamLabel = 'reconnecting';
-		};
-	}
-
-	function startLoops() {
-		if (poll_timer) {
-			clearInterval(poll_timer);
-		}
-		if (clock_timer) {
-			clearInterval(clock_timer);
-		}
-
-		poll_timer = setInterval(function () {
-			pollHealth();
-			syncTraceSnapshot();
-		}, POLL_MS);
-
-		clock_timer = setInterval(function () {
-			updateClock();
-		}, CLOCK_MS);
-	}
-
-	function stopLoops() {
-		if (poll_timer) {
-			clearInterval(poll_timer);
-			poll_timer = null;
-		}
-		if (clock_timer) {
-			clearInterval(clock_timer);
-			clock_timer = null;
-		}
-		closeLiveStream();
+		liveSource.onerror = function () { state.streamLabel = 'reconnecting'; };
 	}
 
 	function mount(root) {
-		if (!(root instanceof Element) || root.hidden) {
-			return;
-		}
-
-		if (!state) {
-			state = createState();
-		}
-
-		stopLoops();
-
+		if (!(root instanceof Element) || root.hidden) return;
+		if (!state) state = createState();
+		closeLiveStream();
 		root.removeAttribute('v-pre');
-		if (app) {
-			app.unmount();
-			app = null;
-		}
-
+		if (app) { app.unmount(); app = null; }
 		if (!(window.PetiteVue && window.PetiteVue.createApp)) {
-			log('petite-vue not ready, retrying');
 			setTimeout(function () { mount(root); }, 200);
 			return;
 		}
-
 		app = window.PetiteVue.createApp(state);
 		app.mount(root);
 		root.setAttribute('data-widget-state', 'mounted');
-		root.setAttribute('data-widget-kind', 'observability');
 
-		pollHealth();
-		syncTraceSnapshot().finally(function () {
-			connectLiveStream();
-			startLoops();
-		});
-		log('mount:success', describeRoot(root));
+		// Seed with snapshot, then connect live
+		fetch('/__dev/traces').then(function (r) { return r.json(); }).then(function (data) {
+			if (data && Array.isArray(data.traces)) {
+				rawEvents = data.traces.slice(-MAX_EVENTS);
+				rebuildRequests();
+			}
+		}).catch(function () {}).finally(function () { connectLiveStream(); });
 	}
 
 	function unmount(root) {
-		stopLoops();
-		if (app) {
-			app.unmount();
-			app = null;
-		}
-
-		if (root instanceof Element) {
-			root.removeAttribute('data-widget-state');
-			root.removeAttribute('data-widget-kind');
-		}
-
-		if (state) {
-			state.streamLabel = 'paused';
-		}
-		log('unmount', describeRoot(root));
-	}
-
-	function forEachRoot(scope, fn) {
-		var target = resolveScope(scope, 'scope');
-		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
-			fn(target);
-		}
-
-		var roots = target.querySelectorAll(ROOT_SELECTOR);
-		for (var i = 0; i < roots.length; i++) {
-			if (roots[i] !== target) {
-				fn(roots[i]);
-			}
-		}
+		closeLiveStream();
+		if (app) { app.unmount(); app = null; }
+		if (root instanceof Element) root.removeAttribute('data-widget-state');
 	}
 
 	function refresh(scope) {
-		log('refresh', { scope: describeRoot(scope) });
-		forEachRoot(scope, function (root) {
-			if (!root.hidden) {
-				mount(root);
-			}
-		});
+		var roots = scope ? scope.querySelectorAll(ROOT_SELECTOR) : document.querySelectorAll(ROOT_SELECTOR);
+		for (var i = 0; i < roots.length; i++) {
+			if (!roots[i].hidden) mount(roots[i]);
+		}
 	}
 
-	function clearRoots(scope) {
-		forEachRoot(scope, function (root) {
-			unmount(root);
-		});
-	}
+	window.FuwaShellObservability = { mount: mount, unmount: unmount, refresh: refresh, selector: ROOT_SELECTOR };
 
-	function handleBeforeSwap(event) {
-		var scope = event.detail?.target || event.detail?.elt || event.target || document.body;
-		log('htmx:beforeSwap', {
-			raw: describeRoot(scope),
-			status: event.detail?.xhr?.status || null
-		});
-		clearRoots(scope);
-	}
-
-	function handleAfterSwap(event) {
-		var scope = event.detail?.target || event.detail?.elt || event.target || document.body;
-		log('htmx:afterSwap', {
-			raw: describeRoot(scope),
-			status: event.detail?.xhr?.status || null
-		});
-		refresh(scope);
-	}
-
-	window.FuwaShellObservability = {
-		mount: mount,
-		unmount: unmount,
-		refresh: refresh,
-		selector: ROOT_SELECTOR
-	};
+	document.addEventListener('htmx:beforeSwap', function (e) {
+		var s = e.detail && e.detail.target;
+		var roots = (s && s.querySelectorAll) ? s.querySelectorAll(ROOT_SELECTOR) : [];
+		for (var i = 0; i < roots.length; i++) unmount(roots[i]);
+	});
+	document.addEventListener('htmx:afterSwap', function (e) {
+		var s = e.detail && e.detail.target;
+		var roots = (s && s.querySelectorAll) ? s.querySelectorAll(ROOT_SELECTOR) : document.querySelectorAll(ROOT_SELECTOR);
+		for (var i = 0; i < roots.length; i++) { if (!roots[i].hidden) mount(roots[i]); }
+	});
 
 	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', function () {
-			log('boot:DOMContentLoaded');
-			refresh(document.body || document);
-		}, { once: true });
+		document.addEventListener('DOMContentLoaded', function () { refresh(); }, { once: true });
 	} else {
-		log('boot:ready');
-		refresh(document.body || document);
+		refresh();
 	}
-
-	document.addEventListener('htmx:beforeSwap', handleBeforeSwap);
-	document.addEventListener('htmx:afterSwap', handleAfterSwap);
 })();

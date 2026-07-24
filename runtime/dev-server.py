@@ -7,8 +7,7 @@ Start with:  ./dev.sh           (wrapper)
 
 - Auto-port: kills old fuwa on the port, or picks the next free port.
 - Live reload: polls for file changes; SSE endpoint handled by fuwa-dev.lua.
-- Observability: reads __VECTOR__ lines from Lua stderr, ring buffer + Vector POST.
-- Dev API: /__dev/traces, /__dev/proxy/vector/*, /__dev/proxy/vm/*, /__dev/proxy/clickhouse/*
+- Observability: reads __VECTOR__ lines from Lua stderr into a ring buffer for /__dev/traces.
 - Clean shutdown: Ctrl+C kills everything immediately.
 - Foreground only: closing the terminal kills the server.
 """
@@ -24,8 +23,6 @@ import time
 import queue
 from collections import deque
 from pathlib import Path
-from urllib.error import URLError
-from urllib.request import Request, urlopen
 
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -44,14 +41,7 @@ _trace_buffer: deque[str] = deque(maxlen=200)
 _trace_lock = threading.Lock()
 _trace_subscribers: list[queue.Queue[str]] = []
 _trace_subscribers_lock = threading.Lock()
-_vector_url = os.environ.get("FUWA_VECTOR_URL", "http://127.0.0.1:8687/")
 
-_SERVICES = {
-    "vector":      ("127.0.0.1", 8686),
-    "vm":          ("127.0.0.1", 8428),
-    "clickhouse":  ("127.0.0.1", 8123),
-    "uptrace":     ("127.0.0.1", 14318),
-}
 
 
 # ── Port discovery ──────────────────────────────────────────────────────────
@@ -140,22 +130,8 @@ def file_watcher() -> None:
 
 # ── Observability pipeline ─────────────────────────────────────────────────
 
-def _post_to_vector(event_json: str) -> None:
-    """Fire-and-forget POST to Vector."""
-    try:
-        req = Request(
-            _vector_url,
-            data=event_json.encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-        urlopen(req, timeout=1)
-    except Exception:
-        pass  # Vector may be down — traces still appear via ring buffer
-
-
 def add_trace(event_json: str) -> None:
-    """Push trace into ring buffer and fire-and-forget to Vector."""
+    """Push trace into the ring buffer and fan out to SSE subscribers."""
     with _trace_lock:
         _trace_buffer.append(event_json)
     with _trace_subscribers_lock:
@@ -172,11 +148,10 @@ def add_trace(event_json: str) -> None:
                 subscriber.put_nowait(event_json)
             except queue.Full:
                 pass
-    threading.Thread(target=_post_to_vector, args=(event_json,), daemon=True).start()
 
 
 def _stderr_reader(proc: subprocess.Popen) -> None:
-    """Read Lua stderr line-by-line.  __VECTOR__ lines → ring buffer + Vector.
+    """Read Lua stderr line-by-line.  __VECTOR__ lines → ring buffer.
     Everything else → terminal stderr."""
     try:
         for line in proc.stderr:  # type: ignore[union-attr]
@@ -326,33 +301,6 @@ def _handle_dev_trace_stream(client_sock: socket.socket) -> None:
             pass
 
 
-def _handle_dev_proxy(client_sock: socket.socket, path: str) -> None:
-    """GET /__dev/proxy/<service>/<...> — CORS-safe proxy to observability backends."""
-    # path: /__dev/proxy/vector/health  or  /__dev/proxy/vm/api/v1/query?query=...
-    sub_path = path[len("/__dev/proxy/"):]
-    service, _, target = sub_path.partition("/")
-
-    if service not in _SERVICES:
-        _send_response(client_sock, "404 Not Found", "application/json",
-                       json.dumps({"error": "Unknown proxy service: %s" % service}))
-        return
-
-    host, port = _SERVICES[service]
-    url = "http://%s:%d/%s" % (host, port, target)
-
-    try:
-        req = Request(url, headers={"Accept": "application/json"})
-        with urlopen(req, timeout=2) as resp:
-            body = resp.read()
-            ct = resp.headers.get("Content-Type", "application/json")
-            _send_response(client_sock, "200 OK", ct, body)
-    except URLError as e:
-        _send_response(client_sock, "502 Bad Gateway", "application/json",
-                       json.dumps({"error": str(e.reason), "service": service}))
-    except Exception as e:
-        _send_response(client_sock, "500 Internal Server Error", "text/plain", str(e))
-
-
 # ── Connection handler ─────────────────────────────────────────────────────
 
 def handle_connection(client_sock: socket.socket) -> None:
@@ -375,10 +323,6 @@ def handle_connection(client_sock: socket.socket) -> None:
 
     if path == "/__dev/traces/live":
         _handle_dev_trace_stream(client_sock)
-        return
-
-    if path.startswith("/__dev/proxy/"):
-        _handle_dev_proxy(client_sock, path)
         return
 
     # ── Forward to Lua ──────────────────────────────────────────────────

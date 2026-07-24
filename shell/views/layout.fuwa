@@ -680,146 +680,25 @@
         overflow-y: auto;
       }
 
-      .obs-panel {
-        padding: 14px 16px;
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        font-size: 0.76rem;
-        min-height: 100%;
-      }
-
-      .obs-rail {
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 12px;
-        padding: 10px 12px;
-        background: rgba(255, 255, 255, 0.02);
-        display: flex;
-        gap: 12px;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-
-      .obs-rail-label {
-        font-size: 0.62rem;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: #7aa2f7;
-        font-weight: 700;
-        min-width: 52px;
-      }
-
-      .obs-health-row {
-        display: flex;
-        gap: 10px;
-        flex-wrap: wrap;
-        flex: 1;
-      }
-
-      .obs-health-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 6px;
-        padding: 5px 10px;
-        border-radius: 999px;
-        font-size: 0.72rem;
-        font-weight: 650;
-      }
-
-      .health-up {
-        background: rgba(16, 185, 129, 0.14);
-        color: #34d399;
-      }
-
-      .health-down {
-        background: rgba(244, 63, 94, 0.12);
-        color: #fb7185;
-      }
-
-      .obs-health-icon {
-        font-size: 0.66rem;
-      }
-
-      .obs-health-ms {
-        opacity: 0.7;
+      .obs-stream-label {
         font-size: 0.64rem;
-        font-weight: 500;
-      }
-
-      .obs-pulse-row {
-        display: flex;
-        gap: 14px;
-        flex-wrap: wrap;
-        flex: 1;
-      }
-
-      .obs-pulse-item {
-        color: #8f97bb;
-        font-size: 0.7rem;
-        font-weight: 700;
-      }
-
-      .obs-pulse-item strong {
-        color: #c0caf5;
-        font-variant-numeric: tabular-nums;
-        font-size: 0.82rem;
-        margin-left: 4px;
-      }
-
-      .obs-console {
-        display: grid;
-        grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.88fr);
-        gap: 12px;
-        flex: 1;
-        min-height: 0;
-      }
-
-      .obs-pane {
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 14px;
-        background: rgba(255, 255, 255, 0.02);
-        min-height: 0;
-        display: flex;
-        flex-direction: column;
-      }
-
-      .obs-pane-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 10px;
-        padding: 10px 12px;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-      }
-
-      .obs-pane-title {
-        font-size: 0.64rem;
-        text-transform: uppercase;
-        letter-spacing: 0.1em;
-        color: #7aa2f7;
-        font-weight: 700;
-      }
-
-      .obs-pane-note {
+        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
         color: #565f89;
-        font-size: 0.64rem;
-        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-      }
-
-      .obs-activity-list,
-      .obs-log-list {
-        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
       }
 
       .obs-activity-list {
+        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
         min-height: 0;
         overflow-y: auto;
+      }
+
+      .obs-request-group {
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
       }
 
       .obs-activity-row {
         width: 100%;
         border: 0;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
         background: transparent;
         color: #a9b1d6;
         text-align: left;
@@ -827,8 +706,12 @@
         cursor: pointer;
       }
 
-      .obs-activity-row[data-selected=true] {
-        background: rgba(122, 162, 247, 0.08);
+      .obs-activity-row:hover {
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .obs-activity-row[data-tone=error] {
+        background: rgba(244, 63, 94, 0.06);
       }
 
       .obs-activity-line {
@@ -837,38 +720,30 @@
         gap: 10px;
         align-items: baseline;
         font-size: 0.73rem;
-        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
       }
 
-      .obs-activity-method,
-      .obs-focus-method {
+      .obs-activity-method {
         color: #c0caf5;
         font-weight: 700;
       }
 
-      .obs-activity-path,
-      .obs-focus-path,
-      .obs-stage-detail {
+      .obs-activity-path {
         min-width: 0;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
       }
 
-      .obs-activity-status,
-      .obs-focus-status {
+      .obs-activity-status {
         font-variant-numeric: tabular-nums;
         color: #34d399;
       }
 
-      .obs-activity-status[data-tone=error],
-      .obs-focus-status[data-tone=error] {
+      .obs-activity-row[data-tone=error] .obs-activity-status {
         color: #fb7185;
       }
 
-      .obs-activity-duration,
-      .obs-focus-duration,
-      .obs-stage-duration {
+      .obs-activity-duration {
         color: #c0caf5;
         font-variant-numeric: tabular-nums;
       }
@@ -878,58 +753,13 @@
         margin-top: 4px;
         color: #8f97bb;
         font-size: 0.66rem;
-        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
       }
 
-      .obs-focus-body {
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-        padding: 12px;
-        min-height: 0;
+      .obs-expand {
+        padding: 0 12px 10px;
       }
 
-      .obs-focus-summary {
-        display: grid;
-        grid-template-columns: auto minmax(0, 1fr) auto auto;
-        gap: 10px;
-        align-items: baseline;
-        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-        font-size: 0.74rem;
-      }
-
-      .obs-stage-block,
-      .obs-log-block {
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
-        min-height: 0;
-      }
-
-      .obs-stage-title {
-        font-size: 0.62rem;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #8f97bb;
-        font-weight: 700;
-      }
-
-      .obs-stage-row {
-        display: grid;
-        grid-template-columns: auto auto minmax(0, 1fr);
-        gap: 10px;
-        align-items: baseline;
-        font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
-        font-size: 0.68rem;
-        color: #a9b1d6;
-      }
-
-      .obs-stage-name {
-        color: #c0caf5;
-        text-transform: lowercase;
-      }
-
-      .obs-log-list {
+      .obs-expand-log {
         border: 1px solid rgba(255, 255, 255, 0.04);
         border-radius: 10px;
         background: rgba(5, 6, 8, 0.35);
@@ -953,14 +783,6 @@
         padding: 12px;
       }
 
-      .obs-footer {
-        margin-top: auto;
-        text-align: center;
-        font-size: 0.64rem;
-        color: #565f89;
-        padding: 6px 0;
-      }
-
       @media (max-width: 1080px) {
         .ide-shell {
           flex-direction: column;
@@ -973,10 +795,6 @@
 
         .shell-preview-frame {
           min-height: 480px;
-        }
-
-        .obs-console {
-          grid-template-columns: minmax(0, 1fr);
         }
       }
 
