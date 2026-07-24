@@ -62,4 +62,21 @@ function M:count()
   return #self._lines
 end
 
+--- Copy all lines from this buffer into a ctx.out array (the legacy
+--- output format used by modules.lua compatibility wrappers).
+function M:copy_to_ctx(ctx)
+  local text = self:build()
+  local pos = 1
+  while true do
+    local nl = text:find("\n", pos, true)
+    if nl then
+      ctx.out[#ctx.out + 1] = text:sub(pos, nl - 1)
+      pos = nl + 1
+    else
+      ctx.out[#ctx.out + 1] = text:sub(pos)
+      break
+    end
+  end
+end
+
 return M
