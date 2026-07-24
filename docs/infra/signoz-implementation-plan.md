@@ -19,18 +19,18 @@ without the asset-path hacks uptrace needed.
 
 ## 1. Architecture Decision
 
-### SigNoz with standard auth first, impersonation later
+### SigNoz in impersonation mode
 
 ```
-Current repo-safe path:
-  - Keep standard SigNoz auth enabled
+Current repo path:
   - Pin a verified working image version
   - Set external URL and JWT secret explicitly
-  - Revisit impersonation only after upstream root-user bootstrap works
+  - Provision a root user with a strong password on first boot
+  - Disable tokenizer and API key auth
+  - Enable impersonation
 ```
 
-This still eliminates Uptrace, PostgreSQL, and Redis. It does not yet eliminate
-interactive login friction.
+This eliminates interactive login friction on the current stack.
 
 ### Stack after migration
 
@@ -88,12 +88,13 @@ Then hand-edit `signoz.yml` to:
 - Pin `signoz/signoz` to a verified working release
 - Set external URL for subpath proxying
 - Set `SIGNOZ_TOKENIZER_JWT_SECRET`
+- Use a strong root-user password
 - Set resource limits appropriate for dev
 - Remove Cloud-specific services (MCP, billing, etc.)
 
 ### Step 3: SigNoz Configuration
 
-Minimal working config via environment variables in the compose file:
+Minimal working impersonation config via environment variables in the compose file:
 
 ```yaml
 environment:
@@ -104,11 +105,22 @@ environment:
   # Subpath: serve at /dash/signoz/
   SIGNOZ_GLOBAL_EXTERNAL__URL: "http://localhost:8080/dash/signoz"
   SIGNOZ_TOKENIZER_JWT_SECRET: "..."
+  SIGNOZ_USER_ROOT_ENABLED: "true"
+  SIGNOZ_USER_ROOT_EMAIL: "admin@fuwa.local"
+  SIGNOZ_USER_ROOT_PASSWORD: "FuwaDemoAdmin1!"
+  SIGNOZ_USER_ROOT_ORG_NAME: "default"
+  SIGNOZ_IDENTN_IMPERSONATION_ENABLED: "true"
+  SIGNOZ_IDENTN_TOKENIZER_ENABLED: "false"
+  SIGNOZ_IDENTN_APIKEY_ENABLED: "false"
 
   # Telemetry: point at ClickHouse
   SIGNOZ_TELEMETRYSTORE_PROVIDER: "clickhouse"
   SIGNOZ_TELEMETRYSTORE_CLICKHOUSE_DSN: "tcp://clickhouse:9000"
 ```
+
+Important:
+- Recreate the `signoz_meta` volume before first impersonation boot so root-user
+  provisioning runs on a fresh install state.
 
 ### Step 4: Remove Uptrace Dependencies
 
@@ -173,9 +185,13 @@ docker compose -f infra/docker-compose/dev.yml up -d
 ```
 
 Verify:
-1. `http://localhost:8080/dash/signoz/` loads
+1. `http://localhost:8080/dash/signoz/` loads without a login screen
 2. `http://localhost:8080/dash/signoz/traces` shows seeded data
-3. Generate real traffic via fuwa → traces appear
+3. `GET /dash/signoz/api/v1/global/config` shows:
+   - `identN.impersonation.enabled: true`
+   - `identN.tokenizer.enabled: false`
+   - `identN.apikey.enabled: false`
+4. Generate real traffic via fuwa → traces appear
 
 ## 3. Files Changed Summary
 

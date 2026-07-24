@@ -52,6 +52,15 @@ There were two separate problems:
    `SIGNOZ_GLOBAL_EXTERNAL__URL` expects the base path to be forwarded intact.
    Stripping the prefix would break UI asset and API routing even after startup.
 
+3. Root-user bootstrap was failing because the configured password did not pass
+   SigNoz's user validation. A strong password such as `FuwaDemoAdmin1!` allows
+   the root-user and impersonation bootstrap path to proceed on `v0.134.0`.
+
+4. Enabling impersonation on an existing `signoz_meta` volume was the wrong
+   install state for the documented flow. Recreating the `signoz_meta` volume
+   allowed SigNoz to provision the root user on startup and then enable
+   impersonation cleanly.
+
 ## What Reproduced Reliably
 
 - `v0.134.0` and `v0.133.0` both boot cleanly with:
@@ -112,12 +121,25 @@ user:
 1. Pin `signoz/signoz` to `v0.134.0` instead of `latest`.
 2. Set `SIGNOZ_GLOBAL_EXTERNAL__URL` explicitly.
 3. Set `SIGNOZ_TOKENIZER_JWT_SECRET` explicitly.
-4. Recreate `signoz` from compose so the stale auth env vars are removed.
-5. Stop stripping `/dash/signoz/` in OpenResty.
+4. Configure the documented impersonation env vars:
+   - `SIGNOZ_USER_ROOT_ENABLED=true`
+   - `SIGNOZ_USER_ROOT_EMAIL=admin@fuwa.local`
+   - `SIGNOZ_USER_ROOT_PASSWORD=FuwaDemoAdmin1!`
+   - `SIGNOZ_USER_ROOT_ORG_NAME=default`
+   - `SIGNOZ_IDENTN_IMPERSONATION_ENABLED=true`
+   - `SIGNOZ_IDENTN_TOKENIZER_ENABLED=false`
+   - `SIGNOZ_IDENTN_APIKEY_ENABLED=false`
+5. Recreate the `signoz_meta` volume so root-user bootstrap runs on a fresh install.
+6. Stop stripping `/dash/signoz/` in OpenResty.
 
-This does not solve no-auth access. It restores a healthy SigNoz service on the
-current stack and leaves auth on the supported default path until the upstream
-root-user/impersonation regression is resolved or a known-good version is pinned.
+This now solves no-auth access on the current stack. Verification:
+
+- `docker logs docker-compose-signoz-1` shows:
+  `impersonation identity provider is enabled, all requests will impersonate the root user`
+- `GET /dash/signoz/api/v1/global/config` returns:
+  - `identN.tokenizer.enabled: false`
+  - `identN.apikey.enabled: false`
+  - `identN.impersonation.enabled: true`
 
 ## Docker Compose Snippet (current signoz service)
 
