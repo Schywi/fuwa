@@ -1,22 +1,8 @@
 local view = require("runtime.stdlib.view")
 local web = require("runtime.stdlib.web")
+local util = require("runtime.util")
 
 local M = {}
-
-local function dirname(path)
-	return (path and path:match("^(.*)/[^/]*$")) or "."
-end
-
-local function read_all(path)
-	local file = io.open(path, "rb")
-	if not file then
-		return nil
-	end
-
-	local contents = file:read("*a")
-	file:close()
-	return contents
-end
 
 local function validate_fragment_name(fragment_name)
 	if type(fragment_name) ~= "string" or fragment_name == "" then
@@ -40,7 +26,7 @@ end
 
 local script_source = debug.getinfo(1, "S").source
 local script_path = script_source:sub(1, 1) == "@" and script_source:sub(2) or script_source
-local root_dir = dirname(dirname(dirname(script_path)))
+local root_dir = util.dirname(util.dirname(util.dirname(script_path)))
 local shell_views_root = root_dir .. "/shell"
 
 -- The compiler expands <include> at compile time; fragments rendered at
@@ -57,7 +43,7 @@ local function expand_includes(source, depth)
 			return ""
 		end
 
-		local included = read_all(shell_views_root .. "/" .. include_path)
+		local included = util.read_all(shell_views_root .. "/" .. include_path)
 		if included == nil then
 			return ""
 		end
@@ -67,7 +53,7 @@ local function expand_includes(source, depth)
 end
 
 local function read_source(path)
-	local source = read_all(path)
+	local source = util.read_all(path)
 	if source == nil then
 		return nil
 	end

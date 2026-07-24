@@ -1,4 +1,5 @@
 local log = require("runtime.log")
+local util = require("runtime.util")
 
 local M = {}
 
@@ -29,22 +30,10 @@ local function now_ms()
 	return os.clock() * 1000
 end
 
-local function deep_copy(value)
-	if type(value) ~= "table" then
-		return value
-	end
-
-	local out = {}
-	for key, entry in pairs(value) do
-		out[deep_copy(key)] = deep_copy(entry)
-	end
-	return out
-end
-
 local function merge_attrs(base, extra)
-	local out = deep_copy(base or {})
+	local out = util.deep_copy(base or {})
 	for key, value in pairs(extra or {}) do
-		out[key] = deep_copy(value)
+		out[key] = util.deep_copy(value)
 	end
 	return out
 end
@@ -137,7 +126,7 @@ end
 local function create_span(name, attrs)
 	local parent = current_span()
 	local span = {
-		attrs = deep_copy(attrs or {}),
+		attrs = util.deep_copy(attrs or {}),
 		closed = false,
 		depth = parent and parent.depth + 1 or 0,
 		failed = false,
@@ -162,14 +151,14 @@ local function create_span(name, attrs)
 			parent_id = self.parent_id,
 			depth = self.depth,
 			message = tostring(message or "event"),
-			fields = deep_copy(fields or {}),
+			fields = util.deep_copy(fields or {}),
 		})
 		return self
 	end
 
 	function span:set(key, value)
 		if not self.closed then
-			self.attrs[key] = deep_copy(value)
+			self.attrs[key] = util.deep_copy(value)
 		end
 		return self
 	end
@@ -214,7 +203,7 @@ local function create_span(name, attrs)
 		span_id = span.span_id,
 		parent_id = span.parent_id,
 		depth = span.depth,
-		attrs = deep_copy(span.attrs),
+		attrs = util.deep_copy(span.attrs),
 	})
 
 	stack[#stack + 1] = span

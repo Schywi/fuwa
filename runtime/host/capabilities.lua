@@ -1,85 +1,9 @@
 local trace = require("runtime.trace")
 local package_web = require("runtime.stdlib.compiler.package_web")
 local compiler_diagnostics = require("runtime.stdlib.compiler.diagnostics")
+local util = require("runtime.util")
 
 local M = {}
-
-local function dirname(path)
-	return (path and path:match("^(.*)/[^/]*$")) or "."
-end
-
-local function shell_quote(value)
-	return "'" .. tostring(value):gsub("'", [['"'"']]) .. "'"
-end
-
-local function escape_html(value)
-	local text = tostring(value or "")
-	text = text:gsub("&", "&amp;")
-	text = text:gsub("<", "&lt;")
-	text = text:gsub(">", "&gt;")
-	text = text:gsub('"', "&quot;")
-	text = text:gsub("'", "&#39;")
-	return text
-end
-
-local function file_exists(path)
-	local file = io.open(path, "rb")
-	if file then
-		file:close()
-		return true
-	end
-	return false
-end
-
-local function validate_payload_id(payload_id)
-	if type(payload_id) ~= "string" then
-		return nil
-	end
-
-	if payload_id:match("^[A-Za-z0-9_%-]+$") then
-		return payload_id
-	end
-
-	return nil
-end
-
-local function humanize_payload_id(payload_id)
-	local text = tostring(payload_id or "current"):gsub("_", " "):gsub("%-", " ")
-	return text:gsub("^%l", string.upper)
-end
-
-local function list_files(root)
-	local command = string.format("find %s -type f | sort", shell_quote(root))
-	local pipe = io.popen(command, "r")
-	if not pipe then
-		return {}
-	end
-
-	local files = {}
-	local prefix = root .. "/"
-	for path in pipe:lines() do
-		files[#files + 1] = path:sub(#prefix + 1)
-	end
-	pipe:close()
-	return files
-end
-
-local function read_all(path)
-	local file = io.open(path, "rb")
-	if not file then
-		return nil
-	end
-
-	local contents = file:read("*a")
-	file:close()
-	return contents
-end
-
-local function write_all(path, contents)
-	local file = assert(io.open(path, "wb"))
-	file:write(contents or "")
-	file:close()
-end
 
 local function validate_relative_path(relative_path)
 	if type(relative_path) ~= "string" or relative_path == "" then
@@ -120,8 +44,8 @@ end
 local function collect_payload_sources(instance, payload_id)
 	local root = payload_dir(instance.__payload_root, payload_id)
 	local source_files = {}
-	for _, relative_path in ipairs(list_files(root)) do
-		local contents = read_all(root .. "/" .. relative_path)
+	for _, relative_path in ipairs(util.list_files(root)) do
+		local contents = util.read_all(root .. "/" .. relative_path)
 		if contents ~= nil then
 			source_files[relative_path] = contents
 		end
@@ -132,10 +56,10 @@ end
 local function build_preview_frame(slot, payload_id, src)
 	return table.concat({
 		'<iframe class="shell-preview-frame"',
-		' data-host-slot="' .. escape_html(slot) .. '"',
+		' data-host-slot="' .. util.escape_html(slot) .. '"',
 		' sandbox="allow-scripts allow-forms allow-same-origin"',
-		' title="' .. escape_html(humanize_payload_id(payload_id)) .. '"',
-		' src="' .. escape_html(src) .. '"',
+		' title="' .. util.escape_html(util.humanize_payload_id(payload_id)) .. '"',
+		' src="' .. util.escape_html(src) .. '"',
 		'></iframe>',
 	}, "")
 end
@@ -143,10 +67,10 @@ end
 local function error_frame(slot, payload_id, message)
 	return table.concat({
 		'<div class="shell-preview-error"',
-		' data-host-slot="' .. escape_html(slot) .. '"',
-		' data-payload-id="' .. escape_html(payload_id) .. '"',
+		' data-host-slot="' .. util.escape_html(slot) .. '"',
+		' data-payload-id="' .. util.escape_html(payload_id) .. '"',
 		'>',
-		escape_html(message),
+		util.escape_html(message),
 		"</div>",
 	}, "")
 end
@@ -156,7 +80,7 @@ local function render_mount(instance, slot, payload_id)
 		slot = slot,
 		payload_id = payload_id,
 	}, function(span)
-		local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+		local normalized_id = util.validate_payload_id(payload_id or instance.__active_payload_id or "current")
 		if normalized_id == nil then
 			span:set("status", 400)
 			span:set("ok", false)
@@ -166,7 +90,7 @@ local function render_mount(instance, slot, payload_id)
 
 		local payload_root = payload_dir(instance.__payload_root, normalized_id)
 		local app_path = payload_root .. "/app.fuwa"
-		if not file_exists(app_path) then
+		if not util.file_exists(app_path) then
 			span:set("status", 404)
 			span:set("ok", false)
 			span:set("result", "missing_payload")
@@ -187,26 +111,26 @@ local function render_mount(instance, slot, payload_id)
 end
 
 local function list_payload_files(instance, payload_id)
-	local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+	local normalized_id = util.validate_payload_id(payload_id or instance.__active_payload_id or "current")
 	if normalized_id == nil then
 		return nil
 	end
 
-	return list_files(payload_dir(instance.__payload_root, normalized_id))
+	return util.list_files(payload_dir(instance.__payload_root, normalized_id))
 end
 
 local function read_payload_file(instance, payload_id, relative_path)
-	local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+	local normalized_id = util.validate_payload_id(payload_id or instance.__active_payload_id or "current")
 	local normalized_path = validate_relative_path(relative_path)
 	if normalized_id == nil or normalized_path == nil then
 		return nil
 	end
 
-	return read_all(payload_file_path(instance.__payload_root, normalized_id, normalized_path))
+	return util.read_all(payload_file_path(instance.__payload_root, normalized_id, normalized_path))
 end
 
 local function write_payload_file(instance, payload_id, relative_path, contents)
-	local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+	local normalized_id = util.validate_payload_id(payload_id or instance.__active_payload_id or "current")
 	local normalized_path = validate_relative_path(relative_path)
 	if normalized_id == nil then
 		return {
@@ -229,8 +153,8 @@ local function write_payload_file(instance, payload_id, relative_path, contents)
 	end
 
 	local path = payload_file_path(instance.__payload_root, normalized_id, normalized_path)
-	os.execute("mkdir -p " .. shell_quote(dirname(path)))
-	write_all(path, contents or "")
+	os.execute("mkdir -p " .. util.shell_quote(util.dirname(path)))
+	util.write_all(path, contents or "")
 
 	-- Publishing supersedes any live draft of the same file: the draft overlay
 	-- (.fuwa-dev/drafts) only exists to keep unsaved edits out of the payload
@@ -247,20 +171,20 @@ local function write_payload_file(instance, payload_id, relative_path, contents)
 end
 
 local function describe_payload(instance, payload_id)
-	local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+	local normalized_id = util.validate_payload_id(payload_id or instance.__active_payload_id or "current")
 	if normalized_id == nil then
 		return nil
 	end
 
 	local root = payload_dir(instance.__payload_root, normalized_id)
-	local files = list_files(root)
+	local files = util.list_files(root)
 
 	return {
 		id = normalized_id,
-		label = humanize_payload_id(normalized_id),
+		label = util.humanize_payload_id(normalized_id),
 		path = root,
 		route = "/payload/" .. normalized_id .. "/",
-		exists = file_exists(root .. "/app.fuwa"),
+		exists = util.file_exists(root .. "/app.fuwa"),
 		files = files,
 		file_count = #files,
 	}
@@ -270,7 +194,7 @@ local function compile_payload(instance, payload_id)
 	return trace.span("host.compile_payload", {
 		payload_id = payload_id,
 	}, function(span)
-		local normalized_id = validate_payload_id(payload_id or instance.__active_payload_id or "current")
+		local normalized_id = util.validate_payload_id(payload_id or instance.__active_payload_id or "current")
 		if normalized_id == nil then
 			span:set("ok", false)
 			span:set("result", "invalid_payload_id")
@@ -323,7 +247,7 @@ function M.new(opts)
 	local script_path = script_source:sub(1, 1) == "@" and script_source:sub(2) or script_source
 	local root_dir = opts.root_dir
 	if root_dir == nil then
-		root_dir = dirname(dirname(dirname(script_path)))
+		root_dir = util.dirname(util.dirname(util.dirname(script_path)))
 	end
 
 	local payload_root = opts.payload_root or root_dir .. "/payloads"

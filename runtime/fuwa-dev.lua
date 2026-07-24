@@ -7,31 +7,7 @@
 --   db_helper_main(state_path, command_path) -> flock-guarded DB helper mode
 
 local M = {}
-
-local function dirname(path)
-	return (path and path:match("^(.*)/[^/]*$")) or "."
-end
-
-local function shell_quote(value)
-	return "'" .. tostring(value):gsub("'", [['"'"']]) .. "'"
-end
-
-local function read_all(path)
-	local file = io.open(path, "rb")
-	if not file then
-		return nil
-	end
-
-	local contents = file:read("*a")
-	file:close()
-	return contents
-end
-
-local function write_all(path, contents)
-	local file = assert(io.open(path, "wb"))
-	file:write(contents or "")
-	file:close()
-end
+local util = require("runtime.util")
 
 local function status_line(status)
 	if status == 302 then
@@ -75,51 +51,6 @@ local function content_type_for(path)
 	return "text/plain; charset=utf-8"
 end
 
-local function file_exists(path)
-	local file = io.open(path, "rb")
-	if file then
-		file:close()
-		return true
-	end
-	return false
-end
-
-local function ensure_path(path, contents)
-	if not file_exists(path) then
-		write_all(path, contents or "")
-	end
-end
-
-local function deep_copy(value)
-	if type(value) ~= "table" then
-		return value
-	end
-
-	local out = {}
-	for key, entry in pairs(value) do
-		out[deep_copy(key)] = deep_copy(entry)
-	end
-	return out
-end
-
-local function is_array(value)
-	local count = 0
-	for key in pairs(value) do
-		if type(key) ~= "number" or key < 1 or key % 1 ~= 0 then
-			return false, 0
-		end
-		count = count + 1
-	end
-
-	for index = 1, count do
-		if value[index] == nil then
-			return false, 0
-		end
-	end
-
-	return true, count
-end
-
 local function sorted_keys(value)
 	local keys = {}
 	for key in pairs(value) do
@@ -155,7 +86,7 @@ local function serialize_lua(value, indent)
 		error("cannot serialize type " .. value_type)
 	end
 
-	local array, count = is_array(value)
+	local array, count = util.is_array(value)
 	local child_indent = indent .. "  "
 	local parts = {}
 
@@ -183,8 +114,8 @@ end
 
 local script_source = debug.getinfo(1, "S").source
 local script_path = script_source:sub(1, 1) == "@" and script_source:sub(2) or script_source
-local runtime_dir = dirname(script_path)
-local root_dir = dirname(runtime_dir)
+local runtime_dir = util.dirname(script_path)
+local root_dir = util.dirname(runtime_dir)
 local payloads_root = root_dir .. "/payloads"
 local payload_root = payloads_root .. "/current"
 local dev_dir = root_dir .. "/.fuwa-dev"
@@ -216,10 +147,10 @@ local runtime_preloads = {
 local shell_root = root_dir .. "/shell"
 local vendor_root = root_dir .. "/vendor"
 
-os.execute("mkdir -p " .. shell_quote(dev_dir))
-ensure_path(state_path, "return {}\n")
-ensure_path(lock_path, "")
-ensure_path(reload_token_path, "")
+os.execute("mkdir -p " .. util.shell_quote(dev_dir))
+util.ensure_path(state_path, "return {}\n")
+util.ensure_path(lock_path, "")
+util.ensure_path(reload_token_path, "")
 
 local function dev_trace_sink(event)
 	if type(event) ~= "table" then
@@ -273,14 +204,14 @@ local function register_runtime_preloads()
 end
 
 local function collect_find_output(root)
-	local command = string.format("find %s -type f 2>/dev/null | sort", shell_quote(root))
+	local command = string.format("find %s -type f 2>/dev/null | sort", util.shell_quote(root))
 	local pipe = assert(io.popen(command, "r"))
 	local files = {}
 	local prefix = root .. "/"
 
 	for path in pipe:lines() do
 		local relative = path:sub(#prefix + 1)
-		local contents = read_all(path)
+		local contents = util.read_all(path)
 		if contents ~= nil then
 			files[relative] = contents
 		end
@@ -338,7 +269,7 @@ local function split_payload_route(path)
 end
 
 local function serve_static_asset(path)
-	local contents = read_all(path)
+	local contents = util.read_all(path)
 	if contents == nil then
 		return nil
 	end
@@ -368,7 +299,7 @@ local function resolve_db_provider(opts)
 	end
 
 	local provider_name = opts.db_provider_name or "sqlite_local"
-	local provider_opts = deep_copy(opts.db_provider_opts or {})
+	local provider_opts = util.deep_copy(opts.db_provider_opts or {})
 	if provider_name == "sqlite_local" and provider_opts.path == nil and os.getenv("FUWA_DB_PATH") == nil then
 		provider_opts.path = default_db_path
 	end
@@ -401,7 +332,7 @@ end
 
 local function save_state(path, state)
 	local temp_path = path .. ".tmp"
-	write_all(temp_path, "return " .. serialize_lua(state))
+	util.write_all(temp_path, "return " .. serialize_lua(state))
 	assert(os.rename(temp_path, path))
 end
 
@@ -418,7 +349,7 @@ end
 local function copy_rows(rows)
 	local out = {}
 	for index, row in ipairs(rows or {}) do
-		out[index] = deep_copy(row)
+		out[index] = util.deep_copy(row)
 	end
 	return out
 end
@@ -502,13 +433,13 @@ local function apply_db_command(state, command)
 		if not index then
 			return response_not_found("row not found")
 		end
-		return response_ok(deep_copy(rows[index]))
+		return response_ok(util.deep_copy(rows[index]))
 	end
 
 	if op == "find_by" then
 		for _, row in ipairs(rows) do
 			if row_matches(row, command.where or {}) then
-				return response_ok(deep_copy(row))
+				return response_ok(util.deep_copy(row))
 			end
 		end
 		return response_not_found("row not found")
@@ -519,7 +450,7 @@ local function apply_db_command(state, command)
 		local limit = tonumber(command.limit)
 		for _, row in ipairs(rows) do
 			if row_matches(row, command.where or {}) then
-				matched[#matched + 1] = deep_copy(row)
+				matched[#matched + 1] = util.deep_copy(row)
 				if limit and #matched >= limit then
 					break
 				end
@@ -529,7 +460,7 @@ local function apply_db_command(state, command)
 	end
 
 	if op == "create" or op == "insert" then
-		local row = deep_copy(command.data or {})
+		local row = util.deep_copy(command.data or {})
 		if row.id == nil then
 			row.id = collection.next_id
 			collection.next_id = collection.next_id + 1
@@ -541,7 +472,7 @@ local function apply_db_command(state, command)
 		end
 
 		rows[#rows + 1] = row
-		return response_ok(deep_copy(row))
+		return response_ok(util.deep_copy(row))
 	end
 
 	if op == "update" then
@@ -552,10 +483,10 @@ local function apply_db_command(state, command)
 
 		local row = rows[index]
 		for key, value in pairs(command.data or {}) do
-			row[key] = deep_copy(value)
+			row[key] = util.deep_copy(value)
 		end
 		row.id = row.id or command.id
-		return response_ok(deep_copy(row))
+		return response_ok(util.deep_copy(row))
 	end
 
 	if op == "delete" then
@@ -565,7 +496,7 @@ local function apply_db_command(state, command)
 		end
 
 		local row = table.remove(rows, index)
-		return response_ok(deep_copy(row))
+		return response_ok(util.deep_copy(row))
 	end
 
 	return {
@@ -694,8 +625,8 @@ function M.build_draft_write_response(payload_id, body)
 	end
 
 	local target = overlay_dir .. "/" .. draft_path
-	os.execute("mkdir -p " .. shell_quote(dirname(target)))
-	write_all(target, form.contents or "")
+	os.execute("mkdir -p " .. util.shell_quote(util.dirname(target)))
+	util.write_all(target, form.contents or "")
 
 	local escaped = draft_path:gsub("[\\\"]", "\\%0")
 	return json_response(200, '{"ok":true,"path":"' .. escaped .. '"}')
@@ -717,7 +648,7 @@ function M.build_draft_discard_response(payload_id, body)
 	else
 		-- overlay_dir is derived from a sanitized id under drafts_root, so the
 		-- recursive delete cannot escape the drafts area.
-		os.execute("rm -rf " .. shell_quote(overlay_dir))
+		os.execute("rm -rf " .. util.shell_quote(overlay_dir))
 	end
 
 	return json_response(200, '{"ok":true}')
@@ -726,7 +657,7 @@ end
 local function collect_stdlib_sources()
 	local sources = {}
 	for _, relative_path in pairs(runtime_preloads) do
-		local contents = read_all(root_dir .. "/" .. relative_path)
+		local contents = util.read_all(root_dir .. "/" .. relative_path)
 		if contents ~= nil then
 			sources[relative_path] = contents
 		end
@@ -747,7 +678,7 @@ local function collect_compiler_sources(sources)
 	-- worker's VFS searcher resolves `require("runtime.trace")`. The compile-time
 	-- span is a noop, so no io/os hot paths run inside the worker.
 	for _, relative_path in ipairs({ "runtime/trace.lua", "runtime/log.lua" }) do
-		local contents = read_all(root_dir .. "/" .. relative_path)
+		local contents = util.read_all(root_dir .. "/" .. relative_path)
 		if contents ~= nil then
 			sources[relative_path] = contents
 		end
@@ -979,7 +910,7 @@ end
 
 local function poll_reload_token(token_path, timeout_seconds)
 	local function file_signature(path)
-		local command = string.format("stat -c %%y %s 2>/dev/null", shell_quote(path))
+		local command = string.format("stat -c %%y %s 2>/dev/null", util.shell_quote(path))
 		local pipe = io.popen(command, "r")
 		if not pipe then
 			return ""
@@ -1027,7 +958,7 @@ end
 
 function M.run()
 	io.stdout:setvbuf("no")
-	ensure_path(reload_token_path, "")
+	util.ensure_path(reload_token_path, "")
 
 	local request = read_request()
 	if not request then
