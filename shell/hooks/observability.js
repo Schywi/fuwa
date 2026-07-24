@@ -155,6 +155,7 @@
 			return;
 		}
 		app = window.PetiteVue.createApp(state);
+		state = window.PetiteVue.reactive(state);
 		app.mount(root);
 		root.setAttribute('data-widget-state', 'mounted');
 
