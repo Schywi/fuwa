@@ -113,11 +113,30 @@ function M:maybe(ttype, value)
   return nil
 end
 
---- Consume all tokens until the next newline (exclusive), joining their
---- string values with spaces. The trailing newline is consumed.
---- Useful for parsing "rest of line" expressions like handler.func or
---- field flags.
+--- Consume all tokens until the next newline (exclusive). The trailing
+--- newline is consumed. Token values are concatenated directly (no spaces
+--- inserted), which correctly reconstructs dotted paths like Home.index.
+--- Callers that need space-separated output should join the token values
+--- themselves or use rest_of_line_tokens().
 function M:rest_of_line()
+  local parts = self:rest_of_line_tokens()
+  if not parts then
+    return ""
+  end
+  local words = {}
+  for _, tok in ipairs(parts) do
+    words[#words + 1] = tok.value
+  end
+  return table.concat(words)
+end
+
+--- Like rest_of_line() but returns the raw token array instead of a
+--- joined string. The trailing newline is still consumed.
+--- Returns nil if already at end of input.
+function M:rest_of_line_tokens()
+  if self:is_done() then
+    return nil
+  end
   local parts = {}
   while true do
     local t = self:peek()
@@ -127,15 +146,8 @@ function M:rest_of_line()
     self:next()
     parts[#parts + 1] = t
   end
-  -- Consume the terminating newline
-  self:next()
-
-  -- Reconstruct source text from tokens
-  local words = {}
-  for _, tok in ipairs(parts) do
-    words[#words + 1] = tok.value
-  end
-  return table.concat(words, " ")
+  self:next() -- consume the terminating newline
+  return parts
 end
 
 --- Consume tokens until one of the given stop keywords is seen (type ==
@@ -194,13 +206,10 @@ function M:_error_token(ttype)
 end
 
 function M:_error(message)
-  -- Use the same diagnostics.add interface as the existing compiler
-  local line = self:line()
   self._diag[#self._diag + 1] = {
-    filename = self._filename,
-    line     = line,
-    col      = self:col(),
-    message  = message,
+    file    = self._filename,
+    line    = self:line(),
+    message = message,
   }
 end
 
