@@ -10,6 +10,7 @@
 	let timer = null;
 	let state = null;
 	let mounted = false;
+	let app = null;
 
 	function log(step, detail) {
 		if (detail === undefined) {
@@ -50,7 +51,6 @@
 		return fetch(url, { signal: AbortSignal.timeout(timeout) })
 			.then(function (r) {
 				if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
-				// success — body may be plain text, we don't parse it
 			});
 	}
 
@@ -97,7 +97,6 @@
 	}
 
 	function computeMetrics(traces) {
-		// Only look at completed request spans (kind === "request", with duration_ms).
 		var requests = [];
 		for (var i = 0; i < traces.length; i++) {
 			var t = traces[i];
@@ -113,17 +112,14 @@
 			return;
 		}
 
-		// Request count (total in buffer).
 		state.reqCount = String(requests.length);
 
-		// Error rate: percentage of failed traces.
 		var failed = 0;
 		for (var j = 0; j < requests.length; j++) {
 			if (requests[j].failed) failed++;
 		}
 		state.errorRate = (failed / requests.length * 100).toFixed(1) + '%';
 
-		// p95 latency: sort durations, pick the 95th percentile.
 		var durations = requests.map(function (r) { return r.duration_ms; }).sort(function (a, b) { return a - b; });
 		var idx = Math.ceil(durations.length * 0.95) - 1;
 		if (idx < 0) idx = 0;
@@ -139,7 +135,6 @@
 	// ── Trace formatting ─────────────────────────────────────────────────
 
 	function formatTraceLine(trace) {
-		// Trace spans have attrs.method, attrs.path, attrs.status as nested fields.
 		var attrs = trace.attrs || {};
 		var method = attrs.method || trace.method || '--';
 		var path   = attrs.path   || trace.path   || '--';
@@ -153,11 +148,25 @@
 	function mount(root) {
 		if (mounted) return;
 
+		// Reuse existing app if already created.
+		if (app) {
+			mounted = true;
+			pollAll();
+			timer = setInterval(pollAll, POLL_MS);
+			log('resumed');
+			return;
+		}
+
 		state = createState();
 		state.formatTraceLine = formatTraceLine;
 
+		// Remove v-pre so petite-vue compiles this subtree (it was
+		// v-pre'd to prevent the workspace scope from evaluating it).
+		root.removeAttribute('v-pre');
+
 		if (window.PetiteVue && window.PetiteVue.createApp) {
-			window.PetiteVue.createApp(state).mount(root);
+			app = window.PetiteVue.createApp(state);
+			app.mount(root);
 		} else {
 			log('petite-vue not ready, retrying');
 			setTimeout(function () { mount(root); }, 200);
@@ -172,12 +181,13 @@
 
 	function unmount() {
 		mounted = false;
-		state = null;
 		if (timer) {
 			clearInterval(timer);
 			timer = null;
 		}
-		log('unmounted');
+		// Keep state + petite-vue app alive so reactive bindings
+		// survive view switches.
+		log('paused');
 	}
 
 	// ── Public API ───────────────────────────────────────────────────────

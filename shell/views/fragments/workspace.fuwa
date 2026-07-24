@@ -127,13 +127,13 @@
     <pre hidden data-terminal-seed>&dashboard.active.terminal_output</pre>
   </div>
 
-  <div class="ide-view ide-view-obs" data-view="obs" data-obs-root hidden>
+  <div class="ide-view ide-view-obs" data-view="obs" data-obs-root v-pre hidden>
     <div class="stage-header">
       <span class="stage-title">Observability</span>
       <span class="stage-subtitle">traces · metrics · health</span>
       <a class="shell-button shell-button-meta" href="http://localhost:14318" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none;">Uptrace ↗</a>
     </div>
-    <div class="obs-panel" v-scope>
+    <div class="obs-panel">
       <div class="obs-section">
         <div class="obs-section-title">PLATFORM HEALTH</div>
         <div class="obs-health-row">
