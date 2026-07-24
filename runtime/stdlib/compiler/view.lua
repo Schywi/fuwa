@@ -1,5 +1,6 @@
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local strings = require("runtime.stdlib.compiler.strings")
+local Emit = require("runtime.stdlib.compiler.emit")
 
 local M = {}
 
@@ -122,52 +123,55 @@ function M.compile_view_module(template_source, source_files, filename)
 	end
 
 	return {
-		lua = table.concat({
-			'local view = require("runtime.stdlib.view")',
-			'local web = require("runtime.stdlib.web")',
-			"",
-			"local M = {}",
-			"",
-			"local templates = {",
-			table.concat(template_entries, "\n"),
-			"}",
-			"",
-			"function M.render(name, data, opts)",
-			"  local template = templates[name]",
-			"  if template == nil then",
-			'    if type(name) == "string" and name:match("^fragments/") then',
-			"      return web.dev_error_html({",
-			'        _type = "error",',
-			"        err = {",
-			'          kind = "unknown_fragment",',
-			'          message = "Unknown fragment: " .. tostring(name),',
-			"        },",
-			"        action = name,",
-			"      })",
-			"    end",
-			'    template = templates["__page__"]',
-			"  end",
-			"",
-			"  local html, err = view.render(template, data, opts)",
-			"  if html ~= nil then",
-			"    return html",
-			"  end",
-			"",
-			"  return web.dev_error_html({",
-			'    _type = "error",',
-			"    err = {",
-			'      kind = err and err.kind or "template_error",',
-			'      message = err and err.message or "Template render failed",',
-			"    },",
-			"    action = name,",
-			"    line = err and err.line or nil,",
-			"    expr = err and err.snippet or nil,",
-			"  })",
-			"end",
-			"",
-			"return M",
-			""
-		}, "\n"),
+		lua = (function()
+			local out = Emit.new()
+			out:line('local view = require("runtime.stdlib.view")')
+			out:line('local web = require("runtime.stdlib.web")')
+			out:blank()
+			out:line("local M = {}")
+			out:blank()
+			out:line("local templates = {")
+			for _, entry in ipairs(template_entries) do
+				out:raw(entry)
+			end
+			out:line("}")
+			out:blank()
+			out:line("function M.render(name, data, opts)")
+			out:line('  local template = templates[name]')
+			out:line("  if template == nil then")
+			out:line('    if type(name) == "string" and name:match("^fragments/") then')
+			out:line("      return web.dev_error_html({")
+			out:line('        _type = "error",')
+			out:line("        err = {")
+			out:line('          kind = "unknown_fragment",')
+			out:line('          message = "Unknown fragment: " .. tostring(name),')
+			out:line("        },")
+			out:line("        action = name,")
+			out:line("      })")
+			out:line("    end")
+			out:line('    template = templates["__page__"]')
+			out:line("  end")
+			out:blank()
+			out:line("  local html, err = view.render(template, data, opts)")
+			out:line("  if html ~= nil then")
+			out:line("    return html")
+			out:line("  end")
+			out:blank()
+			out:line("  return web.dev_error_html({")
+			out:line('    _type = "error",')
+			out:line("    err = {")
+			out:line('      kind = err and err.kind or "template_error",')
+			out:line('      message = err and err.message or "Template render failed",')
+			out:line("    },")
+			out:line("    action = name,")
+			out:line("    line = err and err.line or nil,")
+			out:line("    expr = err and err.snippet or nil,")
+			out:line("  })")
+			out:line("end")
+			out:blank()
+			out:line("return M")
+			return out:build()
+		end)(),
 		diagnostics = diagnostics_out
 	}
 end
