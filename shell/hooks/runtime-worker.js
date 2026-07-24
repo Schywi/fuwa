@@ -342,9 +342,18 @@ async function runCode(id, files, target, sources) {
 			throw new Error('Lua did not boot');
 		}
 
-		// Trace module is in the VFS but was missing during boot() because
-		// vfs is only populated here. Install the sink now so Wasmoon
-		// request spans flow into the observability panel.
+		if (sources && Object.keys(sources).length > 0) {
+			const compiled = await compileSources(sources);
+			vfs = Object.assign({}, files || {}, compiled);
+		}
+
+		const resetScript = moduleCacheResetScript(vfs);
+		if (resetScript) {
+			await lua.doString(resetScript);
+		}
+
+		// Install trace sink AFTER module cache reset — resetScript nils
+		// package.loaded for every .lua file, including runtime.trace.
 		await lua.doString([
 			'local ok, trace_mod = pcall(require, "runtime.trace")',
 			'__fuwa_trace_log("trace require: " .. tostring(ok))',
@@ -397,16 +406,6 @@ async function runCode(id, files, target, sources) {
 			'end)',
 			'__fuwa_trace_log("trace sink installed")'
 		].join('\n'));
-
-		if (sources && Object.keys(sources).length > 0) {
-			const compiled = await compileSources(sources);
-			vfs = Object.assign({}, files || {}, compiled);
-		}
-
-		const resetScript = moduleCacheResetScript(vfs);
-		if (resetScript) {
-			await lua.doString(resetScript);
-		}
 
 		const isRequest = target && target.kind === 'request';
 		lua.global.set('__fuwa_is_request', !!isRequest);
