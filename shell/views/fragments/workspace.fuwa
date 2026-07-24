@@ -134,7 +134,6 @@
       <a class="shell-button shell-button-meta" href="http://localhost:14318" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none;">Uptrace ↗</a>
     </div>
     <div class="obs-panel" v-scope>
-      <!-- Platform health -->
       <div class="obs-section">
         <div class="obs-section-title">PLATFORM HEALTH</div>
         <div class="obs-health-row">
@@ -156,7 +155,6 @@
         </div>
       </div>
 
-      <!-- Live metrics -->
       <div class="obs-section">
         <div class="obs-section-title">LIVE METRICS <span class="obs-section-sub">(Last 5m)</span></div>
         <div class="obs-metrics-row">
@@ -175,7 +173,6 @@
         </div>
       </div>
 
-      <!-- Recent traces -->
       <div class="obs-section obs-section-traces">
         <div class="obs-section-title">RECENT TRACES <span class="obs-section-sub">(Live Stream)</span></div>
         <div class="obs-traces-list">
@@ -188,7 +185,6 @@
         </div>
       </div>
 
-      <!-- Footer -->
       <div class="obs-footer">( •ω•)ﾉ✧ obs-panel ready &middot; tracking <span v-text="traceCount"></span> events</div>
     </div>
   </div>
