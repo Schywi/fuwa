@@ -112,7 +112,22 @@
 		for (var k in byTrace) {
 			if (!Object.prototype.hasOwnProperty.call(byTrace, k)) continue;
 			var r = byTrace[k];
-			if (!r.finalized) continue;
+			// Virtual log traces (from FuwaObservability.log) have no
+			// request event — surface them as LOG entries.
+			if (!r.finalized) {
+				if (r.logs.length === 0) continue;
+				// Use the first log's kind as a hint — span_log with a
+				// non-request name means this is a virtual log group.
+				var firstKind = r.logs[0].kind;
+				if (firstKind !== 'span_log') continue;
+				r.method = 'LOG';
+				r.path = r.logs[0].label.split(' ')[0] || r.traceId.replace('log_', '');
+				r.statusLabel = r.logs.length + ' entries';
+				r.durationLabel = '--';
+				r.stageSummary = 'centralized log bus';
+				r.finalized = true;
+			}
+			if (!r.finalized) continue;  // skip after LOG conversion if still not ok
 			var parts = [];
 			for (var s = 0; s < r.stages.length; s++) {
 				parts.push(r.stages[s].name + ' ' + r.stages[s].duration);
@@ -194,6 +209,27 @@
 			if (!roots[i].hidden) mount(roots[i]);
 		}
 	}
+
+	// Centralized log bus: every JS hook feeds through this instead of raw
+	// console.  Mirrors the LOG_PREFIX pattern (e.g. 'shell:workspace') so
+	// logs are grouped by source in the observability panel as virtual
+	// traces.  The original console behaviour is preserved.
+	window.FuwaObservability = {
+		log: function (source, message, fields) {
+			console.debug('[' + source + '] ' + message, fields || '');
+			// Treat each source as a virtual trace so all logs from one
+			// component collapse into a single expandable row.
+			var tid = 'log_' + source.replace(/[^a-zA-Z0-9_]/g, '_');
+			appendEvent({
+				kind: 'span_log',
+				name: source,
+				trace_id: tid,
+				message: message,
+				fields: fields || {},
+				_ts: Date.now() / 1000
+			});
+		}
+	};
 
 	window.FuwaShellObservability = {
 		mount: mount, unmount: unmount, refresh: refresh, selector: ROOT_SELECTOR,

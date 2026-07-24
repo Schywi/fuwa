@@ -345,8 +345,17 @@ async function runCode(id, files, target, sources) {
 		}
 
 		if (sources && Object.keys(sources).length > 0) {
+			const compileStart = Date.now();
+			const sourceCount = Object.keys(sources).length;
 			const compiled = await compileSources(sources);
+			const compileMs = Date.now() - compileStart;
+			const moduleCount = Object.keys(compiled).length;
 			vfs = Object.assign({}, files || {}, compiled);
+			// Pass compile timing to Lua so the request handler can
+			// create a compile span with proper duration.
+			lua.global.set('__fuwa_compile_ms', compileMs);
+			lua.global.set('__fuwa_compile_files', sourceCount);
+			lua.global.set('__fuwa_compile_modules', moduleCount);
 		}
 
 		const resetScript = moduleCacheResetScript(vfs);
@@ -432,10 +441,22 @@ async function runCode(id, files, target, sources) {
 					'__fuwa_trace_log("request handler: trace_mod=" .. tostring(trace_mod ~= nil) .. " method=" .. __fuwa_method .. " path=" .. __fuwa_path)',
 					'if type(handle_request) == "function" then',
 					'  local req_span = nil',
+					'  local compile_span = nil',
 					'  local render_span = nil',
 					'  if trace_mod then',
 					'    req_span = trace_mod.span("request", {method = __fuwa_method, path = __fuwa_path})',
 					'    render_span = trace_mod.span("render", {method = __fuwa_method, path = __fuwa_path})',
+					'    -- Compile span: the compile happened in JS before Lua ran.',
+					'    -- We create the span with a rewinded clock so the duration',
+					'    -- matches the JS-measured compile time.',
+					'    if __fuwa_compile_ms then',
+					'      compile_span = trace_mod.span("compile", {files = __fuwa_compile_files})',
+					'      compile_span.started_at = compile_span.started_at - (__fuwa_compile_ms / 1000)',
+					'      compile_span:log("scanning source", {files = __fuwa_compile_files})',
+					'      compile_span:log("emitted modules", {count = __fuwa_compile_modules})',
+					'      compile_span:set("modules", __fuwa_compile_modules)',
+					'      compile_span:close()',
+					'    end',
 					'  end',
 					'  local ok, result = pcall(handle_request, __fuwa_method, __fuwa_path, __fuwa_body)',
 					'  if render_span then',
