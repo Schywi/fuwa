@@ -26,6 +26,13 @@ local function call_host(command)
         .. tostring(response)
     )
   end
+
+  -- Normalize: if the provider returned a bare table without an ok/err
+  -- envelope, wrap it in {ok = true, value = ...}.  After this point
+  -- every caller can rely on the envelope being present.
+  if response.ok == nil then
+    return { ok = true, value = response }
+  end
   return response
 end
 
@@ -36,11 +43,9 @@ local function format_error(response, op, collection)
   return string.format("Db.%s(%s): %s: %s", op, collection, kind, message)
 end
 
+-- call_host guarantees the response envelope exists, so unwrap_read
+-- never sees a bare table.
 local function unwrap_read(response, op, collection)
-  if response.ok == nil then
-    return response
-  end
-
   if response.ok then
     return response.value
   end
@@ -52,34 +57,18 @@ local function unwrap_read(response, op, collection)
   error(format_error(response, op, collection))
 end
 
-local function wrap_write(response)
-  if response.ok == nil then
-    return { ok = true, value = response }
-  end
-  return response
-end
-
 function M.collection(name)
   local collection_name = tostring(name)
   local collection = {}
   collection._kind = "collection"
 
-  local function method_args(first, second, third)
-    if first == collection then
-      return second, third
-    end
-    return first, second
-  end
+  -- Every method uses the OOP calling convention exclusively:
+  --   collection:all(opts)        → self = collection, opts  = first arg
+  --   collection:find(id)         → self = collection, id    = first arg
+  --   collection:create(data)     → self = collection, data  = first arg
+  --   etc.
 
-  local function insert_arg(first, second, third)
-    if first == collection then
-      return third or second
-    end
-    return first
-  end
-
-  function collection.all(first, second)
-    local opts = method_args(first, second)
+  function collection.all(self, opts)
     local response = call_host({
       op = "all",
       collection = collection_name,
@@ -89,8 +78,7 @@ function M.collection(name)
     return unwrap_read(response, "all", collection_name) or {}
   end
 
-  function collection.find(first, second)
-    local id = method_args(first, second)
+  function collection.find(self, id)
     local response = call_host({
       op = "find",
       collection = collection_name,
@@ -99,8 +87,7 @@ function M.collection(name)
     return unwrap_read(response, "find", collection_name)
   end
 
-  function collection.find_by(first, second, third)
-    local where, opts = method_args(first, second, third)
+  function collection.find_by(self, where, opts)
     local response = call_host({
       op = "find_by",
       collection = collection_name,
@@ -111,8 +98,7 @@ function M.collection(name)
     return unwrap_read(response, "find_by", collection_name)
   end
 
-  function collection.where(first, second, third)
-    local where, opts = method_args(first, second, third)
+  function collection.where(self, where, opts)
     local response = call_host({
       op = "where",
       collection = collection_name,
@@ -123,37 +109,33 @@ function M.collection(name)
     return unwrap_read(response, "where", collection_name) or {}
   end
 
-  function collection.create(first, second)
-    local data = method_args(first, second)
-    return wrap_write(call_host({
+  function collection.create(self, data)
+    return call_host({
       op = "create",
       collection = collection_name,
       data = data or {},
-    }))
+    })
   end
 
-  function collection.insert(first, second, third)
-    local data = insert_arg(first, second, third)
-    return collection.create(data)
+  function collection.insert(self, data)
+    return collection:create(data)
   end
 
-  function collection.update(first, second, third)
-    local id, data = method_args(first, second, third)
-    return wrap_write(call_host({
+  function collection.update(self, id, data)
+    return call_host({
       op = "update",
       collection = collection_name,
       id = id,
       data = data or {},
-    }))
+    })
   end
 
-  function collection.delete(first, second)
-    local id = method_args(first, second)
-    return wrap_write(call_host({
+  function collection.delete(self, id)
+    return call_host({
       op = "delete",
       collection = collection_name,
       id = id,
-    }))
+    })
   end
 
   return collection

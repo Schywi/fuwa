@@ -37,6 +37,48 @@ local function coerce(value, ftype)
   return tostring(value)
 end
 
+-- ── Changeset object ─────────────────────────────────────────────────────────
+-- A Changeset holds validation results plus an insert operation.
+-- When ok == false, read `errors` to see what went wrong;
+-- `data` contains partially-coerced form values (may be incomplete).
+-- Calling :insert() on an invalid changeset returns an error result.
+local Changeset = {}
+Changeset.__index = Changeset
+
+function Changeset:_insert()
+  if not self.valid then
+    return result.err("invalid_changeset", "Changeset is invalid", self.errors)
+  end
+  if not self._model.repo then
+    return result.err("no_repo", "No repo configured for model " .. self._model.name)
+  end
+  local repo = self._model.repo
+  local insert_fn = repo.insert or repo.create
+  if not insert_fn then
+    return result.err("no_repo", "No repo configured for model " .. self._model.name)
+  end
+  return insert_fn(repo, self.data)
+end
+
+function Changeset.new(model, data, errors)
+  local valid = next(errors) == nil
+  local cs = setmetatable({
+    -- Always safe to read:
+    ok      = valid,
+    valid   = valid,
+    invalid = not valid,
+    data    = data,    -- coerced form values (partial when invalid)
+    errors  = errors,  -- field-level error messages (empty when valid)
+    -- Internal (used by :insert):
+    _model  = model,
+  }, Changeset)
+  -- Also support .insert() without colon (backward-compatible)
+  cs.insert = function()
+    return Changeset._insert(cs)
+  end
+  return cs
+end
+
 -- ── build change handler ────────────────────────────────────────────────────
 local function build_change(model, ch_def)
   return function(form)
@@ -68,34 +110,7 @@ local function build_change(model, ch_def)
       end
     end
 
-    local valid = next(errors) == nil
-    local changeset = {
-      ok = valid,
-      valid = valid,
-      invalid = not valid,
-      data = data,
-      errors = errors,
-    }
-
-    -- insert: calls model.repo.insert if available
-    changeset.insert = function()
-      if not model.repo then
-        return result.err("no_repo", "No repo configured for model " .. model.name)
-      end
-      if not valid then
-        return result.err("invalid_changeset", "Changeset is invalid", errors)
-      end
-
-      local repo = model.repo
-      local insert_fn = repo.insert or repo.create
-      if not insert_fn then
-        return result.err("no_repo", "No repo configured for model " .. model.name)
-      end
-
-      return insert_fn(repo, data)
-    end
-
-    return changeset
+    return Changeset.new(model, data, errors)
   end
 end
 
@@ -159,7 +174,7 @@ function M.model(name, table_name, defs)
     if model.change.create then
       local changeset = model.change.create(data)
       if changeset and changeset.insert then
-        return changeset.insert()
+        return changeset:insert()
       end
     end
     return call_repo(model, { "create", "insert" }, data)

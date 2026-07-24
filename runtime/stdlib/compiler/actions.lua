@@ -44,62 +44,87 @@ local function emit_match_block(out, match_entry)
   if #match_entry.when_clauses > 0 then out:line("  end") end
 end
 
---- Sugar processing (unchanged from original). Processes:
----   if cond -> result, name = expr?, render/redirect/fail, plain assignment.
-local function apply_sugar(line, action_name)
+--- Apply guard sugar: if cond -> result
+local function apply_guard_sugar(line)
   local trimmed = strings.trim(line)
-
   local guard_expr, guard_result = trimmed:match("^if%s+(.+)%s*%-%>%s*(.+)$")
-  if guard_expr then
-    return string.format("if %s then\n  return %s\nend", guard_expr, responses.apply_response_expr(guard_result))
-  end
+  if not guard_expr then return nil end
+  return string.format("if %s then\n  return %s\nend", guard_expr, responses.apply_response_expr(guard_result))
+end
 
+--- Apply result unwrap sugar: name = expr?
+local function apply_result_unwrap_sugar(line, action_name)
+  local trimmed = strings.trim(line)
   local slot_name, slot_expr = trimmed:match("^([A-Za-z_][A-Za-z0-9_]*)%s*=%s*(.+)%s*%?$")
-  if slot_name and not strings.is_reserved_word(slot_name) then
-    local slot = "__r_" .. slot_name
-    local expr = strings.trim(slot_expr)
-    local lines_out = {
-      string.format("local %s = %s", slot, expr),
-      string.format("local %s", slot_name),
-      string.format("if %s == nil then", slot),
-      "  return fail({ kind = \"not_found\", message = \"not found\" }, {",
-      string.format("    action = %s,", strings.quote_lua_string(action_name)),
-      "    line = 0,",
-      string.format("    expr = %s", strings.quote_lua_string(expr)),
-      "  })",
-      "end",
-      string.format("if (type(%s) == \"table\" or type(%s) == \"userdata\") and %s.ok ~= nil then", slot, slot, slot),
-      string.format("  if not %s.ok then", slot),
-      "    return fail(__ERROR__, {",
-      string.format("      action = %s,", strings.quote_lua_string(action_name)),
-      "      line = 0,",
-      string.format("      expr = %s", strings.quote_lua_string(expr)),
-      "    })",
-      "  end",
-      string.format("  %s = %s.value", slot_name, slot),
-      "else",
-      string.format("  %s = %s", slot_name, slot),
-      "end"
-    }
-    return (table.concat(lines_out, "\n"):gsub("__ERROR__", slot .. ".err"))
-  end
+  if not slot_name or strings.is_reserved_word(slot_name) then return nil end
+  local slot = "__r_" .. slot_name
+  local expr = strings.trim(slot_expr)
+  local err_ref = slot .. ".err"
+  local lines_out = {
+    string.format("local %s = %s", slot, expr),
+    string.format("local %s", slot_name),
+    string.format("if %s == nil then", slot),
+    "  return fail({ kind = \"not_found\", message = \"not found\" }, {",
+    string.format("    action = %s,", strings.quote_lua_string(action_name)),
+    "    line = 0,",
+    string.format("    expr = %s", strings.quote_lua_string(expr)),
+    "  })",
+    "end",
+    string.format("if (type(%s) == \"table\" or type(%s) == \"userdata\") and %s.ok ~= nil then", slot, slot, slot),
+    string.format("  if not %s.ok then", slot),
+    string.format("    return fail(%s, {", err_ref),
+    string.format("      action = %s,", strings.quote_lua_string(action_name)),
+    "      line = 0,",
+    string.format("      expr = %s", strings.quote_lua_string(expr)),
+    "    })",
+    "  end",
+    string.format("  %s = %s.value", slot_name, slot),
+    "else",
+    string.format("  %s = %s", slot_name, slot),
+    "end"
+  }
+  return table.concat(lines_out, "\n")
+end
 
-  if strings.starts_with(trimmed, "render ") then
-    local rendered = responses.parse_render(trimmed)
-    if rendered then return "return " .. rendered end
-  end
+--- Apply render sugar: render "view", ...
+local function apply_render_sugar(line)
+  local trimmed = strings.trim(line)
+  if not strings.starts_with(trimmed, "render ") then return nil end
+  local rendered = responses.parse_render(trimmed)
+  if rendered then return "return " .. rendered end
+  return nil
+end
 
-  if strings.starts_with(trimmed, "redirect ") then
-    local redirected = responses.parse_redirect(trimmed)
-    if redirected then return "return " .. redirected end
-  end
+--- Apply redirect sugar: redirect "path"
+local function apply_redirect_sugar(line)
+  local trimmed = strings.trim(line)
+  if not strings.starts_with(trimmed, "redirect ") then return nil end
+  local redirected = responses.parse_redirect(trimmed)
+  if redirected then return "return " .. redirected end
+  return nil
+end
 
+--- Apply assignment sugar: name = value
+local function apply_assignment_sugar(line)
+  local trimmed = strings.trim(line)
   local plain_name, plain_value = trimmed:match("^([A-Za-z_][A-Za-z0-9_]*)%s*=%s*(.+)$")
-  if plain_name and not strings.is_reserved_word(plain_name) then
-    return string.format("local %s = %s", plain_name, plain_value)
-  end
+  if not plain_name or strings.is_reserved_word(plain_name) then return nil end
+  return string.format("local %s = %s", plain_name, plain_value)
+end
 
-  return trimmed
+--- Sugar dispatcher: tries each sugar transformation in order.
+local function apply_sugar(line, action_name)
+  local result = apply_guard_sugar(line)
+  if result then return result end
+  result = apply_result_unwrap_sugar(line, action_name)
+  if result then return result end
+  result = apply_render_sugar(line)
+  if result then return result end
+  result = apply_redirect_sugar(line)
+  if result then return result end
+  result = apply_assignment_sugar(line)
+  if result then return result end
+  return strings.trim(line)
 end
 
 --- Parse a match block using original line texts for expression capture.
