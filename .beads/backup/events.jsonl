@@ -6,3 +6,4 @@
 {"actor":"Schywi","comment":null,"created_at":"2026-07-05T18:17:21Z","event_type":"closed","id":6,"issue_id":"fuwa-1xh","new_value":"Fixed in a87e425: default browser bundle now ships compiler + raw sources so the worker recompiles edits in-VM (IDE parity). make test green.","old_value":""}
 {"actor":"Schywi","comment":null,"created_at":"2026-07-23T14:52:44Z","event_type":"created","id":7,"issue_id":"fuwa-2y7","new_value":"","old_value":""}
 {"actor":"Schywi","comment":null,"created_at":"2026-07-23T18:11:10Z","event_type":"created","id":8,"issue_id":"fuwa-bad","new_value":"","old_value":""}
+{"actor":"Schywi","comment":null,"created_at":"2026-07-23T22:46:24Z","event_type":"created","id":9,"issue_id":"fuwa-6pm","new_value":"","old_value":""}
