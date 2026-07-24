@@ -132,6 +132,13 @@ def file_watcher() -> None:
 
 def add_trace(event_json: str) -> None:
     """Push trace into the ring buffer and fan out to SSE subscribers."""
+    # Inject _ts (Unix timestamp) so the frontend can sort by ingestion time.
+    try:
+        event = json.loads(event_json)
+        event["_ts"] = time.time()
+        event_json = json.dumps(event)
+    except (json.JSONDecodeError, TypeError):
+        pass
     with _trace_lock:
         _trace_buffer.append(event_json)
     with _trace_subscribers_lock:

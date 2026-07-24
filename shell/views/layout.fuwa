@@ -777,6 +777,26 @@
         word-break: break-word;
       }
 
+      /* Log entry styling by event kind — span boundaries are bold,
+         logs are muted, and error-tone entries stand out in red. */
+      .obs-log-row[data-kind=span_start] { color: #7aa2f7; }
+      .obs-log-row[data-kind=span_end]   { color: #34d399; }
+      .obs-log-row[data-kind=request]    { color: #c0caf5; font-weight: 700; }
+      .obs-log-row[data-tone=error] {
+        background: rgba(244, 63, 94, 0.12);
+        color: #fb7185;
+        font-weight: 700;
+        border-radius: 3px;
+        padding-left: 4px;
+      }
+
+      /* Thin divider between spans */
+      .obs-log-row[data-kind=span_end] + .obs-log-row[data-kind=span_start] {
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        margin-top: 4px;
+        padding-top: 6px;
+      }
+
       .obs-trace-empty {
         color: #565f89;
         font-style: italic;

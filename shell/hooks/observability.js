@@ -36,21 +36,29 @@
 	}
 
 	function formatEventLine(event) {
+		// Returns {label, tone} — label is the display string, tone is
+		// optional 'error' for highlighting failed/error events.
 		var attrs = event.attrs || {};
+		var label, tone;
 		if (event.kind === 'span_start') {
-			return '\u25b6 ' + event.name + ' ' + summarizeAttrs(attrs, ['method', 'path', 'files', 'bytes']);
+			label = '\u25b6 ' + event.name + ' ' + summarizeAttrs(attrs, ['method', 'path', 'files', 'bytes']);
+		} else if (event.kind === 'span_log') {
+			var msg = String(event.message || 'event');
+			var fields = event.fields || {};
+			label = '\u00b7 ' + msg + ' ' + summarizeAttrs(fields, Object.keys(fields));
+			if (fields.error || fields.failed) tone = 'error';
+		} else if (event.kind === 'span_end') {
+			label = '\u25c0 ' + event.name + ' ' + formatMs(event.duration_ms) + ' ' + summarizeAttrs(attrs, Object.keys(attrs));
+			if (event.failed) tone = 'error';
+			if (event.error) label += ' error=' + String(event.error);
+		} else if (event.kind === 'request') {
+			label = '\u25c0 request ' + String(event.method || '--') + ' ' + String(event.path || '--') + ' status=' + String(event.status || '--') + ' ' + formatMs(event.duration_ms);
+			if (event.failed) tone = 'error';
+			if (event.error) label += ' error=' + String(event.error);
+		} else {
+			label = JSON.stringify(event);
 		}
-		if (event.kind === 'span_log') {
-			var msg = String(event.message || 'event').slice(0, 52);
-			return '\u00b7 ' + msg + ' ' + summarizeAttrs(event.fields || {}, ['count', 'files', 'path']);
-		}
-		if (event.kind === 'span_end') {
-			return '\u25c0 ' + event.name + ' ' + formatMs(event.duration_ms) + ' ' + summarizeAttrs(attrs, ['files', 'modules', 'bytes', 'method', 'path']);
-		}
-		if (event.kind === 'request') {
-			return '\u25c0 request ' + String(event.method || '--') + ' ' + String(event.path || '--') + ' status=' + String(event.status || '--') + ' ' + formatMs(event.duration_ms);
-		}
-		return JSON.stringify(event).slice(0, 72);
+		return { label: label, tone: tone };
 	}
 
 	function rebuildRequests() {
@@ -65,11 +73,17 @@
 			if (!req) {
 				req = { traceId: tid, method: '--', path: '--', status: 0, statusLabel: '--',
 					durationMs: null, durationLabel: '--', stageSummary: '', failed: false,
-					stages: [], logs: [], finalized: false, order: i };
+					stages: [], logs: [], finalized: false, maxTs: 0 };
 				byTrace[tid] = req;
 			}
-			req.order = i;
-			if (req.logs.length < 16) req.logs.push(formatEventLine(ev));
+			// Track the latest _ts for sorting (fallback to 0 for old events without _ts).
+			var ts = typeof ev._ts === 'number' ? ev._ts : 0;
+			if (ts > req.maxTs) req.maxTs = ts;
+
+			if (req.logs.length < 32) {
+				var fl = formatEventLine(ev);
+				req.logs.push({ kind: ev.kind, label: fl.label, ts: ts, tone: fl.tone || null });
+			}
 
 			if (ev.kind === 'span_start' && ev.name === 'request') {
 				var a = ev.attrs || {};
@@ -79,7 +93,7 @@
 			if (ev.kind === 'span_end') {
 				var sa = ev.attrs || {};
 				req.stages.push({ name: ev.name, duration: formatMs(ev.duration_ms),
-					detail: summarizeAttrs(sa, ['files', 'modules', 'bytes', 'method', 'path']) });
+					detail: summarizeAttrs(sa, Object.keys(sa)) });
 			}
 			if (ev.kind === 'request') {
 				req.finalized = true;
@@ -90,6 +104,7 @@
 				req.durationMs = ev.duration_ms;
 				req.durationLabel = formatMs(ev.duration_ms);
 				req.failed = !!ev.failed;
+				if (ev.error) req.errorMessage = String(ev.error);
 			}
 		}
 
@@ -105,13 +120,12 @@
 			r.stageSummary = parts.length > 0 ? parts.join(' \u00b7 ') : 'request complete';
 			requests.push(r);
 		}
-		requests.sort(function (a, b) { return b.order - a.order; });
+		requests.sort(function (a, b) { return b.maxTs - a.maxTs; });
 		if (requests.length > 50) requests = requests.slice(0, 50);
 
 		var prevExpanded = state.expandedTraceId;
 		state.requests = requests;
 		state.streamLabel = requests.length + 'r';
-		// Keep the expanded row if it still exists
 		state.expandedTraceId = '';
 		for (var j = 0; j < requests.length; j++) {
 			if (requests[j].traceId === prevExpanded) {
