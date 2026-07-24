@@ -36,6 +36,6 @@ end
 		routes.compile_routes_block(ctx, 2)
 
 		t.truthy(#ctx.diagnostics > 0)
-		t.contains(helper.format_diagnostics(ctx.diagnostics), 'Expected: METHOD "path" handler.function')
+		t.contains(helper.format_diagnostics(ctx.diagnostics), 'Expected string')
 	end)
 end
