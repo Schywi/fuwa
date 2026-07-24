@@ -415,6 +415,7 @@ async function runCode(id, files, target, sources) {
 			'    __fuwa_trace_log("json encode failed: " .. tostring(json_str))',
 			'  end',
 			'end)',
+			'trace_mod.set_scopes("compile,render")',
 			'__fuwa_trace_log("trace sink installed")'
 		].join('\n'));
 
@@ -451,7 +452,9 @@ async function runCode(id, files, target, sources) {
 					'    -- matches the JS-measured compile time.',
 					'    if __fuwa_compile_ms then',
 					'      compile_span = trace_mod.span("compile", {files = __fuwa_compile_files})',
-					'      compile_span.started_at = compile_span.started_at - (__fuwa_compile_ms / 1000)',
+					'      if compile_span.started_at then',
+					'        compile_span.started_at = compile_span.started_at - (__fuwa_compile_ms / 1000)',
+					'      end',
 					'      compile_span:log("scanning source", {files = __fuwa_compile_files})',
 					'      compile_span:log("emitted modules", {count = __fuwa_compile_modules})',
 					'      compile_span:set("modules", __fuwa_compile_modules)',
