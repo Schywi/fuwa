@@ -1,16 +1,19 @@
 (function () {
 	'use strict';
 
-	// Observability panel — health checks, live metrics, and recent traces
-	// from the Python dev server's /__dev/ API.  Activated when the workspace
-	// switches to the "obs" view.
-
 	const LOG_PREFIX = '[shell:obs]';
 	const ROOT_SELECTOR = '[data-obs-root]';
-	const POLL_MS = 3000;
-	let timer = null;
-	let state = null;
+	const POLL_MS = 5000;
+	const CLOCK_MS = 1000;
+	const MAX_EVENTS = 200;
 	let app = null;
+	let poll_timer = null;
+	let clock_timer = null;
+	let live_source = null;
+	let state = null;
+	let raw_events = [];
+	let last_event_at = 0;
+	let last_event_key = '';
 
 	function log(step, detail) {
 		if (detail === undefined) {
@@ -29,7 +32,7 @@
 			tag: root.tagName.toLowerCase(),
 			id: root.id || null,
 			view: root.getAttribute('data-view') || null,
-			state: root.getAttribute('data-widget-state') || null
+			hidden: root.hidden
 		};
 	}
 
@@ -46,56 +49,317 @@
 		return fallback;
 	}
 
-	// ── Petite‑vue state factory ─────────────────────────────────────────
-
 	function createState() {
 		return {
-			vector:   { up: false, latencyMs: 0 },
-			vm:       { up: false, latencyMs: 0 },
+			vector: { up: false, latencyMs: 0 },
+			vm: { up: false, latencyMs: 0 },
 			clickhouse: { up: false, latencyMs: 0 },
-
-			reqCount:  '--',
+			uptrace: { up: false, latencyMs: 0 },
+			reqCount: '--',
 			errorRate: '--',
-			p95Ms:     '--',
-
-			traces: [],
-			traceCount: 0,
-
+			p95Label: '--',
+			lastEventLabel: 'idle',
+			streamLabel: 'offline',
+			bufferedCount: 0,
+			requests: [],
+			selectedTraceId: '',
+			selectedRequest: null,
 			healthClass: function (svc) {
 				return svc.up ? 'health-up' : 'health-down';
 			},
 			healthIcon: function (svc) {
-				return svc.up ? '\u2713' : '\u2717';
+				return svc.up ? '\u25c9' : '\u25ce';
 			},
+			requestTone: function (request) {
+				if (!request) return 'idle';
+				return request.failed || request.status >= 400 ? 'error' : 'ok';
+			},
+			isSelected: function (request) {
+				return !!request && request.traceId === this.selectedTraceId;
+			},
+			selectRequest: function (request) {
+				if (!request) return;
+				this.selectedTraceId = request.traceId;
+				this.selectedRequest = request;
+			}
 		};
 	}
 
-	// ── API helpers ──────────────────────────────────────────────────────
-
 	function fetchOK(url, timeout) {
 		timeout = timeout || 2000;
-		return fetch(url, { signal: AbortSignal.timeout(timeout) })
-			.then(function (r) {
-				if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
-			});
+		return fetch(url, { signal: AbortSignal.timeout(timeout) }).then(function (response) {
+			if (!response.ok) {
+				throw new Error(response.status + ' ' + response.statusText);
+			}
+		});
 	}
 
 	function fetchJSON(url, timeout) {
 		timeout = timeout || 2000;
-		return fetch(url, { signal: AbortSignal.timeout(timeout) })
-			.then(function (r) {
-				if (!r.ok) throw new Error(r.status + ' ' + r.statusText);
-				return r.json();
-			});
+		return fetch(url, { signal: AbortSignal.timeout(timeout) }).then(function (response) {
+			if (!response.ok) {
+				throw new Error(response.status + ' ' + response.statusText);
+			}
+			return response.json();
+		});
 	}
 
-	// ── Pollers ──────────────────────────────────────────────────────────
+	function roundMs(value) {
+		return typeof value === 'number' && !isNaN(value) ? Math.round(value) : null;
+	}
+
+	function formatMs(value) {
+		var rounded = roundMs(value);
+		return rounded == null ? '--' : String(rounded) + 'ms';
+	}
+
+	function formatRelative(now, then) {
+		if (!then) {
+			return 'idle';
+		}
+
+		var delta = Math.max(0, Math.round((now - then) / 1000));
+		if (delta <= 1) {
+			return 'just now';
+		}
+		if (delta < 60) {
+			return String(delta) + 's ago';
+		}
+
+		var minutes = Math.floor(delta / 60);
+		return String(minutes) + 'm ago';
+	}
+
+	function trimText(value, size) {
+		var text = String(value || '--');
+		if (text.length <= size) {
+			return text;
+		}
+		return text.slice(0, size - 1) + '\u2026';
+	}
+
+	function summarizeAttrs(attrs, keys) {
+		var parts = [];
+		for (var i = 0; i < keys.length; i++) {
+			var key = keys[i];
+			if (attrs[key] == null) {
+				continue;
+			}
+			parts.push(key + '=' + String(attrs[key]));
+		}
+		return parts.join(' ');
+	}
+
+	function formatEventLine(event) {
+		var attrs = event.attrs || {};
+		if (event.kind === 'span_start') {
+			return '\u25b6 ' + event.name + ' ' + summarizeAttrs(attrs, ['method', 'path', 'files', 'bytes']);
+		}
+		if (event.kind === 'span_log') {
+			return '\u00b7 ' + trimText(event.message || 'event', 52) + ' ' + summarizeAttrs(event.fields || {}, ['count', 'files', 'path']);
+		}
+		if (event.kind === 'span_end') {
+			return '\u25c0 ' + event.name + ' ' + formatMs(event.duration_ms) + ' ' + summarizeAttrs(attrs, ['files', 'modules', 'bytes', 'method', 'path']);
+		}
+		if (event.kind === 'request') {
+			return '\u25c0 request ' + String(event.method || '--') + ' ' + String(event.path || '--') + ' status=' + String(event.status || '--') + ' ' + formatMs(event.duration_ms);
+		}
+		return trimText(JSON.stringify(event), 72);
+	}
+
+	function captureStage(summary, event) {
+		var attrs = event.attrs || {};
+		var label = {
+			name: event.name,
+			duration: formatMs(event.duration_ms),
+			detail: summarizeAttrs(attrs, ['files', 'modules', 'bytes', 'method', 'path'])
+		};
+
+		if (event.name === 'compile') {
+			summary.compileLabel = label.duration;
+		}
+		if (event.name === 'render') {
+			summary.renderLabel = label.duration;
+		}
+
+		summary.stages.push(label);
+	}
+
+	function createSummary(trace_id) {
+		return {
+			traceId: trace_id,
+			method: '--',
+			path: '--',
+			status: 0,
+			statusLabel: '--',
+			durationMs: null,
+			durationLabel: '--',
+			stageSummary: 'awaiting request completion',
+			compileLabel: '--',
+			renderLabel: '--',
+			failed: false,
+			stages: [],
+			logs: [],
+			finalized: false,
+			order: 0
+		};
+	}
+
+	function rebuildRequests() {
+		var by_trace = {};
+		var order = 0;
+
+		for (var i = 0; i < raw_events.length; i++) {
+			var event = raw_events[i];
+			var trace_id = event.trace_id;
+			if (!trace_id) {
+				continue;
+			}
+
+			var summary = by_trace[trace_id];
+			if (!summary) {
+				summary = createSummary(trace_id);
+				by_trace[trace_id] = summary;
+			}
+
+			summary.order = i;
+			if (summary.logs.length < 16) {
+				summary.logs.push(formatEventLine(event));
+			}
+
+			if (event.kind === 'span_start' && event.name === 'request') {
+				var start_attrs = event.attrs || {};
+				summary.method = String(start_attrs.method || summary.method || '--');
+				summary.path = String(start_attrs.path || summary.path || '--');
+			}
+
+			if (event.kind === 'span_end') {
+				captureStage(summary, event);
+			}
+
+			if (event.kind === 'request') {
+				summary.finalized = true;
+				summary.method = String(event.method || summary.method || '--');
+				summary.path = String(event.path || summary.path || '--');
+				summary.status = Number(event.status || 0);
+				summary.statusLabel = String(event.status || '--');
+				summary.durationMs = event.duration_ms;
+				summary.durationLabel = formatMs(event.duration_ms);
+				summary.failed = !!event.failed;
+			}
+			order += 1;
+		}
+
+		var requests = [];
+		for (var trace_id_key in by_trace) {
+			if (!Object.prototype.hasOwnProperty.call(by_trace, trace_id_key)) {
+				continue;
+			}
+
+			var request = by_trace[trace_id_key];
+			if (!request.finalized) {
+				continue;
+			}
+
+			var stage_parts = [];
+			if (request.compileLabel !== '--') {
+				stage_parts.push('compile ' + request.compileLabel);
+			}
+			if (request.renderLabel !== '--') {
+				stage_parts.push('render ' + request.renderLabel);
+			}
+			if (stage_parts.length === 0) {
+				stage_parts.push('request complete');
+			}
+			request.stageSummary = stage_parts.join(' \u00b7 ');
+			requests.push(request);
+		}
+
+		requests.sort(function (left, right) {
+			return right.order - left.order;
+		});
+
+		if (requests.length > 50) {
+			requests = requests.slice(0, 50);
+		}
+
+		var selected = null;
+		for (var j = 0; j < requests.length; j++) {
+			if (requests[j].traceId === state.selectedTraceId) {
+				selected = requests[j];
+				break;
+			}
+		}
+		if (!selected) {
+			selected = requests[0] || null;
+		}
+
+		var durations = [];
+		var failed = 0;
+		for (var k = 0; k < requests.length; k++) {
+			if (typeof requests[k].durationMs === 'number' && !isNaN(requests[k].durationMs)) {
+				durations.push(requests[k].durationMs);
+			}
+			if (requests[k].failed || requests[k].status >= 400) {
+				failed += 1;
+			}
+		}
+		durations.sort(function (left, right) {
+			return left - right;
+		});
+
+		state.requests = requests;
+		state.reqCount = String(requests.length);
+		state.errorRate = requests.length === 0 ? '--' : (failed / requests.length * 100).toFixed(1) + '%';
+		if (durations.length === 0) {
+			state.p95Label = '--';
+		} else {
+			var idx = Math.ceil(durations.length * 0.95) - 1;
+			if (idx < 0) idx = 0;
+			state.p95Label = formatMs(durations[idx]);
+		}
+		state.selectedRequest = selected;
+		state.selectedTraceId = selected ? selected.traceId : '';
+		state.bufferedCount = raw_events.length;
+	}
+
+	function updateClock() {
+		if (!state) {
+			return;
+		}
+		state.lastEventLabel = formatRelative(Date.now(), last_event_at);
+	}
+
+	function replaceEvents(events) {
+		var next_events = Array.isArray(events) ? events.slice(-MAX_EVENTS) : [];
+		var latest = next_events.length > 0 ? next_events[next_events.length - 1] : null;
+		var latest_key = latest ? JSON.stringify(latest) : '';
+		raw_events = next_events;
+		if (latest_key !== '' && latest_key !== last_event_key) {
+			last_event_key = latest_key;
+			last_event_at = Date.now();
+		}
+		rebuildRequests();
+		updateClock();
+	}
+
+	function appendEvent(event) {
+		raw_events.push(event);
+		if (raw_events.length > MAX_EVENTS) {
+			raw_events = raw_events.slice(-MAX_EVENTS);
+		}
+		last_event_key = JSON.stringify(event);
+		last_event_at = Date.now();
+		rebuildRequests();
+		updateClock();
+	}
 
 	function pollHealth() {
 		var services = [
-			{ key: 'vector',     url: '/__dev/proxy/vector/health' },
-			{ key: 'vm',         url: '/__dev/proxy/vm/health' },
+			{ key: 'vector', url: '/__dev/proxy/vector/health' },
+			{ key: 'vm', url: '/__dev/proxy/vm/health' },
 			{ key: 'clickhouse', url: '/__dev/proxy/clickhouse/ping' },
+			{ key: 'uptrace', url: '/__dev/proxy/uptrace/' }
 		];
 
 		services.forEach(function (svc) {
@@ -110,152 +374,162 @@
 		});
 	}
 
-	function pollTraces() {
-		fetchJSON('/__dev/traces').then(function (data) {
-			if (data && data.traces) {
-				state.traces = data.traces;
-				state.traceCount = data.traces.length;
-				computeMetrics(data.traces);
+	function syncTraceSnapshot() {
+		return fetchJSON('/__dev/traces').then(function (data) {
+			if (data && Array.isArray(data.traces)) {
+				replaceEvents(data.traces);
 			}
 		}).catch(function () {
-			// dev server may not have traces yet
+			state.streamLabel = live_source ? 'reconnecting' : 'offline';
 		});
 	}
 
-	function computeMetrics(traces) {
-		var requests = [];
-		for (var i = 0; i < traces.length; i++) {
-			var t = traces[i];
-			if (t.kind === 'request' && typeof t.duration_ms === 'number' && !isNaN(t.duration_ms)) {
-				requests.push(t);
-			}
+	function closeLiveStream() {
+		if (live_source) {
+			live_source.close();
+			live_source = null;
 		}
+	}
 
-		if (requests.length === 0) {
-			state.reqCount  = '--';
-			state.errorRate = '--';
-			state.p95Ms     = '--';
+	function connectLiveStream() {
+		closeLiveStream();
+		if (typeof EventSource !== 'function') {
+			state.streamLabel = 'polling only';
 			return;
 		}
 
-		state.reqCount = String(requests.length);
+		live_source = new EventSource('/__dev/traces/live');
+		state.streamLabel = 'connecting';
 
-		var failed = 0;
-		for (var j = 0; j < requests.length; j++) {
-			if (requests[j].failed) failed++;
+		live_source.addEventListener('ready', function () {
+			state.streamLabel = 'live';
+		});
+
+		live_source.addEventListener('trace', function (event) {
+			state.streamLabel = 'live';
+			try {
+				appendEvent(JSON.parse(event.data));
+			} catch (_error) {
+				state.streamLabel = 'stream parse error';
+			}
+		});
+
+		live_source.onerror = function () {
+			state.streamLabel = 'reconnecting';
+		};
+	}
+
+	function startLoops() {
+		if (poll_timer) {
+			clearInterval(poll_timer);
 		}
-		state.errorRate = (failed / requests.length * 100).toFixed(1) + '%';
+		if (clock_timer) {
+			clearInterval(clock_timer);
+		}
 
-		var durations = requests.map(function (r) { return r.duration_ms; }).sort(function (a, b) { return a - b; });
-		var idx = Math.ceil(durations.length * 0.95) - 1;
-		if (idx < 0) idx = 0;
-		state.p95Ms = Math.round(durations[idx]);
+		poll_timer = setInterval(function () {
+			pollHealth();
+			syncTraceSnapshot();
+		}, POLL_MS);
+
+		clock_timer = setInterval(function () {
+			updateClock();
+		}, CLOCK_MS);
 	}
 
-	function pollAll() {
-		if (!state) return;
-		pollHealth();
-		pollTraces();
+	function stopLoops() {
+		if (poll_timer) {
+			clearInterval(poll_timer);
+			poll_timer = null;
+		}
+		if (clock_timer) {
+			clearInterval(clock_timer);
+			clock_timer = null;
+		}
+		closeLiveStream();
 	}
-
-	// ── Trace formatting ─────────────────────────────────────────────────
-
-	function formatTraceLine(trace) {
-		var attrs = trace.attrs || {};
-		var method = attrs.method || trace.method || '--';
-		var path   = attrs.path   || trace.path   || '--';
-		var status = attrs.status || trace.status || (trace.failed ? 500 : 200);
-		var ms     = trace.duration_ms != null ? Math.round(trace.duration_ms) + 'ms' : '';
-		return method + ' ' + path + '  ' + status + '  ' + ms;
-	}
-
-	// ── Petite‑vue scope ─────────────────────────────────────────────────
 
 	function mount(root) {
-		if (!(root instanceof Element)) {
+		if (!(root instanceof Element) || root.hidden) {
 			return;
 		}
 
 		if (!state) {
 			state = createState();
-			state.formatTraceLine = formatTraceLine;
 		}
 
-		if (timer) {
-			clearInterval(timer);
-			timer = null;
-		}
+		stopLoops();
 
+		root.removeAttribute('v-pre');
 		if (app) {
 			app.unmount();
 			app = null;
 		}
 
-		// Remove v-pre so petite-vue compiles this subtree (it was
-		// v-pre'd to prevent the workspace scope from evaluating it).
-		root.removeAttribute('v-pre');
-
-		if (window.PetiteVue && window.PetiteVue.createApp) {
-			app = window.PetiteVue.createApp(state);
-			app.mount(root);
-		} else {
+		if (!(window.PetiteVue && window.PetiteVue.createApp)) {
 			log('petite-vue not ready, retrying');
 			setTimeout(function () { mount(root); }, 200);
 			return;
 		}
 
+		app = window.PetiteVue.createApp(state);
+		app.mount(root);
 		root.setAttribute('data-widget-state', 'mounted');
 		root.setAttribute('data-widget-kind', 'observability');
-		pollAll();
-		timer = setInterval(pollAll, POLL_MS);
+
+		pollHealth();
+		syncTraceSnapshot().finally(function () {
+			connectLiveStream();
+			startLoops();
+		});
 		log('mount:success', describeRoot(root));
 	}
 
 	function unmount(root) {
-		if (!(root instanceof Element)) {
-			return;
-		}
-
-		if (timer) {
-			clearInterval(timer);
-			timer = null;
-		}
-
+		stopLoops();
 		if (app) {
 			app.unmount();
 			app = null;
 		}
 
-		root.removeAttribute('data-widget-state');
-		root.removeAttribute('data-widget-kind');
+		if (root instanceof Element) {
+			root.removeAttribute('data-widget-state');
+			root.removeAttribute('data-widget-kind');
+		}
+
+		if (state) {
+			state.streamLabel = 'paused';
+		}
 		log('unmount', describeRoot(root));
 	}
 
-	function refresh(scope) {
-		var target = resolveScope(scope, 'refresh');
-		var roots = target.querySelectorAll(ROOT_SELECTOR);
-		log('refresh', { scope: describeRoot(target) });
-
+	function forEachRoot(scope, fn) {
+		var target = resolveScope(scope, 'scope');
 		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
-			mount(target);
+			fn(target);
 		}
 
+		var roots = target.querySelectorAll(ROOT_SELECTOR);
 		for (var i = 0; i < roots.length; i++) {
-			mount(roots[i]);
+			if (roots[i] !== target) {
+				fn(roots[i]);
+			}
 		}
 	}
 
+	function refresh(scope) {
+		log('refresh', { scope: describeRoot(scope) });
+		forEachRoot(scope, function (root) {
+			if (!root.hidden) {
+				mount(root);
+			}
+		});
+	}
+
 	function clearRoots(scope) {
-		var target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
-		var roots = target.querySelectorAll(ROOT_SELECTOR);
-
-		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
-			unmount(target);
-		}
-
-		for (var i = 0; i < roots.length; i++) {
-			unmount(roots[i]);
-		}
+		forEachRoot(scope, function (root) {
+			unmount(root);
+		});
 	}
 
 	function handleBeforeSwap(event) {
@@ -276,8 +550,6 @@
 		refresh(scope);
 	}
 
-	// ── Public API ───────────────────────────────────────────────────────
-
 	window.FuwaShellObservability = {
 		mount: mount,
 		unmount: unmount,
@@ -286,14 +558,10 @@
 	};
 
 	if (document.readyState === 'loading') {
-		document.addEventListener(
-			'DOMContentLoaded',
-			function () {
-				log('boot:DOMContentLoaded');
-				refresh(document.body || document);
-			},
-			{ once: true }
-		);
+		document.addEventListener('DOMContentLoaded', function () {
+			log('boot:DOMContentLoaded');
+			refresh(document.body || document);
+		}, { once: true });
 	} else {
 		log('boot:ready');
 		refresh(document.body || document);

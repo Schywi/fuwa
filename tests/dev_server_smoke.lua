@@ -214,6 +214,14 @@ local function test_raw_asset_requests()
 	assert_true(terminal_js:find("new Terminal", 1, true) ~= nil, "expected xterm mount")
 	assert_true(terminal_js:find("reason + ':fallback'", 1, true) ~= nil, "expected terminal fallback remount logging")
 
+	local observability_js = run_command(
+		"printf 'GET /shell/hooks/observability.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(observability_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected observability hook to respond")
+	assert_true(observability_js:find("EventSource('/__dev/traces/live')", 1, true) ~= nil, "expected SSE live trace stream")
+	assert_true(observability_js:find("/__dev/proxy/uptrace/", 1, true) ~= nil, "expected Uptrace health probe")
+	assert_true(observability_js:find("request.stageSummary", 1, true) ~= nil, "expected request-centric activity summaries")
+
 	local xterm_mjs = run_command(
 		"printf 'GET /vendor/xterm/xterm-6.0.0.mjs HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
 	)

@@ -67,9 +67,13 @@ assert_true(observability_js:find("app.unmount()", 1, true) ~= nil, "observabili
 assert_true(observability_js:find("htmx:beforeSwap", 1, true) ~= nil, "observability should clear mounts before swaps")
 assert_true(observability_js:find("htmx:afterSwap", 1, true) ~= nil, "observability should remount after swaps")
 assert_true(observability_js:find("data-widget-kind', 'observability'", 1, true) ~= nil, "observability should mark mounted widget state")
+assert_true(observability_js:find("EventSource('/__dev/traces/live')", 1, true) ~= nil, "observability should tail trace events over SSE")
+assert_true(observability_js:find("/__dev/proxy/uptrace/", 1, true) ~= nil, "observability should include Uptrace health")
+assert_true(observability_js:find("request.stageSummary", 1, true) ~= nil, "observability should render request-centric summaries")
 assert_true(layout_fuwa:find('.shell-widget-shell[data-widget-kind="editor"] > div', 1, true) ~= nil, "shell should let the editor host fill the panel")
 assert_true(home_fuwa:find('v-scope="FuwaShellWorkspace.createState()"', 1, true) ~= nil, "shell should mount petite-vue on the stable shell parent")
 assert_true(workspace_fuwa:find('v-scope="FuwaShellWorkspace.createState()"', 1, true) == nil, "shell should not mount petite-vue on the swapped workspace")
+assert_true(workspace_fuwa:find("selectedRequest ? selectedRequest.stages : []", 1, true) ~= nil, "observability should expose a focused detail pane")
 
 local build_result = package_web.build(files)
 assert_true(#build_result.diagnostics == 0, "shell packaging should compile cleanly")
@@ -135,5 +139,9 @@ assert_true(html:find('@click%.stop="togglePopover%(' , 1) ~= nil, "shell should
 assert_true(html:find('.shell-widget-shell[data-widget-state="mounted"]', 1, true) ~= nil, "shell should keep CSS selectors literal")
 assert_true(html:find('data-widget-state=&quot;mounted&quot;', 1, true) == nil, "shell should not escape CSS selectors")
 assert_true(html:find('No run yet.', 1, true) ~= nil, "shell should seed the terminal output")
+assert_true(html:find('live request console', 1, true) ~= nil, "shell should describe the observability view as a live request console")
+assert_true(html:find('Recent Activity', 1, true) ~= nil, "shell should render the request activity pane")
+assert_true(html:find('Request Focus', 1, true) ~= nil, "shell should render the focused request pane")
+assert_true(html:find('uptrace', 1, true) ~= nil, "shell should render Uptrace stack status")
 
 print("shell smoke checks passed")

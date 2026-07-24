@@ -21,6 +21,7 @@ import socket
 import subprocess
 import threading
 import time
+import queue
 from collections import deque
 from pathlib import Path
 from urllib.error import URLError
@@ -41,12 +42,15 @@ _running = True
 
 _trace_buffer: deque[str] = deque(maxlen=200)
 _trace_lock = threading.Lock()
+_trace_subscribers: list[queue.Queue[str]] = []
+_trace_subscribers_lock = threading.Lock()
 _vector_url = os.environ.get("FUWA_VECTOR_URL", "http://127.0.0.1:8687/")
 
 _SERVICES = {
     "vector":      ("127.0.0.1", 8686),
     "vm":          ("127.0.0.1", 8428),
     "clickhouse":  ("127.0.0.1", 8123),
+    "uptrace":     ("127.0.0.1", 14318),
 }
 
 
@@ -154,6 +158,20 @@ def add_trace(event_json: str) -> None:
     """Push trace into ring buffer and fire-and-forget to Vector."""
     with _trace_lock:
         _trace_buffer.append(event_json)
+    with _trace_subscribers_lock:
+        subscribers = list(_trace_subscribers)
+    for subscriber in subscribers:
+        try:
+            subscriber.put_nowait(event_json)
+        except queue.Full:
+            try:
+                subscriber.get_nowait()
+            except queue.Empty:
+                pass
+            try:
+                subscriber.put_nowait(event_json)
+            except queue.Full:
+                pass
     threading.Thread(target=_post_to_vector, args=(event_json,), daemon=True).start()
 
 
@@ -271,6 +289,43 @@ def _handle_dev_traces(client_sock: socket.socket) -> None:
     _send_response(client_sock, "200 OK", "application/json", body)
 
 
+def _handle_dev_trace_stream(client_sock: socket.socket) -> None:
+    """GET /__dev/traces/live — SSE stream of trace events."""
+    subscriber: queue.Queue[str] = queue.Queue(maxsize=200)
+    with _trace_subscribers_lock:
+        _trace_subscribers.append(subscriber)
+
+    response = (
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: text/event-stream\r\n"
+        "Cache-Control: no-cache\r\n"
+        "Access-Control-Allow-Origin: *\r\n"
+        "Connection: keep-alive\r\n"
+        "\r\n"
+    )
+
+    try:
+        client_sock.sendall(response.encode("ascii"))
+        client_sock.sendall(b"event: ready\ndata: {\"ok\":true}\n\n")
+        while _running:
+            try:
+                event_json = subscriber.get(timeout=5)
+                payload = f"event: trace\ndata: {event_json}\n\n".encode("utf-8")
+            except queue.Empty:
+                payload = b": keepalive\n\n"
+            client_sock.sendall(payload)
+    except OSError:
+        pass
+    finally:
+        with _trace_subscribers_lock:
+            if subscriber in _trace_subscribers:
+                _trace_subscribers.remove(subscriber)
+        try:
+            client_sock.close()
+        except OSError:
+            pass
+
+
 def _handle_dev_proxy(client_sock: socket.socket, path: str) -> None:
     """GET /__dev/proxy/<service>/<...> — CORS-safe proxy to observability backends."""
     # path: /__dev/proxy/vector/health  or  /__dev/proxy/vm/api/v1/query?query=...
@@ -316,6 +371,10 @@ def handle_connection(client_sock: socket.socket) -> None:
     # ── /__dev/ API routes ──────────────────────────────────────────────
     if path == "/__dev/traces":
         _handle_dev_traces(client_sock)
+        return
+
+    if path == "/__dev/traces/live":
+        _handle_dev_trace_stream(client_sock)
         return
 
     if path.startswith("/__dev/proxy/"):

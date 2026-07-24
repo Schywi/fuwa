@@ -130,12 +130,12 @@
   <div class="ide-view ide-view-obs" data-view="obs" data-obs-root v-pre hidden>
     <div class="stage-header">
       <span class="stage-title">Observability</span>
-      <span class="stage-subtitle">traces · metrics · health</span>
+      <span class="stage-subtitle">live request console</span>
       <a class="shell-button shell-button-meta" href="http://localhost:14318" target="_blank" rel="noopener" style="margin-left:auto;text-decoration:none;">Uptrace ↗</a>
     </div>
     <div class="obs-panel">
-      <div class="obs-section">
-        <div class="obs-section-title">PLATFORM HEALTH</div>
+      <div class="obs-rail">
+        <div class="obs-rail-label">STACK</div>
         <div class="obs-health-row">
           <span class="obs-health-badge" :class="healthClass(vector)">
             <span class="obs-health-icon" v-text="healthIcon(vector)"></span>
@@ -152,40 +152,85 @@
             <span class="obs-health-label">clickhouse</span>
             <span v-show="clickhouse.up" class="obs-health-ms"><span v-text="clickhouse.latencyMs"></span>ms</span>
           </span>
+          <span class="obs-health-badge" :class="healthClass(uptrace)">
+            <span class="obs-health-icon" v-text="healthIcon(uptrace)"></span>
+            <span class="obs-health-label">uptrace</span>
+            <span v-show="uptrace.up" class="obs-health-ms"><span v-text="uptrace.latencyMs"></span>ms</span>
+          </span>
         </div>
       </div>
 
-      <div class="obs-section">
-        <div class="obs-section-title">LIVE METRICS <span class="obs-section-sub">(Last 5m)</span></div>
-        <div class="obs-metrics-row">
-          <div class="obs-metric">
-            <div class="obs-metric-label">Requests</div>
-            <div class="obs-metric-value" v-text="reqCount"></div>
+      <div class="obs-rail">
+        <div class="obs-rail-label">PULSE</div>
+        <div class="obs-pulse-row">
+          <span class="obs-pulse-item">recent <strong v-text="reqCount"></strong></span>
+          <span class="obs-pulse-item">errors <strong v-text="errorRate"></strong></span>
+          <span class="obs-pulse-item">p95 <strong v-text="p95Label"></strong></span>
+          <span class="obs-pulse-item">latest <strong v-text="lastEventLabel"></strong></span>
+          <span class="obs-pulse-item">stream <strong v-text="streamLabel"></strong></span>
+        </div>
+      </div>
+
+      <div class="obs-console">
+        <div class="obs-pane obs-pane-activity">
+          <div class="obs-pane-head">
+            <span class="obs-pane-title">Recent Activity</span>
+            <span class="obs-pane-note">request stream</span>
           </div>
-          <div class="obs-metric">
-            <div class="obs-metric-label">Error Rate</div>
-            <div class="obs-metric-value" v-text="errorRate"></div>
+          <div class="obs-activity-list">
+            <button v-for="request in requests" type="button" class="obs-activity-row" :data-selected="isSelected(request)" @click="selectRequest(request)">
+              <span class="obs-activity-line">
+                <span class="obs-activity-method" v-text="request.method"></span>
+                <span class="obs-activity-path" v-text="request.path"></span>
+                <span class="obs-activity-status" :data-tone="requestTone(request)" v-text="request.statusLabel"></span>
+                <span class="obs-activity-duration" v-text="request.durationLabel"></span>
+              </span>
+              <span class="obs-activity-stage" v-text="request.stageSummary"></span>
+            </button>
+            <div v-show="requests.length === 0" class="obs-trace-empty">
+              No completed requests yet. Trigger a route to populate the live stream.
+            </div>
           </div>
-          <div class="obs-metric">
-            <div class="obs-metric-label">p95 Latency</div>
-            <div class="obs-metric-value"><span v-text="p95Ms"></span>ms</div>
+        </div>
+
+        <div class="obs-pane obs-pane-focus">
+          <div class="obs-pane-head">
+            <span class="obs-pane-title">Request Focus</span>
+            <span class="obs-pane-note" v-text="selectedTraceId || 'select a request'"></span>
+          </div>
+
+          <div v-show="selectedRequest" class="obs-focus-body">
+            <div class="obs-focus-summary">
+              <span class="obs-focus-method" v-text="selectedRequest && selectedRequest.method"></span>
+              <span class="obs-focus-path" v-text="selectedRequest && selectedRequest.path"></span>
+              <span class="obs-focus-status" :data-tone="requestTone(selectedRequest)" v-text="selectedRequest && selectedRequest.statusLabel"></span>
+              <span class="obs-focus-duration" v-text="selectedRequest && selectedRequest.durationLabel"></span>
+            </div>
+
+            <div class="obs-stage-block">
+              <div class="obs-stage-title">Stages</div>
+              <div v-for="stage in selectedRequest ? selectedRequest.stages : []" class="obs-stage-row">
+                <span class="obs-stage-name" v-text="stage.name"></span>
+                <span class="obs-stage-duration" v-text="stage.duration"></span>
+                <span class="obs-stage-detail" v-text="stage.detail || '--'"></span>
+              </div>
+            </div>
+
+            <div class="obs-log-block">
+              <div class="obs-stage-title">Event Log</div>
+              <div class="obs-log-list">
+                <div v-for="line in selectedRequest ? selectedRequest.logs : []" class="obs-log-row" v-text="line"></div>
+              </div>
+            </div>
+          </div>
+
+          <div v-show="!selectedRequest" class="obs-trace-empty">
+            Select a request to inspect compile/render stages and the recent event log.
           </div>
         </div>
       </div>
 
-      <div class="obs-section obs-section-traces">
-        <div class="obs-section-title">RECENT TRACES <span class="obs-section-sub">(Live Stream)</span></div>
-        <div class="obs-traces-list">
-          <div v-for="trace in traces" class="obs-trace-row">
-            <span class="obs-trace-time" v-text="formatTraceLine(trace)"></span>
-          </div>
-          <div v-show="traces.length === 0" class="obs-trace-empty">
-            No traces yet. Trigger a request to see data.
-          </div>
-        </div>
-      </div>
-
-      <div class="obs-footer">( •ω•)ﾉ✧ obs-panel ready &middot; tracking <span v-text="traceCount"></span> events</div>
+      <div class="obs-footer">( •ω•)ﾉ✧ obs ready · <span v-text="streamLabel"></span> · buffering <span v-text="bufferedCount"></span> events</div>
     </div>
   </div>
 </section>
