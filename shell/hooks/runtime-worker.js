@@ -30,13 +30,6 @@ const LUA_BOOT_SCRIPT = [
 	'  end',
 	'  return "\\n\\tno file \'" .. path .. "\' in fuwa VFS"',
 	'end)',
-	'',
-	'local ok, trace_mod = pcall(require, "runtime.trace")',
-	'if ok then',
-	'  trace_mod.set_sink(function(event)',
-	'    __fuwa_trace_sink(event)',
-	'  end)',
-	'end'
 ].join('\n');
 
 let lua = null;
@@ -344,6 +337,18 @@ async function runCode(id, files, target, sources) {
 		if (!lua) {
 			throw new Error('Lua did not boot');
 		}
+
+		// Trace module is in the VFS but was missing during boot() because
+		// vfs is only populated here. Install the sink now so Wasmoon
+		// request spans flow into the observability panel.
+		await lua.doString([
+			'local ok, trace_mod = pcall(require, "runtime.trace")',
+			'if ok then',
+			'  trace_mod.set_sink(function(event)',
+			'    __fuwa_trace_sink(event)',
+			'  end)',
+			'end'
+		].join('\n'));
 
 		if (sources && Object.keys(sources).length > 0) {
 			const compiled = await compileSources(sources);
