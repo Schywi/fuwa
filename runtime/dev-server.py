@@ -264,6 +264,22 @@ def _handle_dev_traces(client_sock: socket.socket) -> None:
     _send_response(client_sock, "200 OK", "application/json", body)
 
 
+def _handle_dev_traces_post(client_sock: socket.socket, body_bytes: bytes) -> None:
+    """POST /__dev/traces — ingest Wasmoon trace events into the ring buffer."""
+    try:
+        payload = json.loads(body_bytes.decode("utf-8"))
+        events = payload.get("events", [])
+        count = 0
+        for event in events:
+            add_trace(json.dumps(event))
+            count += 1
+        _send_response(client_sock, "200 OK", "application/json",
+                       json.dumps({"ok": True, "ingested": count}))
+    except (json.JSONDecodeError, UnicodeDecodeError) as e:
+        _send_response(client_sock, "400 Bad Request", "application/json",
+                       json.dumps({"ok": False, "error": str(e)}))
+
+
 def _handle_dev_trace_stream(client_sock: socket.socket) -> None:
     """GET /__dev/traces/live — SSE stream of trace events."""
     subscriber: queue.Queue[str] = queue.Queue(maxsize=200)
@@ -318,7 +334,10 @@ def handle_connection(client_sock: socket.socket) -> None:
 
     # ── /__dev/ API routes ──────────────────────────────────────────────
     if path == "/__dev/traces":
-        _handle_dev_traces(client_sock)
+        if method == "POST":
+            _handle_dev_traces_post(client_sock, body)
+        else:
+            _handle_dev_traces(client_sock)
         return
 
     if path == "/__dev/traces/live":
