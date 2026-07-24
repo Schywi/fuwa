@@ -184,10 +184,13 @@
 		mount: mount, unmount: unmount, refresh: refresh, selector: ROOT_SELECTOR,
 		appendEvents: function (events) {
 			if (!Array.isArray(events)) return;
+			console.debug('[obs] appendEvents', events.length, 'events');
 			for (var i = 0; i < events.length; i++) {
 				try {
 					appendEvent(JSON.parse(events[i]));
-				} catch (_) {}
+				} catch (e) {
+					console.debug('[obs] appendEvents parse error', e);
+				}
 			}
 		}
 	};
