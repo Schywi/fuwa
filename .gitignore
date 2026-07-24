@@ -18,5 +18,8 @@ CLAUDE.md
 .dolt/
 *.db
 
+# Git worktrees
+.worktrees/
+
 # Python cache
 __pycache__/
