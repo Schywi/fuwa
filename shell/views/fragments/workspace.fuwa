@@ -138,10 +138,20 @@
       <div class="obs-section">
         <div class="obs-section-title">PLATFORM HEALTH</div>
         <div class="obs-health-row">
-          <span f-for="svc in [vector, vm, clickhouse]" class="obs-health-badge" :class="healthClass(svc)">
-            <span class="obs-health-icon">{{ healthIcon(svc) }}</span>
-            <span class="obs-health-label">{{ svc.label }}</span>
-            <span v-if="svc.up" class="obs-health-ms">{{ svc.latencyMs }}ms</span>
+          <span class="obs-health-badge" :class="healthClass(vector)">
+            <span class="obs-health-icon" v-text="healthIcon(vector)"></span>
+            <span class="obs-health-label">vector-router</span>
+            <span v-show="vector.up" class="obs-health-ms"><span v-text="vector.latencyMs"></span>ms</span>
+          </span>
+          <span class="obs-health-badge" :class="healthClass(vm)">
+            <span class="obs-health-icon" v-text="healthIcon(vm)"></span>
+            <span class="obs-health-label">victoriametrics</span>
+            <span v-show="vm.up" class="obs-health-ms"><span v-text="vm.latencyMs"></span>ms</span>
+          </span>
+          <span class="obs-health-badge" :class="healthClass(clickhouse)">
+            <span class="obs-health-icon" v-text="healthIcon(clickhouse)"></span>
+            <span class="obs-health-label">clickhouse</span>
+            <span v-show="clickhouse.up" class="obs-health-ms"><span v-text="clickhouse.latencyMs"></span>ms</span>
           </span>
         </div>
       </div>
@@ -152,15 +162,15 @@
         <div class="obs-metrics-row">
           <div class="obs-metric">
             <div class="obs-metric-label">Requests/sec</div>
-            <div class="obs-metric-value">{{ reqPerSec }}</div>
+            <div class="obs-metric-value" v-text="reqPerSec"></div>
           </div>
           <div class="obs-metric">
             <div class="obs-metric-label">Error Rate</div>
-            <div class="obs-metric-value">{{ errorRate }}</div>
+            <div class="obs-metric-value" v-text="errorRate"></div>
           </div>
           <div class="obs-metric">
             <div class="obs-metric-label">p95 Latency</div>
-            <div class="obs-metric-value">{{ p95Ms }}ms</div>
+            <div class="obs-metric-value"><span v-text="p95Ms"></span>ms</div>
           </div>
         </div>
       </div>
@@ -169,17 +179,17 @@
       <div class="obs-section obs-section-traces">
         <div class="obs-section-title">RECENT TRACES <span class="obs-section-sub">(Live Stream)</span></div>
         <div class="obs-traces-list">
-          <div f-for="trace in traces" class="obs-trace-row">
-            <span class="obs-trace-time">{{ formatTraceLine(trace) }}</span>
+          <div v-for="trace in traces" class="obs-trace-row">
+            <span class="obs-trace-time" v-text="formatTraceLine(trace)"></span>
           </div>
-          <div v-if="traces.length === 0" class="obs-trace-empty">
+          <div v-show="traces.length === 0" class="obs-trace-empty">
             No traces yet. Trigger a request to see data.
           </div>
         </div>
       </div>
 
       <!-- Footer -->
-      <div class="obs-footer">( •ω•)ﾉ✧ obs-panel ready &middot; tracking <span>{{ traceCount }}</span> events</div>
+      <div class="obs-footer">( •ω•)ﾉ✧ obs-panel ready &middot; tracking <span v-text="traceCount"></span> events</div>
     </div>
   </div>
 </section>
