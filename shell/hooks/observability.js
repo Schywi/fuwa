@@ -6,10 +6,10 @@
 	// switches to the "obs" view.
 
 	const LOG_PREFIX = '[shell:obs]';
+	const ROOT_SELECTOR = '[data-obs-root]';
 	const POLL_MS = 3000;
 	let timer = null;
 	let state = null;
-	let mounted = false;
 	let app = null;
 
 	function log(step, detail) {
@@ -18,6 +18,32 @@
 			return;
 		}
 		console.info(LOG_PREFIX + ' ' + step, detail);
+	}
+
+	function describeRoot(root) {
+		if (!(root instanceof Element)) {
+			return null;
+		}
+
+		return {
+			tag: root.tagName.toLowerCase(),
+			id: root.id || null,
+			view: root.getAttribute('data-view') || null,
+			state: root.getAttribute('data-widget-state') || null
+		};
+	}
+
+	function resolveScope(scope, reason) {
+		var target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
+		if (target instanceof Element && document.contains(target)) {
+			return target;
+		}
+
+		var fallback = document.querySelector(ROOT_SELECTOR) || document.body || document;
+		if (target instanceof Element) {
+			log(reason + ':fallback', { raw: describeRoot(target), fallback: describeRoot(fallback) });
+		}
+		return fallback;
 	}
 
 	// ── Petite‑vue state factory ─────────────────────────────────────────
@@ -127,7 +153,7 @@
 	}
 
 	function pollAll() {
-		if (!mounted || !state) return;
+		if (!state) return;
 		pollHealth();
 		pollTraces();
 	}
@@ -146,19 +172,24 @@
 	// ── Petite‑vue scope ─────────────────────────────────────────────────
 
 	function mount(root) {
-		if (mounted) return;
-
-		// Reuse existing app if already created.
-		if (app) {
-			mounted = true;
-			pollAll();
-			timer = setInterval(pollAll, POLL_MS);
-			log('resumed');
+		if (!(root instanceof Element)) {
 			return;
 		}
 
-		state = createState();
-		state.formatTraceLine = formatTraceLine;
+		if (!state) {
+			state = createState();
+			state.formatTraceLine = formatTraceLine;
+		}
+
+		if (timer) {
+			clearInterval(timer);
+			timer = null;
+		}
+
+		if (app) {
+			app.unmount();
+			app = null;
+		}
 
 		// Remove v-pre so petite-vue compiles this subtree (it was
 		// v-pre'd to prevent the workspace scope from evaluating it).
@@ -173,21 +204,76 @@
 			return;
 		}
 
-		mounted = true;
+		root.setAttribute('data-widget-state', 'mounted');
+		root.setAttribute('data-widget-kind', 'observability');
 		pollAll();
 		timer = setInterval(pollAll, POLL_MS);
-		log('mounted');
+		log('mount:success', describeRoot(root));
 	}
 
-	function unmount() {
-		mounted = false;
+	function unmount(root) {
+		if (!(root instanceof Element)) {
+			return;
+		}
+
 		if (timer) {
 			clearInterval(timer);
 			timer = null;
 		}
-		// Keep state + petite-vue app alive so reactive bindings
-		// survive view switches.
-		log('paused');
+
+		if (app) {
+			app.unmount();
+			app = null;
+		}
+
+		root.removeAttribute('data-widget-state');
+		root.removeAttribute('data-widget-kind');
+		log('unmount', describeRoot(root));
+	}
+
+	function refresh(scope) {
+		var target = resolveScope(scope, 'refresh');
+		var roots = target.querySelectorAll(ROOT_SELECTOR);
+		log('refresh', { scope: describeRoot(target) });
+
+		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
+			mount(target);
+		}
+
+		for (var i = 0; i < roots.length; i++) {
+			mount(roots[i]);
+		}
+	}
+
+	function clearRoots(scope) {
+		var target = scope && typeof scope.querySelectorAll === 'function' ? scope : document.body || document;
+		var roots = target.querySelectorAll(ROOT_SELECTOR);
+
+		if (target instanceof Element && target.matches(ROOT_SELECTOR)) {
+			unmount(target);
+		}
+
+		for (var i = 0; i < roots.length; i++) {
+			unmount(roots[i]);
+		}
+	}
+
+	function handleBeforeSwap(event) {
+		var scope = event.detail?.target || event.detail?.elt || event.target || document.body;
+		log('htmx:beforeSwap', {
+			raw: describeRoot(scope),
+			status: event.detail?.xhr?.status || null
+		});
+		clearRoots(scope);
+	}
+
+	function handleAfterSwap(event) {
+		var scope = event.detail?.target || event.detail?.elt || event.target || document.body;
+		log('htmx:afterSwap', {
+			raw: describeRoot(scope),
+			status: event.detail?.xhr?.status || null
+		});
+		refresh(scope);
 	}
 
 	// ── Public API ───────────────────────────────────────────────────────
@@ -195,5 +281,24 @@
 	window.FuwaShellObservability = {
 		mount: mount,
 		unmount: unmount,
+		refresh: refresh,
+		selector: ROOT_SELECTOR
 	};
+
+	if (document.readyState === 'loading') {
+		document.addEventListener(
+			'DOMContentLoaded',
+			function () {
+				log('boot:DOMContentLoaded');
+				refresh(document.body || document);
+			},
+			{ once: true }
+		);
+	} else {
+		log('boot:ready');
+		refresh(document.body || document);
+	}
+
+	document.addEventListener('htmx:beforeSwap', handleBeforeSwap);
+	document.addEventListener('htmx:afterSwap', handleAfterSwap);
 })();

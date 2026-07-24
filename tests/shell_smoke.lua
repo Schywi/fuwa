@@ -37,6 +37,7 @@ end
 local files = collect_files("shell")
 local workspace_js = files["hooks/workspace.js"]
 local editor_js = files["hooks/editor.js"]
+local observability_js = files["hooks/observability.js"]
 local home_fuwa = files["views/fragments/home.fuwa"]
 local workspace_fuwa = files["views/fragments/workspace.fuwa"]
 local layout_fuwa = files["views/layout.fuwa"]
@@ -51,6 +52,7 @@ assert_true(workspace_js:find("open_popover", 1, true) ~= nil, "shell should kee
 assert_true(workspace_js:find("boot:mount-shell", 1, true) ~= nil, "shell should mount petite-vue on the stable parent")
 assert_true(workspace_js:find("document.querySelector('[data-workspace]')", 1, true) ~= nil, "shell should remount the live workspace after swaps")
 assert_true(workspace_js:find("htmx:afterSwap", 1, true) ~= nil, "shell should remount petite-vue after swaps")
+assert_true(workspace_js:find("FuwaShellObservability.unmount(prevObsRoot)", 1, true) ~= nil, "shell should unmount observability against the current root")
 assert_true(editor_js:find("lineNumbers()", 1, true) ~= nil, "shell should show line numbers in CodeMirror")
 assert_true(editor_js:find("highlightActiveLineGutter()", 1, true) ~= nil, "shell should highlight the active gutter")
 assert_true(editor_js:find("highlightActiveLine()", 1, true) ~= nil, "shell should highlight the active line")
@@ -60,6 +62,11 @@ assert_true(editor_js:find("dropCursor()", 1, true) ~= nil, "shell should show t
 assert_true(editor_js:find("buildLuaHighlights", 1, true) ~= nil, "shell should syntax-highlight Lua locally")
 assert_true(editor_js:find("cm-lua-keyword", 1, true) ~= nil, "shell should style Lua keywords")
 assert_true(editor_js:find("cm-lua-string", 1, true) ~= nil, "shell should style Lua strings")
+assert_true(observability_js:find("ROOT_SELECTOR = '[data-obs-root]'", 1, true) ~= nil, "observability should mount against the obs root selector")
+assert_true(observability_js:find("app.unmount()", 1, true) ~= nil, "observability should tear down the previous mount before remounting")
+assert_true(observability_js:find("htmx:beforeSwap", 1, true) ~= nil, "observability should clear mounts before swaps")
+assert_true(observability_js:find("htmx:afterSwap", 1, true) ~= nil, "observability should remount after swaps")
+assert_true(observability_js:find("data-widget-kind', 'observability'", 1, true) ~= nil, "observability should mark mounted widget state")
 assert_true(layout_fuwa:find('.shell-widget-shell[data-widget-kind="editor"] > div', 1, true) ~= nil, "shell should let the editor host fill the panel")
 assert_true(home_fuwa:find('v-scope="FuwaShellWorkspace.createState()"', 1, true) ~= nil, "shell should mount petite-vue on the stable shell parent")
 assert_true(workspace_fuwa:find('v-scope="FuwaShellWorkspace.createState()"', 1, true) == nil, "shell should not mount petite-vue on the swapped workspace")
