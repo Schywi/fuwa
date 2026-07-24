@@ -87,6 +87,70 @@ function M.deep_copy(value)
   return out
 end
 
+--- Encode a Lua value as a valid JSON string.
+--- Handles nil, boolean, number, string, array-like tables, and objects.
+--- Non-string object keys are serialized via tostring().
+--- Raises an error for unsupported types (function, userdata, thread).
+function M.encode_json(value)
+  local value_type = type(value)
+  if value == nil then
+    return "null"
+  end
+  if value_type == "boolean" then
+    return value and "true" or "false"
+  end
+  if value_type == "number" then
+    return tostring(value)
+  end
+  if value_type == "string" then
+    return M._json_escape_string(value)
+  end
+  if value_type ~= "table" then
+    error("cannot encode type " .. value_type .. " as JSON")
+  end
+
+  local array, count = M.is_array(value)
+  local parts = {}
+
+  if array then
+    for index = 1, count do
+      parts[#parts + 1] = M.encode_json(value[index])
+    end
+    return "[" .. table.concat(parts, ",") .. "]"
+  end
+
+  for key in pairs(value) do
+    parts[#parts + 1] = key
+  end
+  table.sort(parts, function(left, right)
+    return tostring(left) < tostring(right)
+  end)
+
+  local encoded = {}
+  for _, key in ipairs(parts) do
+    encoded[#encoded + 1] = M.encode_json(tostring(key)) .. ":" .. M.encode_json(value[key])
+  end
+
+  return "{" .. table.concat(encoded, ",") .. "}"
+end
+
+--- Escape a string for use as a JSON string value (internal helper).
+--- Escapes ", \, and control characters (including \n, \r, \t, etc.).
+function M._json_escape_string(value)
+  return '"' .. tostring(value)
+    :gsub("\\", "\\\\")
+    :gsub('"', '\\"')
+    :gsub("\b", "\\b")
+    :gsub("\f", "\\f")
+    :gsub("\n", "\\n")
+    :gsub("\r", "\\r")
+    :gsub("\t", "\\t")
+    :gsub("[\0-\31]", function(c)
+      return string.format("\\u%04x", string.byte(c))
+    end)
+    .. '"'
+end
+
 --- True if the value is an array-like table (integer keys 1..n only).
 --- Returns true, count on success, or false on failure.
 function M.is_array(value)

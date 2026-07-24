@@ -145,6 +145,46 @@ local function render_binding(path, env, opts, ctx, raw, line)
   return util.escape_html(value)
 end
 
+local function scan_literal_text(text, pos)
+  local next_amp = text:find("&", pos, true) or (#text + 1)
+  return text:sub(pos, next_amp - 1), next_amp
+end
+
+local function scan_unsafe_binding(text, pos, env, opts, ctx, line)
+  pos = pos + 7 -- skip "&unsafe"
+  while pos <= #text and text:sub(pos, pos):match("%s") do
+    pos = pos + 1
+  end
+  local path
+  path, pos = read_token(text, pos)
+  if not path then
+    return nil, pos, make_error("template_error", "Missing value for `&unsafe` binding.", ctx, line)
+  end
+  local rendered, err = render_binding(path, env, opts, ctx, true, line)
+  if err then
+    return nil, pos, err
+  end
+  return rendered, pos
+end
+
+local function scan_named_entity(text, pos)
+  local semicolon = text:find(";", pos, true)
+  return text:sub(pos, semicolon), semicolon + 1
+end
+
+local function scan_binding(text, pos, env, opts, ctx, line)
+  local path
+  path, pos = read_token(text, pos + 1)
+  if not path then
+    return "&amp;", pos + 1
+  end
+  local rendered, err = render_binding(path, env, opts, ctx, false, line)
+  if err then
+    return nil, pos, err
+  end
+  return rendered, pos
+end
+
 local function scan_bindings(text, env, opts, ctx, line)
   local out = {}
   local i = 1
@@ -152,44 +192,27 @@ local function scan_bindings(text, env, opts, ctx, line)
   while i <= #text do
     local ch = text:sub(i, i)
     if ch ~= "&" then
-      local next_amp = text:find("&", i, true) or (#text + 1)
-      local literal = text:sub(i, next_amp - 1)
+      local literal
+      literal, i = scan_literal_text(text, i)
       out[#out + 1] = util.escape_html(literal)
-      i = next_amp
-    else
-      if text:sub(i, i + 6) == "&unsafe" and text:sub(i + 7, i + 7):match("%s") then
-        i = i + 7
-        while i <= #text and text:sub(i, i):match("%s") do
-          i = i + 1
-        end
-        local path
-        path, i = read_token(text, i)
-        if not path then
-          return nil, make_error("template_error", "Missing value for `&unsafe` binding.", ctx, line)
-        end
-        local rendered, err = render_binding(path, env, opts, ctx, true, line)
-        if err then
-          return nil, err
-        end
-        out[#out + 1] = rendered
-      elseif is_named_entity(text, i) then
-        local semicolon = text:find(";", i, true)
-        out[#out + 1] = text:sub(i, semicolon)
-        i = semicolon + 1
-      else
-        local path
-        path, i = read_token(text, i + 1)
-        if not path then
-          out[#out + 1] = "&amp;"
-          i = i + 1
-        else
-          local rendered, err = render_binding(path, env, opts, ctx, false, line)
-          if err then
-            return nil, err
-          end
-          out[#out + 1] = rendered
-        end
+    elseif text:sub(i, i + 6) == "&unsafe" and text:sub(i + 7, i + 7):match("%s") then
+      local rendered, err
+      rendered, i, err = scan_unsafe_binding(text, i, env, opts, ctx, line)
+      if err then
+        return nil, err
       end
+      out[#out + 1] = rendered
+    elseif is_named_entity(text, i) then
+      local entity
+      entity, i = scan_named_entity(text, i)
+      out[#out + 1] = entity
+    else
+      local rendered, err
+      rendered, i, err = scan_binding(text, i, env, opts, ctx, line)
+      if err then
+        return nil, err
+      end
+      out[#out + 1] = rendered
     end
   end
 

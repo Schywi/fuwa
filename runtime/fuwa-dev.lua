@@ -732,6 +732,87 @@ function M.build_bundle_response(payload_id, opts)
 	}
 end
 
+-- Saves the current package.loaded / package.preload entries for host and every
+-- compiled module, swaps in fresh preloads, and installs _G.__fuwa_* globals so
+-- user code sees a clean per-request environment. Returns the original state
+-- (for restore_request_environment) and the set_html capture table.
+local function prepare_request_environment(compiled_modules, allow_host, db_provider)
+	local state = {
+		host_loaded = package.loaded["host"],
+		host_preloaded = package.preload["host"],
+		loaded = {},
+		preloaded = {},
+	}
+
+	package.loaded["host"] = nil
+	if allow_host then
+		package.preload["host"] = function()
+			return host_caps.new({
+				root_dir = root_dir,
+				db_provider = db_provider,
+			})
+		end
+	else
+		package.preload["host"] = nil
+	end
+
+	for module_name, source in pairs(compiled_modules) do
+		state.loaded[module_name] = package.loaded[module_name]
+		state.preloaded[module_name] = package.preload[module_name]
+		package.loaded[module_name] = nil
+		package.preload[module_name] = function()
+			return load_chunk(source, module_name)
+		end
+	end
+
+	local captured, set_html = make_set_html_capture()
+	_G.__fuwa_is_request = true
+	_G.__fuwa_print = function(...)
+		return ...
+	end
+	_G.__fuwa_db_op = make_db_bridge
+	_G.set_html = set_html
+
+	return state, captured
+end
+
+-- Restore package.loaded / package.preload entries saved by
+-- prepare_request_environment. Always safe to call — errors are caught,
+-- logged, and swallowed so they never corrupt a request.
+local function restore_request_environment(state)
+	local ok, err = pcall(function()
+		package.loaded["host"] = state.host_loaded
+		package.preload["host"] = state.host_preloaded
+		for module_name, _ in pairs(state.loaded) do
+			package.loaded[module_name] = state.loaded[module_name]
+			package.preload[module_name] = state.preloaded[module_name]
+		end
+	end)
+	if not ok then
+		io.stderr:write("WARNING: failed to restore package.* state: ", tostring(err), "\n")
+		io.stderr:flush()
+	end
+end
+
+-- Run the user-authored request handler. Expects _G globals to already be
+-- installed by prepare_request_environment.
+local function execute_user_handler(main_source, method, path, body, captured)
+	load_chunk(assert(main_source, "missing main.lua"), "main.lua")
+	local handle_request = assert(_G.handle_request, "main.lua did not define handle_request")
+	local rendered = handle_request(method, path, body or "")
+	return tostring(rendered or captured.value or "")
+end
+
+-- Inject the SSE reload script into HTML responses for tenant documents.
+-- The browser shell uses its own in-memory session and must not receive the
+-- dev reload snippet (it would clobber state on every file save).
+local function post_process_html(html, method, allow_host)
+	if method == "GET" and not allow_host then
+		return render_reload_script(html)
+	end
+	return html
+end
+
 function M.build_response(root, method, path, body, opts)
 	opts = opts or {}
 	local db_provider = resolve_db_provider(opts)
@@ -769,71 +850,28 @@ function M.build_response(root, method, path, body, opts)
 			end
 		end
 
-		local original_host_loaded = package.loaded["host"]
-		local original_host_preloaded = package.preload["host"]
-		package.loaded["host"] = nil
-		if allow_host then
-			package.preload["host"] = function()
-				return host_caps.new({
-					root_dir = root_dir,
-					db_provider = db_provider,
-				})
-			end
-		else
-			package.preload["host"] = nil
-		end
+		local env_state, captured = prepare_request_environment(compiled_modules, allow_host, db_provider)
 
-		local original_loaded = {}
-		local original_preloaded = {}
-		for module_name, source in pairs(compiled_modules) do
-			original_loaded[module_name] = package.loaded[module_name]
-			original_preloaded[module_name] = package.preload[module_name]
-			package.loaded[module_name] = nil
-			package.preload[module_name] = function()
-				return load_chunk(source, module_name)
-			end
-		end
-
-		local captured, set_html = make_set_html_capture()
-		_G.__fuwa_is_request = true
-		_G.__fuwa_print = function(...)
-			return ...
-		end
-		_G.__fuwa_db_op = make_db_bridge
-		_G.set_html = set_html
-
-		local html = trace.span("render", {
-			method = method,
-			path = path,
-		}, function(render_span)
-			local ok, result = pcall(function()
-				load_chunk(assert(build.run_files["main.lua"], "missing main.lua"), "main.lua")
-				local handle_request = assert(_G.handle_request, "main.lua did not define handle_request")
-				local rendered = handle_request(method, path, body or "")
-				local output = tostring(rendered or captured.value or "")
-				-- Dev reload only targets tenant documents. The browser shell is
-				-- driven by the in-memory runtime session and should not rely on the
-				-- old shell preview refresh token path.
-				if method == "GET" and not allow_host then
-					output = render_reload_script(output)
+		local function render_and_restore()
+			return trace.span("render", {
+				method = method,
+				path = path,
+			}, function(render_span)
+				local ok, result = pcall(execute_user_handler, build.run_files["main.lua"], method, path, body, captured)
+				if not ok then
+					error(tostring(result), 0)
 				end
-				return output
+				result = post_process_html(result, method, allow_host)
+				render_span:set("bytes", #result)
+				return result
 			end)
+		end
 
-			package.loaded["host"] = original_host_loaded
-			package.preload["host"] = original_host_preloaded
-			for module_name, _ in pairs(compiled_modules) do
-				package.loaded[module_name] = original_loaded[module_name]
-				package.preload[module_name] = original_preloaded[module_name]
-			end
-
-			if not ok then
-				error(tostring(result), 0)
-			end
-
-			render_span:set("bytes", #result)
-			return result
-		end)
+		local ok, html = pcall(render_and_restore)
+		restore_request_environment(env_state)
+		if not ok then
+			error(tostring(html), 0)
+		end
 
 		request_span:set("status", 200)
 		request_span:set("bytes", #html)
