@@ -192,6 +192,15 @@
 					console.debug('[obs] appendEvents parse error', e);
 				}
 			}
+			// Also POST to the server ring buffer so Wasmoon traces survive
+			// page refreshes and appear in /__dev/traces snapshots.
+			try {
+				fetch('/__dev/traces', {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ events: events.map(function (s) { return JSON.parse(s); }) })
+				}).catch(function () {});
+			} catch (_) {}
 		}
 	};
 
