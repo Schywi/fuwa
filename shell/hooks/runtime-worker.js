@@ -259,11 +259,13 @@ async function boot() {
 			});
 		});
 		lua.global.set('__fuwa_trace_sink', function (json_str) {
-			// Lua trace sink → host observability panel. The Lua side JSON-encodes
-			// the event to avoid Wasmoon proxy marshalling issues.
 			try {
-				console.debug('[worker][trace]', json_str.slice(0, 120));
-				post({ type: 'trace', events: [json_str] });
+				// Inject _ts (epoch seconds) for frontend sorting.
+				var event = JSON.parse(json_str);
+				event._ts = Date.now() / 1000;
+				var enriched = JSON.stringify(event);
+				console.debug('[worker][trace]', enriched.slice(0, 120));
+				post({ type: 'trace', events: [enriched] });
 			} catch (e) {
 				console.debug('[worker][trace] sink error', e);
 			}
@@ -439,7 +441,7 @@ async function runCode(id, files, target, sources) {
 					'  if render_span then',
 					'    local html_str = result and tostring(result) or ""',
 					'    render_span:set("bytes", #html_str)',
-					'    if not ok then render_span:set("failed", true) end',
+					'    if not ok then render_span.failed = true end',
 					'    render_span:close()',
 					'  end',
 					'  if result ~= nil then',
@@ -447,7 +449,7 @@ async function runCode(id, files, target, sources) {
 					'  end',
 					'  if req_span then',
 					'    req_span:set("status", ok and 200 or 500)',
-					'    if not ok then req_span:set("failed", true) end',
+					'    if not ok then req_span.failed = true; req_span.error = tostring(result) end',
 					'    req_span:close()',
 					'  end',
 					'end'

@@ -146,7 +146,7 @@
         </button>
         <div v-show="expandedTraceId === request.traceId" class="obs-expand">
           <div class="obs-expand-log">
-            <div v-for="line in request.logs" class="obs-log-row" v-text="line"></div>
+            <div v-for="line in request.logs" class="obs-log-row" :data-kind="line.kind" :data-tone="line.tone" v-text="line.label"></div>
           </div>
         </div>
       </div>
