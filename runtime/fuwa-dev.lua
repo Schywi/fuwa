@@ -994,6 +994,151 @@ local function handle_reload_request()
 	end
 end
 
+local function not_found_response()
+	return {
+		status = 404,
+		headers = {
+			["Content-Type"] = "text/plain; charset=utf-8",
+			["Content-Length"] = "9",
+			["Connection"] = "close",
+		},
+		body = "Not found",
+	}
+end
+
+-- Route handlers: each returns a response table, or nil if the route does not
+-- apply. Handlers are only called when their pattern already matched.
+
+local function serve_shell_asset(request)
+	local relative_path = request.path:gsub("^/shell/", "", 1)
+	return serve_static_asset(shell_root .. "/" .. relative_path) or not_found_response()
+end
+
+local function serve_vendor_asset(request)
+	local relative_path = request.path:gsub("^/vendor/", "", 1)
+	return serve_static_asset(vendor_root .. "/" .. relative_path) or not_found_response()
+end
+
+local function serve_payload_route(request)
+	local mount_kind = request.path:match("^/(payload)/") or request.path:match("^/(preview)/")
+	if not mount_kind then
+		return nil
+	end
+
+	local payload_id, inner_path = split_mount_route(request.path, mount_kind)
+
+	-- Security: reject path traversal
+	if payload_id and inner_path and has_dotdot_segment(inner_path) then
+		return not_found_response()
+	end
+
+	-- Static assets (non-.fuwa files with an extension)
+	if payload_id and inner_path and inner_path ~= "/" and inner_path:match("%.[^/]+$") and not inner_path:match("%.fuwa$") then
+		local asset = nil
+		if mount_kind == "preview" then
+			asset = serve_static_asset(drafts_root .. "/" .. payload_id .. inner_path)
+		end
+		if asset == nil then
+			asset = serve_static_asset(payloads_root .. "/" .. payload_id .. inner_path)
+		end
+		return asset or not_found_response()
+	end
+
+	-- SSR: must have a valid payload_id
+	if payload_id == nil then
+		return not_found_response()
+	end
+
+	-- Redirect /payload/<id> → /payload/<id>/
+	if request.path:match("^/" .. mount_kind .. "/[^/]+$") and request.method == "GET" then
+		return {
+			status = 302,
+			headers = {
+				["Location"] = request.path .. "/",
+				["Connection"] = "close",
+			},
+			body = "",
+		}
+	end
+
+	local opts = {
+		db_provider_name = "sqlite_local",
+	}
+	if mount_kind == "preview" then
+		opts.overlay_root = drafts_root .. "/" .. payload_id
+	end
+
+	local response = M.build_response(
+		payloads_root .. "/" .. payload_id,
+		request.method,
+		inner_path,
+		request.body,
+		opts
+	)
+
+	-- Payload markup hardcodes absolute /payload/<id>/ routes. Inside a
+	-- draft preview those must stay on the draft surface, otherwise htmx
+	-- interactions would run published code against a draft document.
+	if mount_kind == "preview"
+		and response.body
+		and tostring((response.headers or {})["Content-Type"] or ""):match("text/html") then
+		local pattern_id = payload_id:gsub("%-", "%%-")
+		response.body = response.body:gsub("/payload/" .. pattern_id .. "/", "/preview/" .. payload_id .. "/")
+		response.headers["Content-Length"] = tostring(#response.body)
+	end
+
+	return response
+end
+
+local function serve_draft_route(request)
+	local draft_discard_id = request.path:match("^/draft/([^/]+)/discard$")
+	if draft_discard_id and request.method == "POST" then
+		return M.build_draft_discard_response(draft_discard_id, request.body)
+	end
+
+	local draft_write_id = request.path:match("^/draft/([^/]+)$")
+	if draft_write_id and request.method == "POST" then
+		return M.build_draft_write_response(draft_write_id, request.body)
+	end
+
+	return nil
+end
+
+local function serve_runtime_route(request)
+	local bundle_route, bundle_query = request.path:match("^([^?]+)%??(.*)$")
+	local bundle_payload_id = tostring(bundle_route or ""):match("^/runtime/([^/]+)/bundle%.json$")
+	if bundle_payload_id and request.method == "GET" then
+		return M.build_bundle_response(bundle_payload_id, {
+			draft = tostring(bundle_query or ""):match("draft=1") ~= nil,
+		})
+	end
+
+	if request.path == "/runtime/tenant.html" and request.method == "GET" then
+		local tenant_html = browser_runtime.bootstrap.build_runtime_srcdoc()
+		return {
+			status = 200,
+			headers = {
+				["Content-Type"] = "text/html; charset=utf-8",
+				["Content-Length"] = tostring(#tenant_html),
+				["Cache-Control"] = "no-cache",
+				["Connection"] = "close",
+			},
+			body = tenant_html,
+		}
+	end
+
+	return nil
+end
+
+local routes = {
+	{pattern = "^/shell/hooks/", handler = serve_shell_asset},
+	{pattern = "^/vendor/", handler = serve_vendor_asset},
+	{pattern = "^/payload/", handler = serve_payload_route},
+	{pattern = "^/preview/", handler = serve_payload_route},
+	{pattern = "^/draft/", handler = serve_draft_route},
+	{pattern = "^/runtime/", handler = serve_runtime_route},
+}
+
 function M.run()
 	io.stdout:setvbuf("no")
 	util.ensure_path(reload_token_path, "")
@@ -1003,187 +1148,26 @@ function M.run()
 		return
 	end
 
-	if request.path:match("^/shell/hooks/") then
-		local relative_path = request.path:gsub("^/shell/", "", 1)
-		local asset = serve_static_asset(shell_root .. "/" .. relative_path)
-		if asset then
-			write_http_response(asset)
-		else
-			write_http_response({
-				status = 404,
-				headers = {
-					["Content-Type"] = "text/plain; charset=utf-8",
-					["Content-Length"] = "9",
-					["Connection"] = "close",
-				},
-				body = "Not found",
-			})
-		end
-		return
-	end
-
-	if request.path:match("^/vendor/") then
-		local relative_path = request.path:gsub("^/vendor/", "", 1)
-		local asset = serve_static_asset(vendor_root .. "/" .. relative_path)
-		if asset then
-			write_http_response(asset)
-		else
-			write_http_response({
-				status = 404,
-				headers = {
-					["Content-Type"] = "text/plain; charset=utf-8",
-					["Content-Length"] = "9",
-					["Connection"] = "close",
-				},
-				body = "Not found",
-			})
-		end
-		return
-	end
-
-	local mount_kind = request.path:match("^/(payload)/") or request.path:match("^/(preview)/")
-	local payload_id, inner_path
-	if mount_kind then
-		payload_id, inner_path = split_mount_route(request.path, mount_kind)
-	end
-
-	if payload_id and inner_path and has_dotdot_segment(inner_path) then
-		write_http_response({
-			status = 404,
-			headers = {
-				["Content-Type"] = "text/plain; charset=utf-8",
-				["Content-Length"] = "9",
-				["Connection"] = "close",
-			},
-			body = "Not found",
-		})
-		return
-	end
-
-	if payload_id and inner_path and inner_path ~= "/" and inner_path:match("%.[^/]+$") and not inner_path:match("%.fuwa$") then
-		local asset = nil
-		if mount_kind == "preview" then
-			asset = serve_static_asset(drafts_root .. "/" .. payload_id .. inner_path)
-		end
-		if asset == nil then
-			asset = serve_static_asset(payloads_root .. "/" .. payload_id .. inner_path)
-		end
-		if asset then
-			write_http_response(asset)
-		else
-			write_http_response({
-				status = 404,
-				headers = {
-					["Content-Type"] = "text/plain; charset=utf-8",
-					["Content-Length"] = "9",
-					["Connection"] = "close",
-				},
-				body = "Not found",
-			})
-		end
-		return
-	end
-
+	-- SSE reload endpoint writes directly (long-lived connection)
 	if request.path == "/__dev/reload" then
 		handle_reload_request()
 		return
 	end
 
-	local draft_discard_id = request.path:match("^/draft/([^/]+)/discard$")
-	if draft_discard_id and request.method == "POST" then
-		write_http_response(M.build_draft_discard_response(draft_discard_id, request.body))
-		return
-	end
-
-	local draft_write_id = request.path:match("^/draft/([^/]+)$")
-	if draft_write_id and request.method == "POST" then
-		write_http_response(M.build_draft_write_response(draft_write_id, request.body))
-		return
-	end
-
-	local bundle_route, bundle_query = request.path:match("^([^?]+)%??(.*)$")
-	local bundle_payload_id = tostring(bundle_route or ""):match("^/runtime/([^/]+)/bundle%.json$")
-	if bundle_payload_id and request.method == "GET" then
-		write_http_response(M.build_bundle_response(bundle_payload_id, {
-			draft = tostring(bundle_query or ""):match("draft=1") ~= nil,
-		}))
-		return
-	end
-
-	if request.path == "/runtime/tenant.html" and request.method == "GET" then
-		local tenant_html = browser_runtime.bootstrap.build_runtime_srcdoc()
-		write_http_response({
-			status = 200,
-			headers = {
-				["Content-Type"] = "text/html; charset=utf-8",
-				["Content-Length"] = tostring(#tenant_html),
-				["Cache-Control"] = "no-cache",
-				["Connection"] = "close",
-			},
-			body = tenant_html,
-		})
-		return
-	end
-
-	local response
-	if mount_kind then
-		if payload_id == nil then
-			write_http_response({
-				status = 404,
-				headers = {
-					["Content-Type"] = "text/plain; charset=utf-8",
-					["Content-Length"] = "9",
-					["Connection"] = "close",
-				},
-				body = "Not found",
-			})
-			return
+	for _, route in ipairs(routes) do
+		if request.path:match(route.pattern) then
+			local response = route.handler(request)
+			if response then
+				write_http_response(response)
+				return
+			end
 		end
-
-		if request.path:match("^/" .. mount_kind .. "/[^/]+$") and request.method == "GET" then
-			write_http_response({
-				status = 302,
-				headers = {
-					["Location"] = request.path .. "/",
-					["Connection"] = "close",
-				},
-				body = "",
-			})
-			return
-		end
-
-		local opts = {
-			db_provider_name = "sqlite_local",
-		}
-		if mount_kind == "preview" then
-			opts.overlay_root = drafts_root .. "/" .. payload_id
-		end
-
-		response = M.build_response(
-			payloads_root .. "/" .. payload_id,
-			request.method,
-			inner_path,
-			request.body,
-			opts
-		)
-
-		-- Payload markup hardcodes absolute /payload/<id>/ routes. Inside a
-		-- draft preview those must stay on the draft surface, otherwise htmx
-		-- interactions would run published code against a draft document.
-		if mount_kind == "preview"
-			and response.body
-			and tostring((response.headers or {})["Content-Type"] or ""):match("text/html") then
-			local pattern_id = payload_id:gsub("%-", "%%-")
-			response.body = response.body:gsub("/payload/" .. pattern_id .. "/", "/preview/" .. payload_id .. "/")
-			response.headers["Content-Length"] = tostring(#response.body)
-		end
-	else
-		response = M.build_response(shell_root, request.method, request.path, request.body, {
-			allow_host = true,
-		})
 	end
 
-	write_http_response(response)
+	-- Default: serve shell SSR
+	write_http_response(M.build_response(shell_root, request.method, request.path, request.body, {
+		allow_host = true,
+	}))
 end
 
 function M.db_helper_main(state_file, command_file)
