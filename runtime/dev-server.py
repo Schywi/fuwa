@@ -127,7 +127,7 @@ def handle_connection(client_sock: socket.socket) -> None:
             [LUA_BIN, "runtime/fuwa-dev.lua"],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
+            stderr=None,
             cwd=ROOT_DIR,
         )
     except FileNotFoundError:
