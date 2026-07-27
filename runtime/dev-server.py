@@ -31,7 +31,34 @@ DEFAULT_PORT = int(os.environ.get("PORT", "8080"))
 WATCH_DIR = os.path.join(ROOT_DIR, "payloads", "current")
 DEV_DIR = os.path.join(ROOT_DIR, ".fuwa-dev")
 RELOAD_TOKEN = os.path.join(DEV_DIR, "reload-token")
+DOTENV_PATH = os.path.join(ROOT_DIR, ".env")
 POLL_INTERVAL = 0.5
+
+# ── .env loading ───────────────────────────────────────────────────────────
+
+_dev_config: dict[str, str] = {}
+
+def _load_dotenv() -> None:
+    """Read .env file at startup so /__dev/config can serve keys to the browser."""
+    global _dev_config
+    path = DOTENV_PATH
+    if not os.path.isfile(path):
+        return
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if "=" not in line:
+                    continue
+                key, _, value = line.partition("=")
+                key = key.strip()
+                value = value.strip().strip('"').strip("'")
+                if key:
+                    _dev_config[key] = value
+    except OSError:
+        pass
 
 _running = True
 
@@ -351,6 +378,11 @@ def handle_connection(client_sock: socket.socket) -> None:
         _handle_dev_trace_stream(client_sock)
         return
 
+    if path == "/__dev/config":
+        _send_response(client_sock, "200 OK", "application/json",
+                       json.dumps(_dev_config))
+        return
+
     # ── Forward to Lua ──────────────────────────────────────────────────
     try:
         proc = subprocess.Popen(
@@ -420,6 +452,7 @@ def main() -> None:
     os.chdir(ROOT_DIR)
     port = find_port()
     setup_dev_dir()
+    _load_dotenv()
 
     threading.Thread(target=file_watcher, daemon=True, name="file-watcher").start()
 

@@ -41,6 +41,26 @@
 		return state;
 	}
 
+	// ── server config ────────────────────────────────────────────────────
+
+	function loadConfig() {
+		fetch('/__dev/config')
+			.then(function (r) { return r.json(); })
+			.then(function (config) {
+				var server_key = config.DEEP_SEEK_API;
+				if (server_key && !localStorage.getItem('fuwa_ai_deepseek_key')) {
+					// Only auto-populate if user hasn't set their own key
+					var s = createState();
+					s.api_key = server_key;
+					// Don't persist — server key takes precedence each session
+				}
+			})
+			.catch(function () {
+				// /__dev/config only exists when dev server is running;
+				// silently ignore in production/standalone mode
+			});
+	}
+
 	// ── helpers ──────────────────────────────────────────────────────────
 
 	function log(msg, detail) {
@@ -177,7 +197,8 @@
 	}
 
 	async function sendMessage(userMessage) {
-		var key = localStorage.getItem('fuwa_ai_deepseek_key');
+		var s = createState();
+		var key = localStorage.getItem('fuwa_ai_deepseek_key') || s.api_key;
 		if (!key) {
 			setState({ error: 'API key not set. Click the gear icon to configure.', loading: false });
 			return;
@@ -376,6 +397,7 @@
 		mounted_roots.add(root);
 		root.setAttribute('data-widget-state', 'mounted');
 
+		loadConfig();
 		setState({ context_summary: buildContextLabel() });
 	}
 
