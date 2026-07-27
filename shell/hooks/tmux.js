@@ -46,6 +46,7 @@
 			for (var i = 0; i < slots.length; i++) {
 				var slot = slots[i];
 				var label = slot.getAttribute('data-tmux-label') || 'term';
+				var container = slot.getAttribute('data-tmux-container') || label;
 				slot.textContent = '';
 
 				var term = new Terminal({
@@ -67,7 +68,7 @@
 				terminals.push({ term: term, label: label, slot: slot });
 
 				// Connect SSE log stream
-				connectLogs(term, label);
+				connectLogs(term, container);
 			}
 
 			mounted = true;
