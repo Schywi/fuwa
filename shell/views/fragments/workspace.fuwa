@@ -16,7 +16,7 @@
       aria-label="Search files"
       aria-haspopup="true"
     >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" /></svg>
+      <iconify-icon class="shell-icon" icon="lucide:search"></iconify-icon>
     </button>
 
     <button
@@ -29,26 +29,15 @@
       aria-label="File list"
       aria-haspopup="true"
     >
-      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="7" x="3" y="3" rx="1" /><rect width="7" height="7" x="3" y="14" rx="1" /><path d="M14 4h7" /><path d="M14 9h7" /><path d="M14 15h7" /><path d="M14 20h7" /></svg>
+      <iconify-icon class="shell-icon" icon="lucide:list"></iconify-icon>
     </button>
 
     <nav class="breadcrumb-nav" aria-label="Workspace context">
       <span f-for="segment in dashboard.breadcrumb" class="breadcrumb-segment" data-active="&segment.active">&segment.label</span>
     </nav>
-
-    <button type="button" class="shell-icon-btn" data-view-toggle data-view-target="code" aria-label="Code editor">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6" /><polyline points="8 6 2 12 8 18" /></svg>
-    </button>
-    <button type="button" class="shell-icon-btn" data-view-toggle data-view-target="terminal" aria-label="Terminal">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7 11 2-2-2-2" /><path d="M11 13h4" /><rect width="18" height="18" x="3" y="3" rx="2" /></svg>
-    </button>
-    <button type="button" class="shell-icon-btn" data-view-toggle data-view-target="obs" aria-label="Observability">
-      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10" /><path d="M18 20V4" /><path d="M6 20v-4" /></svg>
-    </button>
-
     <div class="popover-v2 search-popover" data-popover="search" v-show="open_popover === 'search'" v-cloak @click.stop>
       <div class="search-input-wrap">
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <iconify-icon class="shell-icon shell-icon--sm" icon="lucide:search"></iconify-icon>
         <input type="text" data-popover-search placeholder="Jump to file…" aria-label="Filter files" />
       </div>
       <div class="popover-list" role="listbox">
@@ -94,65 +83,10 @@
     </div>
   </header>
 
-  <div class="ide-view ide-view-code" data-view="code">
     <form id="ide-editor-form" class="ide-editor">
       <input type="hidden" name="path" value="&dashboard.active.selected_file" />
       <input type="hidden" data-editor-source name="contents" value="&dashboard.active.selected_file_source" />
 
       <div class="shell-widget-shell" data-editor-root data-file-path="&dashboard.active.selected_file" aria-label="CodeMirror editor"></div>
-
-      <div class="shell-editor-actions">
-        <span class="shell-editor-note">Editing <code>&dashboard.active.selected_file</code></span>
-        <span class="shell-editor-note">Browser live updates only</span>
-      </div>
     </form>
-  </div>
-
-  <div class="ide-view ide-view-terminal" data-view="terminal" hidden>
-    <div class="stage-header">
-      <span class="stage-title">Terminal</span>
-      <span class="stage-subtitle">compile + run output</span>
-      <span class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
-    </div>
-    <div
-      class="shell-widget-shell"
-      data-terminal-root
-      data-terminal-session="&dashboard.active.id"
-      data-terminal-status="&dashboard.active.terminal_status"
-      data-terminal-run-id="&dashboard.active.terminal_run_id"
-      aria-label="xterm terminal mount point"
-    >
-      <p class="shell-widget-placeholder">xterm mounts here.</p>
-    </div>
-    <pre hidden data-terminal-seed>&dashboard.active.terminal_output</pre>
-  </div>
-
-  <div class="ide-view ide-view-obs" data-view="obs" data-obs-root v-pre hidden>
-    <div class="stage-header">
-      <span class="stage-title">Observability</span>
-      <span class="stage-subtitle">live request console</span>
-      <span class="obs-stream-label" v-text="streamLabel"></span>
-    </div>
-    <div class="obs-activity-list">
-      <div v-for="request in requests" class="obs-request-group">
-        <button type="button" class="obs-activity-row" :data-tone="statusTone(request)" @click="toggleExpand(request)">
-          <span class="obs-activity-line">
-            <span class="obs-activity-method" v-text="request.method"></span>
-            <span class="obs-activity-path" v-text="request.path"></span>
-            <span class="obs-activity-status" v-text="request.statusLabel"></span>
-            <span class="obs-activity-duration" v-text="request.durationLabel"></span>
-          </span>
-          <span class="obs-activity-stage" v-text="request.stageSummary"></span>
-        </button>
-        <div v-show="expandedTraceId === request.traceId" class="obs-expand">
-          <div class="obs-expand-log">
-            <div v-for="line in request.logs" class="obs-log-row" :data-kind="line.kind" :data-tone="line.tone" v-text="line.label"></div>
-          </div>
-        </div>
-      </div>
-      <div v-show="requests.length === 0" class="obs-trace-empty">
-        No completed requests yet. Trigger a route to populate the live stream.
-      </div>
-    </div>
-  </div>
 </section>

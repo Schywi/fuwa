@@ -182,79 +182,13 @@
 		return workspace_state;
 	}
 
-	function setView(workspace, view) {
-		if (active_state && active_state.root === workspace) {
-			log('view-switch:close-active-popover', { view: view, workspace: describeScope(workspace) });
-			active_state.closePopover();
-		}
-
-		// Cleanup previous obs view
-		var prev = workspace.getAttribute('data-active-view');
-		if (prev === 'obs' && window.FuwaShellObservability) {
-			var prevObsRoot = workspace.querySelector('[data-obs-root]');
-			if (prevObsRoot) {
-				window.FuwaShellObservability.unmount(prevObsRoot);
-			}
-		}
-
-		log('view-switch', {
-			view: view,
-			workspace: describeScope(workspace)
-		});
-		for (const panel of workspace.querySelectorAll('[data-view]')) {
-			panel.hidden = panel.dataset.view !== view;
-		}
-
-		for (const btn of workspace.querySelectorAll('[data-view-toggle]')) {
-			btn.setAttribute('data-view-active', btn.dataset.viewTarget === view ? 'true' : 'false');
-		}
-
-		if (view === 'terminal' && window.FuwaShellTerminal) {
-			window.FuwaShellTerminal.refresh(workspace);
-		}
-
-		if (view === 'obs' && window.FuwaShellObservability) {
-			var obsRoot = workspace.querySelector('[data-obs-root]');
-			if (obsRoot) {
-				window.FuwaShellObservability.mount(obsRoot);
-			}
-		}
-
-		workspace.setAttribute('data-active-view', view);
-	}
-
 	document.addEventListener('click', function (event) {
 		const target = event.target instanceof Element ? event.target : null;
 		if (!target) {
 			return;
 		}
 
-		const viewToggle = target.closest('[data-view-toggle]');
-		if (viewToggle) {
-			const workspace = workspaceRoot(viewToggle);
-			if (!workspace) {
-				log('view-toggle:missing-workspace');
-				return;
-			}
-			const next = viewToggle.dataset.viewTarget || 'code';
-			log('view-toggle:click', { next: next, workspace: describeScope(workspace) });
-			setView(workspace, next);
-		}
-	});
-
-	document.addEventListener(
-		'pointerdown',
-		function (event) {
-			if (event.button !== 0) {
-				return;
-			}
-
-			const target = event.target instanceof Element ? event.target : null;
-			if (!target) {
-				return;
-			}
-
-			const workspace = active_state && active_state.root instanceof Element ? active_state.root : null;
+		const workspace = active_state && active_state.root instanceof Element ? active_state.root : null;
 			if (!workspace) {
 				log('outside-click:no-active-popover');
 				return;
@@ -291,6 +225,23 @@
 		}
 	});
 
+	document.addEventListener('change', function (event) {
+		const select = event.target;
+		if (!(select instanceof HTMLSelectElement) || !select.matches('[data-switch-select]')) {
+			return;
+		}
+
+		const route = select.value || '';
+		if (route === '' || !(window.htmx && typeof window.htmx.ajax === 'function')) {
+			return;
+		}
+
+		window.htmx.ajax('POST', route, {
+			target: '#shell-content',
+			swap: 'outerHTML'
+		});
+	});
+
 	document.addEventListener('keydown', function (event) {
 		if (event.key === 'Escape') {
 			active_state?.closePopover();
@@ -322,17 +273,13 @@
 
 	function initialize(scope) {
 		const target = resolveScope(scope, 'initialize');
-		let workspace_count = 0;
-		for (const workspace of target.querySelectorAll('[data-workspace]')) {
-			workspace_count += 1;
-			if (!workspace.hasAttribute('data-active-view')) {
-				setView(workspace, 'code');
+		for (const select of target.querySelectorAll('[data-switch-select]')) {
+			const current = select.getAttribute('data-switch-current') || '';
+			if (current !== '') {
+				select.value = current;
 			}
 		}
-		if (target instanceof Element && target.matches('[data-workspace]') && !target.hasAttribute('data-active-view')) {
-			setView(target, 'code');
-		}
-		log('initialize', { scope: describeScope(target), workspaces: workspace_count });
+		log('initialize', { scope: describeScope(target) });
 	}
 
 	function dependenciesReady() {
@@ -388,6 +335,19 @@
 		booted = true;
 		log('boot:mount-shell', describeScope(shell));
 		mount(shell);
+
+		// Mount terminal and observability in right island blocks
+		setTimeout(function () {
+			if (window.FuwaShellTerminal) {
+				window.FuwaShellTerminal.refresh(document);
+			}
+			if (window.FuwaShellObservability) {
+				var obsRoot = document.querySelector('[data-obs-root]');
+				if (obsRoot) {
+					window.FuwaShellObservability.mount(obsRoot);
+				}
+			}
+		}, 50);
 	}
 
 	workspace_state = createState();
@@ -395,7 +355,6 @@
 	window.FuwaShellWorkspace = {
 		createState,
 		state: workspace_state,
-		setView,
 		initialize
 	};
 
@@ -427,5 +386,16 @@
 		});
 		initialize(target);
 		mount(target);
+
+		// Mount terminal and observability in right island blocks
+		if (window.FuwaShellTerminal) {
+			window.FuwaShellTerminal.refresh(document);
+		}
+		if (window.FuwaShellObservability) {
+			var obsRoot = document.querySelector('[data-obs-root]');
+			if (obsRoot) {
+				window.FuwaShellObservability.mount(obsRoot);
+			}
+		}
 	});
 })();

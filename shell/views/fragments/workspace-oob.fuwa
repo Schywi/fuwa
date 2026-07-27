@@ -1,3 +1,4 @@
 <span id="ide-entry-stat" hx-swap-oob="true" class="stat-value">&dashboard.active.selected_file</span>
 <span id="ide-runtime-state" hx-swap-oob="true" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
-<footer id="ide-status" hx-swap-oob="true" class="ide-island ide-status">( •ω•)ﾉ✦ fuwa shell ready · &dashboard.active.terminal_label</footer>
+<span id="ide-terminal-pill" hx-swap-oob="true" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
+<footer id="ide-status" hx-swap-oob="true" class="ide-island ide-status">( •ω•)ﾉ✦ &dashboard.footer_label · &dashboard.active.terminal_label</footer>

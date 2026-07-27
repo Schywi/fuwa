@@ -28,7 +28,7 @@
 	}
 
 	function readSeed(root) {
-		const panel = root.closest('[data-view="terminal"], .shell-terminal');
+		const panel = root.closest('[data-view="terminal"], .shell-terminal, .ide-preview-block--terminal');
 		if (!(panel instanceof Element)) {
 			return '';
 		}

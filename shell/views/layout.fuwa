@@ -19,6 +19,7 @@
       }
     </script>
     <script src="/vendor/htmx/htmx-1.9.12.min.js"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/iconify-icon@2.3.0/dist/iconify-icon.min.js"></script>
     <script defer src="/vendor/petite-vue/petite-vue-0.4.1.iife.js"></script>
     <script defer src="/vendor/gsap/gsap-3.15.0.min.js"></script>
     <script defer src="/shell/hooks/editor.js"></script>
@@ -136,6 +137,26 @@
         font-weight: 650;
       }
 
+      .shell-select {
+        min-width: 112px;
+        min-height: 32px;
+        padding: 0 34px 0 12px;
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        border-radius: 8px;
+        background: #10131a;
+        color: var(--ink);
+        font-size: 0.72rem;
+        appearance: none;
+        background-image:
+          linear-gradient(45deg, transparent 50%, #9ca3af 50%),
+          linear-gradient(135deg, #9ca3af 50%, transparent 50%);
+        background-position:
+          calc(100% - 16px) 13px,
+          calc(100% - 11px) 13px;
+        background-size: 5px 5px, 5px 5px;
+        background-repeat: no-repeat;
+      }
+
       /* IDE composition: left phone stage, right control panel. Height is
          bounded (not min-height) all the way from body down to here, so the
          flex:1;min-height:0;overflow:hidden chain below (preview stage,
@@ -171,9 +192,30 @@
 
       .ide-preview-block {
         flex: 1;
+        min-height: 0;
         border-radius: 4px;
         background: rgba(255, 255, 255, 0.03);
         border: 1px solid rgba(255, 255, 255, 0.04);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .ide-preview-block--terminal .shell-widget-shell {
+        flex: 1;
+        min-height: 0;
+        padding: 0;
+        border-radius: 0;
+        border: 0;
+        background: #09090b;
+      }
+
+      .ide-preview-block--obs {
+        overflow-y: auto;
+      }
+
+      .ide-preview-block .stage-header {
+        flex-shrink: 0;
       }
 
       .ide-preview-head {
@@ -231,6 +273,7 @@
         display: flex;
         align-items: center;
         gap: 12px;
+        flex: 1 1 auto;
         min-width: 0;
       }
 
@@ -255,12 +298,15 @@
       }
 
       .owner-name {
-        font-size: 0.75rem;
-        font-weight: 500;
+        font-size: 0.9rem;
+        font-weight: 600;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
 
       .owner-sub {
-        font-size: 0.625rem;
+        font-size: 0.68rem;
         color: #7ecfb3;
         margin-top: 2px;
         white-space: nowrap;
@@ -271,45 +317,31 @@
         align-items: center;
         gap: 12px;
         flex-wrap: wrap;
+        flex: 0 0 auto;
         justify-content: flex-end;
       }
 
       .stat-item {
         display: flex;
         flex-direction: column;
-        align-items: flex-end;
+        align-items: flex-start;
         gap: 3px;
       }
 
       .stat-label {
-        font-size: 0.55rem;
+        font-size: 0.54rem;
         text-transform: uppercase;
-        letter-spacing: 0.08em;
+        letter-spacing: 0.16em;
         color: var(--muted);
       }
 
       .stat-value {
-        font-size: 0.65rem;
+        font-size: 0.78rem;
         font-weight: 500;
         max-width: 220px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
-      }
-
-      .ide-switcher-buttons {
-        display: flex;
-        gap: 6px;
-      }
-
-      .ide-switch-button {
-        min-height: 28px;
-        padding: 0 10px;
-        border: 1px solid rgba(255, 255, 255, 0.12);
-        border-radius: 6px;
-        background: #0d0f14;
-        font-size: 0.62rem;
-        font-weight: 500;
       }
 
       .ide-workspace {
@@ -351,8 +383,8 @@
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        width: 22px;
-        height: 22px;
+        width: 24px;
+        height: 24px;
         padding: 0;
         border: none;
         border-radius: 4px;
@@ -367,6 +399,18 @@
       .shell-icon-btn[data-view-active=true] {
         color: #c0caf5;
         background: rgba(255, 255, 255, 0.08);
+      }
+
+      .shell-icon {
+        width: 14px;
+        height: 14px;
+        font-size: 14px;
+      }
+
+      .shell-icon--sm {
+        width: 12px;
+        height: 12px;
+        font-size: 12px;
       }
 
       .breadcrumb-nav {
@@ -651,12 +695,12 @@
         display: inline-flex;
         align-items: center;
         min-height: 26px;
-        padding: 0 10px;
+        padding: 0 12px;
         border-radius: 999px;
         font-size: 0.68rem;
-        font-weight: 800;
+        font-weight: 700;
         letter-spacing: 0.04em;
-        text-transform: uppercase;
+        text-transform: none;
         background: rgba(255, 255, 255, 0.08);
         color: var(--muted);
       }

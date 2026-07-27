@@ -17,16 +17,16 @@
     <div class="ide-panel">
       <header class="ide-island ide-header">
         <div class="owner">
-          <div class="owner-avatar">✳</div>
+          <div class="owner-avatar">DB</div>
           <div class="owner-meta">
             <div class="owner-name">&dashboard.title</div>
-            <div class="owner-sub">&dashboard.eyebrow · &dashboard.active.file_count files</div>
+            <div class="owner-sub">&dashboard.subtitle</div>
           </div>
         </div>
 
         <div class="stats">
           <div class="stat-item">
-            <span class="stat-label">payload</span>
+            <span class="stat-label">asset</span>
             <span class="stat-value">&dashboard.active.label</span>
           </div>
           <div class="stat-item">
@@ -39,29 +39,68 @@
           </div>
           <div class="stat-item ide-switcher">
             <span class="stat-label">switch</span>
-            <div class="ide-switcher-buttons">
-              <button
+            <select class="shell-select" data-switch-select data-switch-current="&dashboard.active.switch_route" aria-label="Switch payload">
+              <option
                 f-for="payload in dashboard.payloads"
-                type="button"
-                class="shell-button ide-switch-button"
-                data-active="&payload.active"
-                hx-post="&payload.switch_route"
-                hx-target="#shell-content"
-                hx-swap="outerHTML"
-              >&payload.label</button>
-            </div>
+                value="&payload.switch_route"
+              >&payload.label</option>
+            </select>
           </div>
         </div>
       </header>
 
       <include src="views/fragments/workspace.fuwa" />
 
-      <footer id="ide-status" class="ide-island ide-status">( •ω•)ﾉ✦ fuwa shell ready · &dashboard.active.terminal_label</footer>
+      <footer id="ide-status" class="ide-island ide-status">( •ω•)ﾉ✦ &dashboard.footer_label · &dashboard.active.terminal_label</footer>
     </div>
 
     <section class="ide-island ide-preview-island ide-preview-island--right">
-      <div class="ide-preview-block"></div>
-      <div class="ide-preview-block"></div>
+      <div class="ide-preview-block ide-preview-block--terminal">
+        <div class="stage-header">
+          <span class="stage-title">Terminal</span>
+          <span class="stage-subtitle">compile + run output</span>
+          <span id="ide-terminal-pill" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
+        </div>
+        <div
+          class="shell-widget-shell"
+          data-terminal-root
+          data-terminal-session="&dashboard.active.id"
+          data-terminal-status="&dashboard.active.terminal_status"
+          data-terminal-run-id="&dashboard.active.terminal_run_id"
+          aria-label="xterm terminal mount point"
+        >
+          <p class="shell-widget-placeholder">xterm mounts here.</p>
+        </div>
+        <pre id="ide-terminal-seed" hidden data-terminal-seed>&dashboard.active.terminal_output</pre>
+      </div>
+      <div class="ide-preview-block ide-preview-block--obs" data-obs-root>
+        <div class="stage-header">
+          <span class="stage-title">Observability</span>
+          <span class="stage-subtitle">live request console</span>
+          <span class="obs-stream-label" v-text="streamLabel"></span>
+        </div>
+        <div class="obs-activity-list">
+          <div v-for="request in requests" class="obs-request-group">
+            <button type="button" class="obs-activity-row" :data-tone="statusTone(request)" @click="toggleExpand(request)">
+              <span class="obs-activity-line">
+                <span class="obs-activity-method" v-text="request.method"></span>
+                <span class="obs-activity-path" v-text="request.path"></span>
+                <span class="obs-activity-status" v-text="request.statusLabel"></span>
+                <span class="obs-activity-duration" v-text="request.durationLabel"></span>
+              </span>
+              <span class="obs-activity-stage" v-text="request.stageSummary"></span>
+            </button>
+            <div v-show="expandedTraceId === request.traceId" class="obs-expand">
+              <div class="obs-expand-log">
+                <div v-for="line in request.logs" class="obs-log-row" :data-kind="line.kind" :data-tone="line.tone" v-text="line.label"></div>
+              </div>
+            </div>
+          </div>
+          <div v-show="requests.length === 0" class="obs-trace-empty">
+            No completed requests yet.
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 </section>
