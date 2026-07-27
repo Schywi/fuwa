@@ -341,9 +341,57 @@
 		return workspace_state;
 	}
 
+	function setView(workspace, view) {
+		if (active_state && active_state.root === workspace) {
+			log('view-switch:close-active-popover', { view: view, workspace: describeScope(workspace) });
+			active_state.closePopover();
+		}
+
+		var prev = workspace.getAttribute('data-active-view');
+		if (prev === 'ai' && window.FuwaShellAI) {
+			var prevAiRoot = workspace.querySelector('[data-ai-root]');
+			if (prevAiRoot) {
+				window.FuwaShellAI.unmount(prevAiRoot);
+			}
+		}
+
+		log('view-switch', {
+			view: view,
+			workspace: describeScope(workspace)
+		});
+		for (const panel of workspace.querySelectorAll('[data-view]')) {
+			panel.hidden = panel.dataset.view !== view;
+		}
+
+		for (const btn of workspace.querySelectorAll('[data-view-toggle]')) {
+			btn.setAttribute('data-view-active', btn.dataset.viewTarget === view ? 'true' : 'false');
+		}
+
+		if (view === 'ai' && window.FuwaShellAI) {
+			var aiRoot = workspace.querySelector('[data-ai-root]');
+			if (aiRoot) {
+				window.FuwaShellAI.mount(aiRoot);
+			}
+		}
+
+		workspace.setAttribute('data-active-view', view);
+	}
 	document.addEventListener('click', function (event) {
 		const target = event.target instanceof Element ? event.target : null;
 		if (!target) {
+			return;
+		}
+
+		const viewToggle = target.closest('[data-view-toggle]');
+		if (viewToggle) {
+			const workspace = workspaceRoot(viewToggle);
+			if (!workspace) {
+				log('view-toggle:missing-workspace');
+				return;
+			}
+			const next = viewToggle.dataset.viewTarget || 'code';
+			log('view-toggle:click', { next: next, workspace: describeScope(workspace) });
+			setView(workspace, next);
 			return;
 		}
 
@@ -443,6 +491,12 @@
 			if (current !== '') {
 				select.value = current;
 			}
+		}
+		for (const workspace of target.querySelectorAll('[data-workspace]')) {
+			setView(workspace, workspace.getAttribute('data-active-view') || 'code');
+		}
+		if (target.matches && target.matches('[data-workspace]')) {
+			setView(target, target.getAttribute('data-active-view') || 'code');
 		}
 		log('initialize', { scope: describeScope(target) });
 	}

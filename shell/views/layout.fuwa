@@ -32,6 +32,8 @@
     <script defer src="/shell/hooks/motion.js"></script>
     <script defer src="/shell/hooks/cursor.js"></script>
     <script defer src="/shell/hooks/tmux.js"></script>
+    <script defer src="/plugins/ai/worker-bridge.js"></script>
+    <script defer src="/plugins/ai/chat.js"></script>
     <style>
       :root {
         color-scheme: dark;
