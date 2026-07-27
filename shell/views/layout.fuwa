@@ -832,17 +832,17 @@
         min-height: 0;
         overflow-y: auto;
         scrollbar-width: thin;
-        scrollbar-color: rgba(255, 255, 255, 0.08) transparent;
+        scrollbar-color: rgba(52, 211, 153, 0.22) transparent;
       }
 
-      .obs-activity-list::-webkit-scrollbar { width: 4px; }
+      .obs-activity-list::-webkit-scrollbar { width: 5px; }
       .obs-activity-list::-webkit-scrollbar-track { background: transparent; }
       .obs-activity-list::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.08);
-        border-radius: 2px;
+        background: rgba(52, 211, 153, 0.22);
+        border-radius: 3px;
       }
       .obs-activity-list::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.14);
+        background: rgba(52, 211, 153, 0.38);
       }
 
       .obs-request-group {
