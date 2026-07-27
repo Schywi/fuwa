@@ -541,14 +541,9 @@
         flex-direction: column;
       }
 
-      .search-popover {
+      .command-popover {
         left: 0;
-        width: min(260px, 90vw);
-      }
-
-      .list-popover {
-        right: 0;
-        width: min(320px, 90vw);
+        width: min(420px, 92vw);
       }
 
       .search-input-wrap {
@@ -559,6 +554,10 @@
         height: 32px;
         border-bottom: 1px solid #27272a;
         color: #3d4466;
+      }
+
+      .search-input-wrap--command {
+        height: 38px;
       }
 
       .search-input-wrap input {
@@ -661,6 +660,101 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .shell-command-trigger {
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        min-width: 136px;
+        height: 28px;
+        padding: 0 10px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.02);
+        color: #b8c0e0;
+        cursor: pointer;
+      }
+
+      .shell-command-trigger:hover,
+      .shell-command-trigger[data-open=true] {
+        background: rgba(255, 255, 255, 0.06);
+        color: #d8ddf8;
+      }
+
+      .shell-command-trigger-label {
+        flex: 1;
+        min-width: 0;
+        font-size: 0.72rem;
+        text-align: left;
+      }
+
+      .shell-command-trigger-kbd {
+        flex-shrink: 0;
+        font-size: 0.62rem;
+        color: #8f97bb;
+      }
+
+      .popover-row-command {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        min-height: 44px;
+        padding: 0 12px;
+        cursor: pointer;
+        appearance: none;
+        border: 0;
+        border-left: 2px solid transparent;
+        background: transparent;
+        width: 100%;
+        text-align: left;
+        color: #c0caf5;
+      }
+
+      .popover-row-command:hover,
+      .popover-row-command[data-focused=true] {
+        background: rgba(63, 63, 70, 0.5);
+      }
+
+      .popover-row-command[data-selected=true] {
+        background: rgba(63, 63, 70, 0.5);
+        border-left-color: #34d399;
+      }
+
+      .popover-row-command-main {
+        min-width: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+      }
+
+      .popover-row-command-title {
+        font-size: 0.74rem;
+        font-weight: 600;
+        color: #d8ddf8;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .popover-row-command-meta {
+        font-size: 0.66rem;
+        color: #8f97bb;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .popover-row-command-kind {
+        flex-shrink: 0;
+        font-size: 0.56rem;
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 999px;
+        color: #7aa2f7;
+        background: rgba(122, 162, 247, 0.09);
       }
 
       /* Workspace views: code + terminal share the panel body. */

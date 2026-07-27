@@ -133,6 +133,18 @@
 			toggleGrafana: function () {
 				this.grafanaOpen = !this.grafanaOpen;
 			},
+			openPalette: function () {
+				const workspace = document.querySelector('[data-workspace]');
+				if (!(workspace instanceof Element)) {
+					return;
+				}
+				this.root = workspace;
+				active_state = this;
+				this.open_popover = 'files';
+				queueMicrotask(function () {
+					syncPopoverUi(workspace, 'files');
+				});
+			},
 			togglePopover(name, event) {
 				const workspace = workspaceRoot(event && event.currentTarget);
 				if (!(workspace instanceof Element)) {
@@ -245,6 +257,12 @@
 	});
 
 	document.addEventListener('keydown', function (event) {
+		if ((event.metaKey || event.ctrlKey) && !event.shiftKey && !event.altKey && String(event.key).toLowerCase() === 'k') {
+			event.preventDefault();
+			createState().openPalette();
+			return;
+		}
+
 		if (event.key === 'Escape') {
 			active_state?.closePopover();
 			return;

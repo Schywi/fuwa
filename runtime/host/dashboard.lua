@@ -12,6 +12,34 @@ local function basename(path)
 	return value:match("([^/]+)$") or value
 end
 
+local function dirname(path)
+	local value = tostring(path or "")
+	return value:match("^(.*)/[^/]+$") or ""
+end
+
+local function file_kind_label(path)
+	local directory = dirname(path)
+	if directory == "" then
+		return "ROOT"
+	end
+	if directory == "pages" then
+		return "PAGE"
+	end
+	if directory == "models" then
+		return "DATA"
+	end
+	if directory:match("^views/fragments") then
+		return "FRAG"
+	end
+	if directory:match("^views") then
+		return "VIEW"
+	end
+	if tostring(path):sub(-3) == ".js" then
+		return "JS"
+	end
+	return "FILE"
+end
+
 local function encode_query_component(value)
 	return (tostring(value or ""):gsub("\n", "\r\n"):gsub("([^%w%-%._~])", function(char)
 		return string.format("%%%02X", char:byte())
@@ -68,6 +96,9 @@ local function build_payload_card(host, payload_id, selected_file)
 		file_items[#file_items + 1] = {
 			path = path,
 			name = basename(path),
+			directory = dirname(path),
+			directory_label = dirname(path) ~= "" and (dirname(path) .. "/") or "root entry",
+			kind_label = file_kind_label(path),
 			selected = path == file_name,
 			inspect_url = "/inspect/" .. encode_query_component(payload_id) .. "?file=" .. encode_query_component(path),
 		}

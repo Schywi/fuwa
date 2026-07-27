@@ -8,35 +8,28 @@
   <header class="code-shell-header" data-popover-scope>
     <button
       type="button"
-      class="shell-icon-btn"
-      data-popover-toggle="search"
-      :data-open="open_popover === 'search' ? 'true' : null"
-      :aria-expanded="open_popover === 'search' ? 'true' : 'false'"
-      @click.stop="togglePopover('search', $event)"
-      aria-label="Search files"
+      class="shell-command-trigger"
+      data-popover-toggle="files"
+      :data-open="open_popover === 'files' ? 'true' : null"
+      :aria-expanded="open_popover === 'files' ? 'true' : 'false'"
+      @click.stop="togglePopover('files', $event)"
+      aria-label="Open file launcher"
       aria-haspopup="true"
     >
       <iconify-icon class="shell-icon" icon="lucide:search"></iconify-icon>
-    </button>
-
-    <button
-      type="button"
-      class="shell-icon-btn"
-      data-popover-toggle="list"
-      :data-open="open_popover === 'list' ? 'true' : null"
-      :aria-expanded="open_popover === 'list' ? 'true' : 'false'"
-      @click.stop="togglePopover('list', $event)"
-      aria-label="File list"
-      aria-haspopup="true"
-    >
-      <iconify-icon class="shell-icon" icon="lucide:list"></iconify-icon>
+      <span class="shell-command-trigger-label">Open file…</span>
+      <span class="shell-command-trigger-kbd">⌘K</span>
     </button>
 
     <nav class="breadcrumb-nav" aria-label="Workspace context">
       <span f-for="segment in dashboard.breadcrumb" class="breadcrumb-segment" data-active="&segment.active">&segment.label</span>
     </nav>
-    <div class="popover-v2 search-popover" data-popover="search" v-show="open_popover === 'search'" v-cloak @click.stop>
-      <div class="search-input-wrap">
+    <div class="popover-v2 command-popover" data-popover="files" v-show="open_popover === 'files'" v-cloak @click.stop>
+      <div class="popover-header">
+        <span class="label">Search files</span>
+        <span class="count">⌘K</span>
+      </div>
+      <div class="search-input-wrap search-input-wrap--command">
         <iconify-icon class="shell-icon shell-icon--sm" icon="lucide:search"></iconify-icon>
         <input type="text" data-popover-search placeholder="Jump to file…" aria-label="Filter files" />
       </div>
@@ -44,7 +37,7 @@
         <button
           f-for="file in dashboard.active.files"
           type="button"
-          class="popover-row"
+          class="popover-row-command"
           data-selected="&file.selected"
           data-file-path="&file.path"
           @click="closePopover()"
@@ -52,32 +45,11 @@
           hx-target="#ide-workspace"
           hx-swap="outerHTML"
         >
-          <span class="glyph">›</span>
-          <span class="text">&file.path</span>
-        </button>
-      </div>
-    </div>
-
-    <div class="popover-v2 list-popover" data-popover="list" v-show="open_popover === 'list'" v-cloak @click.stop>
-      <div class="popover-header">
-        <span class="label">Files</span>
-        <span class="count">&dashboard.active.file_count</span>
-      </div>
-      <div class="popover-list" role="listbox">
-        <button
-          f-for="file in dashboard.active.files"
-          type="button"
-          class="popover-row-rich"
-          data-selected="&file.selected"
-          data-file-path="&file.path"
-          @click="closePopover()"
-          hx-get="&file.inspect_url"
-          hx-target="#ide-workspace"
-          hx-swap="outerHTML"
-        >
-          <span class="dot"></span>
-          <span class="badge">FILE</span>
-          <span class="title">&file.path</span>
+          <span class="popover-row-command-main">
+            <span class="popover-row-command-title">&file.name</span>
+            <span class="popover-row-command-meta">&file.directory_label</span>
+          </span>
+          <span class="popover-row-command-kind">&file.kind_label</span>
         </button>
       </div>
     </div>
