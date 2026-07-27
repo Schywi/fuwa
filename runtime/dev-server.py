@@ -356,13 +356,15 @@ def handle_connection(client_sock: socket.socket) -> None:
 
     if path_only == "/__dev/containers/live":
         names: list[str] = []
+        errors_only = False
         if query_string:
             import urllib.parse
             params = urllib.parse.parse_qs(query_string)
             for n in params.get("name", []):
                 if isinstance(n, str):
                     names.append(n)
-        handle_container_stream(client_sock, names)
+            errors_only = params.get("errors_only", ["0"])[0] in ("1", "true", "yes", "on")
+        handle_container_stream(client_sock, names, errors_only=errors_only)
         return
 
     # ── Forward to Lua ──────────────────────────────────────────────────

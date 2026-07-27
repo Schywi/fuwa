@@ -22,6 +22,10 @@ import re
 CONTAINER_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 TAIL_LINES = 100
 KEEPALIVE_SECS = 15
+ERROR_LINE_RE = re.compile(
+    r"\b(error|warn|fail|fatal|panic|exception|traceback)\b",
+    re.IGNORECASE,
+)
 
 
 def _validate_names(names: list[str]) -> list[str]:
@@ -34,7 +38,11 @@ def _validate_names(names: list[str]) -> list[str]:
     return valid
 
 
-def _reader_thread(name: str, q: queue.Queue, stop_event: threading.Event) -> None:
+def _is_error_line(line: str) -> bool:
+    return ERROR_LINE_RE.search(line) is not None
+
+
+def _reader_thread(name: str, q: queue.Queue, stop_event: threading.Event, errors_only: bool) -> None:
     """Run 'docker logs -f --tail N <name>' and push structured messages into the queue."""
     q.put({"kind": "status", "container": name, "status": "connecting"})
 
@@ -56,7 +64,10 @@ def _reader_thread(name: str, q: queue.Queue, stop_event: threading.Event) -> No
         for line in proc.stdout:  # type: ignore[union-attr]
             if stop_event.is_set():
                 break
-            q.put({"kind": "log", "container": name, "line": line.rstrip("\n")})
+            line = line.rstrip("\n")
+            if errors_only and not _is_error_line(line):
+                continue
+            q.put({"kind": "log", "container": name, "line": line})
 
         proc.stdout.close()  # type: ignore[union-attr]
         returncode = proc.wait(timeout=2)
@@ -85,7 +96,11 @@ def _write_sse(sock: socket.socket, event: str, data: str) -> None:
         raise ConnectionError("client disconnected")
 
 
-def handle_container_stream(client_sock: socket.socket, names: list[str]) -> None:
+def handle_container_stream(
+    client_sock: socket.socket,
+    names: list[str],
+    errors_only: bool = False,
+) -> None:
     """GET /__dev/containers/live?name=...&name=... — multiplexed SSE stream."""
     valid = _validate_names(names)
 
@@ -131,7 +146,7 @@ def handle_container_stream(client_sock: socket.socket, names: list[str]) -> Non
     for name in valid:
         thread = threading.Thread(
             target=_reader_thread,
-            args=(name, q, stop_event),
+            args=(name, q, stop_event, errors_only),
             daemon=True,
         )
         thread.start()

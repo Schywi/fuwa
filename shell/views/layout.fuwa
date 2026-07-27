@@ -1272,7 +1272,7 @@
         display: grid;
         grid-template-columns: 1fr 1fr 1fr 1fr;
         grid-template-rows: 1fr 1fr;
-        gap: 2px;
+        gap: 6px;
         min-height: 0;
         padding: 8px;
       }
@@ -1294,15 +1294,15 @@
         font-weight: 700;
         letter-spacing: 0.08em;
         text-transform: uppercase;
-        color: rgba(255, 255, 255, 0.18);
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        color: rgba(255, 255, 255, 0.74);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
         flex-shrink: 0;
       }
 
-      .tmux-slot[data-tmux-status="connecting"]::before { color: rgba(255, 255, 255, 0.3); }
-      .tmux-slot[data-tmux-status="connected"]::before  { color: rgba(52, 211, 153, 0.5); }
-      .tmux-slot[data-tmux-status="disconnected"]::before { color: rgba(200, 64, 47, 0.5); }
-      .tmux-slot[data-tmux-status="error"]::before { color: rgba(200, 64, 47, 0.5); }
+      .tmux-slot[data-tmux-status="connecting"]::before { color: rgba(255, 255, 255, 0.86); }
+      .tmux-slot[data-tmux-status="connected"]::before  { color: rgba(110, 231, 183, 0.94); }
+      .tmux-slot[data-tmux-status="disconnected"]::before { color: rgba(248, 113, 113, 0.95); }
+      .tmux-slot[data-tmux-status="error"]::before { color: rgba(248, 113, 113, 0.95); }
 
       .tmux-filter-btn { font-size: 0.56rem; padding: 0 10px; height: 24px; }
       .tmux-filter-btn[data-active="true"] { color: var(--accent-strong); border-color: var(--accent-soft); }

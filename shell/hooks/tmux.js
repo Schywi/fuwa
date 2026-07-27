@@ -39,9 +39,13 @@
 		}
 
 		var names = Object.keys(containersByName);
-		var url = '/__dev/containers/live?' + names.map(function (n) {
+		var params = names.map(function (n) {
 			return 'name=' + encodeURIComponent(n);
-		}).join('&');
+		});
+		if (filterErrorsOnly) {
+			params.push('errors_only=1');
+		}
+		var url = '/__dev/containers/live?' + params.join('&');
 
 		eventSource = new EventSource(url);
 
@@ -74,7 +78,6 @@
 				var name = msg.container;
 				if (!name || !containersByName[name]) return;
 				var line = msg.line || '';
-				if (filterErrorsOnly && !isErrorLine(line)) return;
 				containersByName[name].term.writeln(line);
 			} catch (_) {}
 		});
@@ -114,7 +117,7 @@
 
 				var term = new Terminal({
 					fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-					fontSize: 11,
+					fontSize: 9,
 					lineHeight: 1.2,
 					cursorBlink: true,
 					convertEol: true,
@@ -160,6 +163,16 @@
 			btn.textContent = filterErrorsOnly ? 'errors only ✓' : 'errors only';
 			btn.setAttribute('data-active', filterErrorsOnly ? 'true' : 'false');
 		}
+		if (!mounted) return;
+		if (eventSource) {
+			try { eventSource.close(); } catch (e) {}
+			eventSource = null;
+		}
+		Object.values(terminals).forEach(function (t) {
+			t.term.clear();
+			setSlotStatus(t.slot, 'connecting');
+		});
+		connectMux(terminals);
 	}
 
 	document.addEventListener('click', function (e) {

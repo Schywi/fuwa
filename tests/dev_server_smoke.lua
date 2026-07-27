@@ -93,10 +93,14 @@ local function test_dev_server_container_mux_route()
 		"expected container mux route to match the queryless path")
 	assert_true(source:find('params = urllib.parse.parse_qs(query_string)', 1, true) ~= nil,
 		"expected container mux route to parse repeated name query params")
+	assert_true(source:find('errors_only = params.get("errors_only", ["0"])[0] in ("1", "true", "yes", "on")', 1, true) ~= nil,
+		"expected container mux route to honor the server-side errors_only flag")
 
 	local mux_source = read_file("runtime/container_logs.py")
 	assert_true(mux_source:find("def handle_container_stream", 1, true) ~= nil,
 		"expected multiplexed container log handler module")
+	assert_true(mux_source:find("ERROR_LINE_RE", 1, true) ~= nil,
+		"expected container mux handler to define server-side error filtering")
 end
 
 local function test_response_builder()
