@@ -81,8 +81,7 @@
           <span class="stage-subtitle">live request console</span>
           <button class="grafana-trigger" @click="toggleGrafana()">Grafana ↗</button>
         </div>
-        <div data-obs-root v-pre>
-        <div class="obs-activity-list">
+        <div class="obs-activity-list" data-obs-root v-pre>
           <div v-for="request in requests" class="obs-request-group">
             <button type="button" class="obs-activity-row" :data-tone="statusTone(request)" @click="toggleExpand(request)">
               <span class="obs-activity-line">
@@ -102,7 +101,6 @@
           <div v-show="requests.length === 0" class="obs-trace-empty">
             No completed requests yet.
           </div>
-        </div>
         </div>
       </div>
     </section>
