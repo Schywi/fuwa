@@ -201,13 +201,55 @@
         overflow: hidden;
       }
 
+      .ide-preview-block--terminal {
+        background: #0b0b0e;
+        border-color: rgba(255, 255, 255, 0.05);
+      }
+
+      .mac-terminal-bar {
+        height: 30px;
+        display: flex;
+        align-items: center;
+        padding: 0 12px;
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02)),
+          #16161b;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+        flex-shrink: 0;
+      }
+
+      .mac-terminal-lights {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+      }
+
+      .mac-terminal-light {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.24), 0 0 0 1px rgba(0, 0, 0, 0.2);
+      }
+
+      .mac-terminal-light--close {
+        background: #ff5f57;
+      }
+
+      .mac-terminal-light--minimize {
+        background: #febc2e;
+      }
+
+      .mac-terminal-light--zoom {
+        background: #28c840;
+      }
+
       .ide-preview-block--terminal .shell-widget-shell {
         flex: 1;
         min-height: 0;
         padding: 0;
         border-radius: 0;
         border: 0;
-        background: #09090b;
+        background: #0b0b0e;
       }
 
       .ide-preview-block--obs {
@@ -652,7 +694,7 @@
         min-height: 320px;
         padding: 0;
         overflow: hidden;
-        background: #09090b;
+        background: #0b0b0e;
         border-style: solid;
       }
 

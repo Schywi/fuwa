@@ -134,6 +134,8 @@ assert_true(html:find('data-file-path="app.fuwa"', 1, true) ~= nil, "shell shoul
 assert_true(html:find("<textarea", 1, true) == nil, "shell should not render a textarea fallback")
 assert_true(html:find("CodeMirror mounts here.", 1, true) == nil, "shell should not render the placeholder")
 assert_true(html:find('data-terminal-root', 1, true) ~= nil, "shell should expose the terminal root")
+assert_true(html:find('compile + run output', 1, true) == nil, "shell should not render the legacy terminal header")
+assert_true(html:find('id="ide-terminal-pill"', 1, true) == nil, "shell should not render the legacy terminal pill")
 assert_true(html:find('data-terminal-session="fuwa-gomen"', 1, true) ~= nil, "shell should pass the terminal session")
 assert_true(html:find('v%-scope="FuwaShellWorkspace.createState%(%)"', 1) ~= nil, "shell should mount petite-vue workspace state")
 assert_true(html:find('@click%.stop="togglePopover%(' , 1) ~= nil, "shell should bind toggle clicks through petite-vue")

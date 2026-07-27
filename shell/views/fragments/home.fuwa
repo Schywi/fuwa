@@ -56,10 +56,12 @@
 
     <section class="ide-island ide-preview-island ide-preview-island--right">
       <div class="ide-preview-block ide-preview-block--terminal">
-        <div class="stage-header">
-          <span class="stage-title">Terminal</span>
-          <span class="stage-subtitle">compile + run output</span>
-          <span id="ide-terminal-pill" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
+        <div class="mac-terminal-bar" aria-hidden="true">
+          <span class="mac-terminal-lights">
+            <span class="mac-terminal-light mac-terminal-light--close"></span>
+            <span class="mac-terminal-light mac-terminal-light--minimize"></span>
+            <span class="mac-terminal-light mac-terminal-light--zoom"></span>
+          </span>
         </div>
         <div
           class="shell-widget-shell"
