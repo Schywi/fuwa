@@ -178,8 +178,14 @@
         </div>
         <div v-for="msg in state.messages" class="ai-message" :data-role="msg.role" style="padding:10px 14px;border-radius:12px;max-width:90%;" :style="msg.role === 'user' ? 'align-self:flex-end;background:var(--accent-soft);' : 'align-self:flex-start;background:var(--panel);'">
           <div style="white-space:pre-wrap;word-break:break-word;">{{msg.content}}</div>
-          <div v-if="msg.role === 'assistant' && extractCodeBlock(msg.content)" style="margin-top:8px;">
-            <button type="button" class="shell-button" @click="applyCodeBlock(extractCodeBlock(msg.content))" style="font-size:0.72rem;padding:4px 10px;">Apply &#x25B8;</button>
+          <div v-if="msg.role === 'assistant' && hasCodeBlocks(msg.content)" style="margin-top:8px;display:flex;flex-wrap:wrap;gap:6px;">
+            <button
+              v-for="(block, idx) in extractAllCodeBlocks(msg.content)"
+              type="button"
+              class="shell-button"
+              @click="previewAndApply(block.code)"
+              style="font-size:0.72rem;padding:4px 10px;"
+            >Apply change {{idx + 1}} &#x25B8;</button>
           </div>
         </div>
         <div v-if="state.loading" class="ai-message" data-role="assistant" style="padding:10px 14px;border-radius:12px;align-self:flex-start;background:var(--panel);min-width:60px;">

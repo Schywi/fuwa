@@ -290,14 +290,24 @@
 
 	// ── apply suggestion ─────────────────────────────────────────────────
 
-	function applyCodeBlock(code_block) {
-		// Parse the first line comment for file path: -- app.fuwa
+	function resolveFilePath(first_line) {
+		var match = first_line.match(/^--\s*(\S+)/);
+		if (match) return match[1];
+		// Fallback: current open file
+		var form = document.getElementById('ide-editor-form');
+		if (form) {
+			var pathInput = form.querySelector('input[name="path"]');
+			if (pathInput && pathInput.value) return pathInput.value;
+		}
+		return null;
+	}
+
+	function previewAndApply(code_block) {
 		var lines = code_block.split('\n');
 		var first_line = lines[0] || '';
-		var file_path = '';
-		var match = first_line.match(/^--\s*(\S+)/);
-		if (match) {
-			file_path = match[1];
+		var file_path = resolveFilePath(first_line);
+
+		if (file_path && first_line.match(/^--\s*\S+/)) {
 			lines.shift(); // Remove the comment line
 		}
 
@@ -307,22 +317,20 @@
 			return;
 		}
 
-		// If no file path hint, try to guess from the current open file
 		if (!file_path) {
-			var form = document.getElementById('ide-editor-form');
-			if (form) {
-				var pathInput = form.querySelector('input[name="path"]');
-				if (pathInput && pathInput.value) {
-					file_path = pathInput.value;
-				}
-			}
-		}
-
-		if (!file_path) {
-			log('apply: no file path determined');
-			alert('Could not determine which file to apply to. Add a -- filename.fuwa comment on the first line of the code block.');
+			alert('Could not determine which file to apply to.\nAdd a -- filename.fuwa comment on the first line of the code block.');
 			return;
 		}
+
+		// Show preview and ask for confirmation
+		var line_count = content.split('\n').length;
+		var preview = content.length > 300 ? content.slice(0, 300) + '\n...' : content;
+		var ok = confirm(
+			'Apply this change to ' + file_path + '?' +
+			'\n\n' + line_count + ' lines:\n\n' + preview +
+			'\n\nClick OK to apply, Cancel to skip.'
+		);
+		if (!ok) return;
 
 		// Find and switch to the file
 		var editor = window.FuwaShellEditor;
@@ -334,14 +342,27 @@
 		var root = document.querySelector('[data-editor-root]');
 		if (root) {
 			editor.switchFile(root, file_path, content);
-			log('apply: switched to ' + file_path);
+			log('apply: switched to ' + file_path, {lines: line_count});
 		}
 	}
 
-	function extractCodeBlock(text) {
-		// Match ```lua or ``` blocks
-		var match = text.match(/```(?:lua)?\s*\n([\s\S]*?)```/);
-		return match ? match[1] : null;
+	function extractAllCodeBlocks(text) {
+		// Match all ```lua or ``` blocks. Handles \r\n, optional newline
+		// after opening fence, and returns {code, language} for each.
+		var blocks = [];
+		var re = /```(\w*)\s*\r?\n([\s\S]*?)```/g;
+		var match;
+		while ((match = re.exec(text)) !== null) {
+			blocks.push({
+				code: match[2].trimEnd(),
+				language: match[1] || 'plain'
+			});
+		}
+		return blocks;
+	}
+
+	function hasCodeBlocks(text) {
+		return extractAllCodeBlocks(text).length > 0;
 	}
 
 	// ── lifecycle ────────────────────────────────────────────────────────
@@ -365,8 +386,9 @@
 			state: state,
 			handleSend: handleSend,
 			handleKeydown: handleKeydown,
-			applyCodeBlock: applyCodeBlock,
-			extractCodeBlock: extractCodeBlock,
+			previewAndApply: previewAndApply,
+			extractAllCodeBlocks: extractAllCodeBlocks,
+			hasCodeBlocks: hasCodeBlocks,
 		});
 		app.mount(root);
 		mounted_roots.add(root);
