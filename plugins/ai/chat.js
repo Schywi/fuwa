@@ -94,23 +94,19 @@
 		}
 
 		s.messages.push({ role: 'user', content: text, id: 'u' + Date.now() });
-		setState({ loading: true, error: null, input: '', status: 'Analyzing…', context_summary: buildContextSummary() });
-
-		var started = Date.now();
+		setState({ loading: true, error: null, input: '', status: 'Classifying…', context_summary: buildContextSummary() });
 
 		try {
-			var orch = window.FuwaAIOrchestrator;
-			if (!orch) throw new Error('AI orchestrator not loaded. Refresh the page.');
+			var agent = window.FuwaAIAgent;
+			if (!agent) throw new Error('AI agent not loaded. Refresh the page.');
 
-			var result = await orch.answer(text, function (status_text) {
+			var result = await agent.investigate(text, function (status_text) {
 				setState({ status: status_text });
 			});
 
-			var elapsed = Math.round((Date.now() - started) / 1000 * 10) / 10;
-			var meta = ' [' + result.intent + ' · ' + result.fact_count + ' facts · ' + result.rounds + ' rounds · ' + elapsed + 's]';
-			s.messages.push({ role: 'assistant', content: result.answer + meta, id: 'a' + Date.now() });
+			s.messages.push({ role: 'assistant', content: result.answer, id: 'a' + Date.now() });
 		} catch (err) {
-			log('orchestrator error', err.message);
+			log('agent error', err.message);
 			s.messages.push({ role: 'assistant', content: 'Error: ' + err.message, id: 'a' + Date.now() });
 		} finally {
 			setState({ loading: false, status: '', input: '' });

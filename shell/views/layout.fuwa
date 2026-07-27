@@ -35,6 +35,7 @@
     <script defer src="/plugins/ai/tools/runtime.js"></script>
     <script defer src="/plugins/ai/tools/classifier.js"></script>
     <script defer src="/plugins/ai/tools/orchestrator.js"></script>
+    <script defer src="/plugins/ai/tools/agent.js"></script>
     <script defer src="/plugins/ai/chat.js"></script>
     <style>
       :root {
