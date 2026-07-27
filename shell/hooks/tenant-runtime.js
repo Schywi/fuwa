@@ -73,9 +73,24 @@
 		return /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value) || value.startsWith('//');
 	}
 
+	function isHostAssetPath(path) {
+		return [
+			'/vendor',
+			'/shell',
+			'/runtime',
+			'/plugins',
+			'/__dev'
+		].some(function (prefix) {
+			return path === prefix || path.startsWith(prefix + '/');
+		});
+	}
+
 	function rebaseAppPath(path, appBasePath) {
 		const normalized = normalizeAppBasePath(appBasePath);
 		if (!path || isAbsoluteUrl(path) || !path.startsWith('/')) {
+			return path;
+		}
+		if (isHostAssetPath(path)) {
 			return path;
 		}
 		if (!normalized) {

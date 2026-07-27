@@ -197,6 +197,7 @@ local function test_raw_asset_requests()
 		assert_true(tenant_runtime_js:find("fresh.async = false", 1, true) ~= nil, "expected ordered script replay")
 		assert_true(tenant_runtime_js:find("responseUrl", 1, true) ~= nil, "expected response URL contract")
 		assert_true(tenant_runtime_js:find("window.location.href", 1, true) ~= nil, "expected same-origin URL resolution")
+		assert_true(tenant_runtime_js:find("isHostAssetPath", 1, true) ~= nil, "expected host asset guard")
 
 		local runtime_session_js = run_command(
 			"printf 'GET /shell/hooks/runtime-session.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
@@ -239,6 +240,28 @@ local function test_raw_asset_requests()
 	)
 	assert_true(vendor_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected vendor asset to respond")
 	assert_true(vendor_js:find("htmx", 1, true) ~= nil, "expected htmx vendor contents")
+
+	local ai_chat_js = run_command(
+		"printf 'GET /plugins/ai/chat.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(ai_chat_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected AI chat plugin asset to respond")
+	assert_true(ai_chat_js:find("Content-Type: application/javascript; charset=utf-8", 1, true) ~= nil,
+		"expected AI chat plugin MIME type")
+	assert_true(ai_chat_js:find("window.FuwaShellAI", 1, true) ~= nil, "expected AI chat plugin contract")
+
+	local ai_worker_bridge_js = run_command(
+		"printf 'GET /plugins/ai/worker-bridge.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(ai_worker_bridge_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected AI worker bridge asset to respond")
+	assert_true(ai_worker_bridge_js:find("Content-Type: application/javascript; charset=utf-8", 1, true) ~= nil,
+		"expected AI worker bridge MIME type")
+	assert_true(ai_worker_bridge_js:find("ai_exec", 1, true) ~= nil, "expected AI worker bridge protocol")
+
+	local payload_vendor_js = run_command(
+		"printf 'GET /payload/current/vendor/htmx/htmx-1.9.12.min.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(payload_vendor_js:find("HTTP/1.1 404 Not Found", 1, true) ~= nil,
+		"expected payload-relative vendor route to stay missing")
 
 	local gsap_js = run_command(
 		"printf 'GET /vendor/gsap/gsap-3.15.0.min.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"

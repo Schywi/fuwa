@@ -214,6 +214,7 @@ local runtime_preloads = {
 }
 
 local shell_root = root_dir .. "/shell"
+local plugins_root = root_dir .. "/plugins"
 local vendor_root = root_dir .. "/vendor"
 
 os.execute("mkdir -p " .. shell_quote(dev_dir))
@@ -1047,6 +1048,25 @@ function M.run()
 	if request.path:match("^/shell/hooks/") then
 		local relative_path = request.path:gsub("^/shell/", "", 1)
 		local asset = serve_static_asset(shell_root .. "/" .. relative_path)
+		if asset then
+			write_http_response(asset)
+		else
+			write_http_response({
+				status = 404,
+				headers = {
+					["Content-Type"] = "text/plain; charset=utf-8",
+					["Content-Length"] = "9",
+					["Connection"] = "close",
+				},
+				body = "Not found",
+			})
+		end
+		return
+	end
+
+	if request.path:match("^/plugins/") then
+		local relative_path = request.path:gsub("^/plugins/", "", 1)
+		local asset = serve_static_asset(plugins_root .. "/" .. relative_path)
 		if asset then
 			write_http_response(asset)
 		else
