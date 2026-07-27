@@ -379,6 +379,17 @@
         white-space: nowrap;
       }
 
+      .owner-sub.typewriter-active::after {
+        content: '▎';
+        animation: typewriter-blink 0.8s step-end infinite;
+        color: rgba(126, 207, 179, 0.5);
+      }
+
+      @keyframes typewriter-blink {
+        0%, 100% { opacity: 1; }
+        50%      { opacity: 0; }
+      }
+
       .stats {
         display: flex;
         align-items: center;

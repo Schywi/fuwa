@@ -125,6 +125,66 @@
 		log('develop:started');
 	}
 
+	/* ── Typewriter header tips ──────────────────────────────────────── */
+
+	var typewriterTips = [
+		'⌘K opens the file launcher — type to filter, ↵ to open',
+		'Switch payloads to see different apps in the phone preview',
+		'Edits compile automatically — watch the terminal for output',
+		'Click Grafana ↗ to inspect runtime traces and metrics',
+		'The phone preview runs a live Wasmoon runtime in your browser'
+	];
+
+	var typewriterTimer = null;
+	var typewriterTipIndex = 0;
+	var typewriterCharIndex = 0;
+	var typewriterPhase = 'typing'; // typing | holding | deleting
+	var typewriterEl = null;
+
+	function typewriterTick() {
+		var el = typewriterEl || document.querySelector('.owner-sub');
+		if (!el) return;
+		typewriterEl = el;
+		el.classList.add('typewriter-active');
+
+		var tip = typewriterTips[typewriterTipIndex];
+
+		if (typewriterPhase === 'typing') {
+			typewriterCharIndex++;
+			el.textContent = tip.substring(0, typewriterCharIndex);
+			if (typewriterCharIndex >= tip.length) {
+				typewriterPhase = 'holding';
+				typewriterTimer = setTimeout(typewriterTick, 4000);
+				return;
+			}
+			typewriterTimer = setTimeout(typewriterTick, 28);
+		} else if (typewriterPhase === 'holding') {
+			typewriterPhase = 'deleting';
+			typewriterTimer = setTimeout(typewriterTick, 18);
+		} else if (typewriterPhase === 'deleting') {
+			typewriterCharIndex--;
+			el.textContent = tip.substring(0, typewriterCharIndex);
+			if (typewriterCharIndex <= 0) {
+				typewriterPhase = 'typing';
+				typewriterTipIndex = (typewriterTipIndex + 1) % typewriterTips.length;
+				typewriterTimer = setTimeout(typewriterTick, 400);
+				return;
+			}
+			typewriterTimer = setTimeout(typewriterTick, 16);
+		}
+	}
+
+	function startTypewriter() {
+		if (typewriterTimer) clearTimeout(typewriterTimer);
+		var el = document.querySelector('.owner-sub');
+		if (!el) return;
+		typewriterEl = el;
+		typewriterTipIndex = 0;
+		typewriterCharIndex = 0;
+		typewriterPhase = 'typing';
+		typewriterTick();
+	}
+
 	/* ── Boot ───────────────────────────────────────────────────────── */
 
 	function boot() {
@@ -133,6 +193,7 @@
 
 		if (document.readyState !== 'loading') {
 			runLoader();
+			startTypewriter();
 		}
 	}
 
@@ -155,6 +216,7 @@
 
 	window.FuwaShellMotion = {
 		developPreview: developPreview,
-		runLoader: runLoader
+		runLoader: runLoader,
+		startTypewriter: startTypewriter
 	};
 })();
