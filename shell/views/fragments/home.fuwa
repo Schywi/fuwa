@@ -16,37 +16,7 @@
 
     <div class="ide-panel">
       <header class="ide-island ide-header">
-        <div class="owner">
-          <div class="owner-avatar">DB</div>
-          <div class="owner-meta">
-            <div class="owner-name">&dashboard.title</div>
-            <div class="owner-sub">&dashboard.subtitle</div>
-          </div>
-        </div>
-
-        <div class="stats">
-          <div class="stat-item stat-item--asset">
-            <span class="stat-label">asset</span>
-            <span class="stat-value">&dashboard.active.label</span>
-          </div>
-          <div class="stat-item stat-item--entry">
-            <span class="stat-label">entry</span>
-            <span id="ide-entry-stat" class="stat-value">&dashboard.active.selected_file</span>
-          </div>
-          <div class="stat-item stat-item--runtime">
-            <span class="stat-label">runtime</span>
-            <span id="ide-runtime-state" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
-          </div>
-          <div class="stat-item stat-item--switch ide-switcher">
-            <span class="stat-label">switch</span>
-            <select class="shell-select" data-switch-select data-switch-current="&dashboard.active.switch_route" aria-label="Switch payload">
-              <option
-                f-for="payload in dashboard.payloads"
-                value="&payload.switch_route"
-              >&payload.label</option>
-            </select>
-          </div>
-        </div>
+        <div class="owner-sub typewriter-line"></div>
       </header>
 
       <include src="views/fragments/workspace.fuwa" />

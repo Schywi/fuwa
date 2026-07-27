@@ -63,6 +63,9 @@
         </button>
       </div>
     </div>
+    <select class="shell-select shell-select--inline" data-switch-select data-switch-current="&dashboard.active.switch_route" aria-label="Switch payload">
+      <option f-for="payload in dashboard.payloads" value="&payload.switch_route">&payload.label</option>
+    </select>
   </header>
 
     <form id="ide-editor-form" class="ide-editor">

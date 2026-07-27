@@ -328,11 +328,35 @@
       .ide-header {
         display: flex;
         align-items: center;
-        justify-content: space-between;
-        gap: 12px;
-        padding: 14px 16px;
+        padding: 10px 16px;
+        flex-shrink: 0;
+        min-height: 42px;
+      }
+
+      .typewriter-line {
+        flex: 1;
+        font-size: 0.74rem;
+        color: #7ecfb3;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+
+      .shell-select--inline {
+        height: 24px;
+        padding: 0 6px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 4px;
+        background: transparent;
+        color: rgba(255, 255, 255, 0.3);
+        font-size: 0.6rem;
+        font-weight: 600;
+        cursor: pointer;
         flex-shrink: 0;
       }
+
+      .shell-select--inline:hover { color: var(--ink); border-color: rgba(255, 255, 255, 0.16); }
+      .shell-select--inline:focus { outline: none; border-color: var(--accent-soft); }
 
       .owner {
         display: flex;
