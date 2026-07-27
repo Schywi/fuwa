@@ -926,18 +926,18 @@
         font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
         min-height: 0;
         overflow-y: auto;
-        scrollbar-width: thin;
-        scrollbar-color: rgba(52, 211, 153, 0.22) transparent;
+        scrollbar-width: auto;
+        scrollbar-color: rgba(52, 211, 153, 0.35) transparent;
       }
 
-      .obs-activity-list::-webkit-scrollbar { width: 5px; }
+      .obs-activity-list::-webkit-scrollbar { width: 7px; }
       .obs-activity-list::-webkit-scrollbar-track { background: transparent; }
       .obs-activity-list::-webkit-scrollbar-thumb {
-        background: rgba(52, 211, 153, 0.22);
-        border-radius: 3px;
+        background: rgba(52, 211, 153, 0.35);
+        border-radius: 4px;
       }
       .obs-activity-list::-webkit-scrollbar-thumb:hover {
-        background: rgba(52, 211, 153, 0.38);
+        background: rgba(52, 211, 153, 0.55);
       }
 
       .obs-request-group {
