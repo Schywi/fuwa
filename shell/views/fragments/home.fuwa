@@ -32,6 +32,7 @@
             <span class="mac-terminal-light mac-terminal-light--minimize"></span>
             <span class="mac-terminal-light mac-terminal-light--zoom"></span>
           </span>
+          <button class="grafana-trigger tmux-trigger" @click="toggleTmux()">tmux ▸</button>
         </div>
         <div
           class="shell-widget-shell"
@@ -78,6 +79,19 @@
     <div class="grafana-panel">
       <iframe class="grafana-frame" src="/dash/signoz" sandbox="allow-scripts allow-same-origin allow-forms" title="Grafana dashboard"></iframe>
       <button class="grafana-back-btn" @click="toggleGrafana()">← Back to code</button>
+    </div>
+
+    <div class="tmux-panel">
+      <button class="grafana-back-btn" @click="toggleTmux()">← Back to code</button>
+      <div class="tmux-grid">
+        <div class="tmux-slot" data-tmux-root data-tmux-label="openresty"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-label="signoz"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-label="collector"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-label="clickhouse"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-label="keeper"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-label="vector"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-label="victoria"></div>
+      </div>
     </div>
   </div>
 </section>

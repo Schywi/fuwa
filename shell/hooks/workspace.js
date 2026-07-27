@@ -144,6 +144,52 @@
 			open_popover: null,
 			root: null,
 			grafanaOpen: false,
+			tmuxOpen: false,
+			toggleTmux: function () {
+				var self = this;
+				var panel = document.querySelector('.ide-panel');
+				var right = document.querySelector('.ide-preview-island--right');
+				var tmuxPanel = document.querySelector('.tmux-panel');
+				var shell = document.querySelector('.ide-shell');
+
+				if (!panel || !right || !tmuxPanel || !shell) {
+					self.tmuxOpen = !self.tmuxOpen;
+					return;
+				}
+
+				var opening = !self.tmuxOpen;
+
+				if (opening) {
+					self.tmuxOpen = true;
+					shell.classList.add('is-tmux');
+					setTimeout(function () {
+						if (window.FuwaShellTmux) window.FuwaShellTmux.mountAll();
+					}, 200);
+				}
+
+				if (window.gsap) {
+					var tl = window.gsap.timeline({
+						onComplete: function () {
+							if (!opening) {
+								self.tmuxOpen = false;
+								shell.classList.remove('is-tmux');
+							}
+						}
+					});
+
+					if (opening) {
+						tl.to([panel, right], { opacity: 0, x: -20, duration: 0.25, ease: 'power2.in', stagger: 0.04 }, 0);
+						tl.fromTo(tmuxPanel, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power2.out' }, 0.08);
+					} else {
+						self.tmuxOpen = false;
+						shell.classList.remove('is-tmux');
+						tl.to(tmuxPanel, { opacity: 0, scale: 0.97, duration: 0.2, ease: 'power2.in' }, 0);
+						tl.fromTo([panel, right], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out', stagger: 0.04 }, 0.06);
+					}
+				} else {
+					self.tmuxOpen = !self.tmuxOpen;
+				}
+			},
 			toggleGrafana: function () {
 				var self = this;
 				var panel = document.querySelector('.ide-panel');

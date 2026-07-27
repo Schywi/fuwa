@@ -31,6 +31,7 @@
     <script defer src="/shell/hooks/observability.js"></script>
     <script defer src="/shell/hooks/motion.js"></script>
     <script defer src="/shell/hooks/cursor.js"></script>
+    <script defer src="/shell/hooks/tmux.js"></script>
     <style>
       :root {
         color-scheme: dark;
@@ -1244,11 +1245,58 @@
       }
 
       .ide-shell.is-grafana .ide-panel,
-      .ide-shell.is-grafana .ide-preview-island--right {
+      .ide-shell.is-grafana .ide-preview-island--right,
+      .ide-shell.is-tmux .ide-panel,
+      .ide-shell.is-tmux .ide-preview-island--right {
         flex: 0 0 0;
         overflow: hidden;
         opacity: 0;
         pointer-events: none;
+      }
+
+      /* ── Tmux panel ────────────────────────────────────────────── */
+      .tmux-panel {
+        display: none;
+        flex: 1;
+        min-width: 0;
+        flex-direction: column;
+        position: relative;
+      }
+
+      .ide-shell.is-tmux .tmux-panel {
+        display: flex;
+      }
+
+      .tmux-grid {
+        flex: 1;
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        gap: 2px;
+        min-height: 0;
+        padding: 8px;
+      }
+
+      .tmux-slot {
+        background: #09090b;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 4px;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .tmux-slot::before {
+        content: attr(data-tmux-label);
+        display: block;
+        padding: 3px 8px;
+        font-size: 0.56rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.18);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        flex-shrink: 0;
       }
 
       @media (max-width: 900px) {
