@@ -295,7 +295,7 @@
 		var lines = code_block.split('\n');
 		var first_line = lines[0] || '';
 		var file_path = '';
-		var match = first_line.match(/^--\s*(\S+\.\w+)/);
+		var match = first_line.match(/^--\s*(\S+)/);
 		if (match) {
 			file_path = match[1];
 			lines.shift(); // Remove the comment line
