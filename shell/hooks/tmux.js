@@ -2,11 +2,10 @@
 	'use strict';
 
 	// Tmux panel: mounts xterm.js instances into each tmux-slot in the
-	// bento grid. One terminal per container.
-	//
-	// TODO: connect each xterm to docker exec for live container access.
+	// bento grid. One terminal per container. Streams docker logs via SSE.
 
 	var terminals = [];
+	var eventSources = [];
 	var mounted = false;
 
 	function log(step, detail) {
@@ -15,6 +14,25 @@
 			return;
 		}
 		console.info('[shell:tmux] ' + step, detail);
+	}
+
+	function connectLogs(term, label) {
+		if (typeof EventSource !== 'function') return;
+
+		var es = new EventSource('/__dev/containers/' + label + '/logs');
+		eventSources.push(es);
+
+		es.addEventListener('message', function (e) {
+			term.writeln(e.data);
+		});
+
+		es.addEventListener('error', function () {
+			term.writeln('\x1b[1;31m[disconnected]\x1b[0m');
+		});
+
+		es.addEventListener('open', function () {
+			term.writeln('\x1b[1;32m[connected]\x1b[0m');
+		});
 	}
 
 	function mountAll() {
@@ -44,10 +62,12 @@
 				});
 
 				term.open(slot);
-				term.writeln('\x1b[1;35m' + label + '\x1b[0m — ready');
-				term.writeln('');
+				term.writeln('\x1b[1;35m' + label + '\x1b[0m');
 
 				terminals.push({ term: term, label: label, slot: slot });
+
+				// Connect SSE log stream
+				connectLogs(term, label);
 			}
 
 			mounted = true;
@@ -58,8 +78,12 @@
 	}
 
 	function unmountAll() {
-		for (var i = 0; i < terminals.length; i++) {
-			try { terminals[i].term.dispose(); } catch (e) {}
+		for (var i = 0; i < eventSources.length; i++) {
+			try { eventSources[i].close(); } catch (e) {}
+		}
+		eventSources = [];
+		for (var j = 0; j < terminals.length; j++) {
+			try { terminals[j].term.dispose(); } catch (e) {}
 		}
 		terminals = [];
 		mounted = false;
