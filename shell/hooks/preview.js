@@ -40,7 +40,7 @@
 		if (!pill) {
 			return;
 		}
-		pill.textContent = 'wasm · ' + state;
+		pill.textContent = String(state || 'ready');
 	}
 
 	function clearLegacyPreviewFrame(stage) {

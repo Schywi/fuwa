@@ -42,6 +42,8 @@ local function assert_base_markup(t, body)
 	t.truthy(body:find('v-scope="FuwaGomen.createScope({ balance: ', 1, true) ~= nil, "expected reactive scope")
 	t.truthy(body:find('data%-ref="seed"') ~= nil, "expected declarative receipt seed")
 	t.truthy(body:find('<html>', 1, true) ~= nil, "expected full document layout")
+	t.truthy(body:find("background: #fff8ef;", 1, true) ~= nil, "expected full-bleed tenant background")
+	t.truthy(body:find('class="gomen-shell"', 1, true) == nil, "expected no centered shell wrapper")
 end
 
 local function run_route_matrix(t, provider)

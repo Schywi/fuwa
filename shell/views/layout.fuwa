@@ -264,7 +264,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        gap: 16px;
+        gap: 12px;
         padding: 14px 16px;
         flex-shrink: 0;
       }
@@ -295,11 +295,13 @@
         display: flex;
         flex-direction: column;
         min-width: 0;
+        flex: 1 1 auto;
       }
 
       .owner-name {
         font-size: 0.9rem;
-        font-weight: 600;
+        font-weight: 700;
+        line-height: 1.1;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
@@ -315,10 +317,11 @@
       .stats {
         display: flex;
         align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
+        gap: 10px;
+        flex-wrap: nowrap;
         flex: 0 0 auto;
         justify-content: flex-end;
+        min-width: 0;
       }
 
       .stat-item {
@@ -326,6 +329,7 @@
         flex-direction: column;
         align-items: flex-start;
         gap: 3px;
+        min-width: 0;
       }
 
       .stat-label {
@@ -342,6 +346,26 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+      }
+
+      .stat-item--asset .stat-value {
+        max-width: 94px;
+      }
+
+      .stat-item--entry .stat-value {
+        max-width: 72px;
+      }
+
+      .stat-item--runtime {
+        min-width: 0;
+      }
+
+      .stat-item--switch {
+        width: 114px;
+      }
+
+      .stat-item--switch .shell-select {
+        width: 100%;
       }
 
       .ide-workspace {

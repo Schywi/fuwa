@@ -45,7 +45,9 @@ end
 
 local function humanize_payload_id(payload_id)
 	local text = tostring(payload_id or "current"):gsub("_", " "):gsub("%-", " ")
-	return text:gsub("^%l", string.upper)
+	return (text:gsub("(%a)([%w']*)", function(first, rest)
+		return first:upper() .. rest:lower()
+	end))
 end
 
 local function list_files(root)

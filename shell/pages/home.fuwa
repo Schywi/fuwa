@@ -8,8 +8,8 @@ import
 end
 
 action index(req) do
-  dashboard = Dashboard.build(host, "current", req.query.file)
-  render "home", doctype: "<!DOCTYPE html>", title: "Fuwa Shell", dashboard: dashboard
+  dashboard = Dashboard.build(host, "fuwa-gomen", req.query.file)
+  render "home", doctype: "<!DOCTYPE html>", title: dashboard.title, dashboard: dashboard
 end
 
 action inspect(req) do

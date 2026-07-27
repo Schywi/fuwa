@@ -2,7 +2,9 @@ local M = {}
 
 local function humanize_payload_id(payload_id)
 	local text = tostring(payload_id or "current"):gsub("_", " "):gsub("%-", " ")
-	return text:gsub("^%l", string.upper)
+	return (text:gsub("(%a)([%w']*)", function(first, rest)
+		return first:upper() .. rest:lower()
+	end))
 end
 
 local function basename(path)
@@ -26,11 +28,13 @@ local function choose_selected_file(files, requested_file)
 	end
 
 	local preferred = {
+		"app.fuwa",
+		"pages/gomen.fuwa",
 		"pages/home.fuwa",
 		"view.fuwa",
-		"app.fuwa",
-		"views/home.fuwa",
+		"views/gomen.fuwa",
 		"views/layout.fuwa",
+		"views/home.fuwa",
 	}
 
 	for _, candidate in ipairs(preferred) do
@@ -76,6 +80,7 @@ local function build_payload_card(host, payload_id, selected_file)
 		exists = descriptor.exists ~= false,
 		file_count = descriptor.file_count or #files,
 		files = file_items,
+		switch_route = "/switch/" .. encode_query_component(payload_id),
 		selected_file = file_name or "",
 		selected_file_name = file_name and basename(file_name) or "",
 		selected_file_source = file_source or "",
@@ -96,24 +101,34 @@ end
 local function build_terminal_state(run_result)
 	if type(run_result) == "table" and type(run_result.output) == "string" and run_result.output ~= "" then
 		local output = run_result.output
+		local success = run_result.success ~= false
 		return {
 			output = output,
-			status = run_result.status or (run_result.success == false and "error" or "ok"),
-			label = run_result.success == false and "Build failed" or "Build ok",
+			status = run_result.status or (success and "ok" or "error"),
+			label = success and "ready" or "error",
+			build_label = success and "build ok" or "build failed",
 			run_id = hash_text(output) .. "-" .. tostring(os.time()),
 		}
 	end
 
 	return {
-		output = "No run yet.\nSave a file to compile and refresh the preview.",
+		output = "No pipeline output yet.",
 		status = "idle",
-		label = "Idle",
+		label = "idle",
+		build_label = "idle",
 		run_id = "idle",
 	}
 end
 
 function M.build(host, payload_id, requested_file, run_result)
 	payload_id = tostring(payload_id or "current")
+
+	if run_result == nil and host and type(host.compile_payload) == "function" then
+		local compiled = host.compile_payload(payload_id)
+		if type(compiled) == "table" and compiled.ok == true then
+			run_result = compiled.value
+		end
+	end
 
 	local payloads = {}
 	for _, id in ipairs({ "current", "fuwa-gomen" }) do
@@ -153,19 +168,22 @@ function M.build(host, payload_id, requested_file, run_result)
 	active.terminal_output = terminal.output
 	active.terminal_status = terminal.status
 	active.terminal_label = terminal.label
+	active.build_label = terminal.build_label
 	active.terminal_run_id = terminal.run_id
 	active.bundle_url = "/runtime/" .. encode_query_component(active.id) .. "/bundle.json"
 
 	return {
-		eyebrow = "Browser shell",
-		title = "Fuwa Shell",
-		summary = "The host shell mounts a browser runtime session, exposes the payload workspace, and reports compile output in the terminal panel.",
+		eyebrow = "pipeline smoke test",
+		title = "pipeline smoke test",
+		subtitle = tostring(active.file_count) .. " documents · " .. terminal.build_label,
+		summary = "The test panel exposes the payload workspace, code view, and runtime state in one compact shell.",
 		breadcrumb = {
-			{ label = "payloads", active = false },
+			{ label = "static", active = false },
 			{ label = active.label, active = false },
 			{ label = active.selected_file ~= "" and active.selected_file or "no file", active = true },
 		},
 		runtime_state = terminal.status == "error" and "error" or "ready",
+		footer_label = "test-panel ready",
 		preview_heading = "Browser runtime",
 		preview_note = "In-memory live session",
 		runtime_tenant_url = "/runtime/tenant.html",
