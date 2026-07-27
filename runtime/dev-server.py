@@ -340,27 +340,25 @@ def handle_connection(client_sock: socket.socket) -> None:
         return
 
     method, path, _headers, raw, body = parsed
+    path_only, _, query_string = path.partition("?")
 
     # ── /__dev/ API routes ──────────────────────────────────────────────
-    if path == "/__dev/traces":
+    if path_only == "/__dev/traces":
         if method == "POST":
             _handle_dev_traces_post(client_sock, body)
         else:
             _handle_dev_traces(client_sock)
         return
 
-    if path == "/__dev/traces/live":
+    if path_only == "/__dev/traces/live":
         _handle_dev_trace_stream(client_sock)
         return
 
-    if path == "/__dev/containers/live":
-        # Parse repeated name= query params from the raw request
-        query_start = raw.find(b" /__dev/containers/live?")
+    if path_only == "/__dev/containers/live":
         names: list[str] = []
-        if query_start != -1:
-            query_part = raw[query_start:].split(b" ", 1)[0].decode("utf-8", errors="replace")
+        if query_string:
             import urllib.parse
-            params = urllib.parse.parse_qs(urllib.parse.urlparse(query_part).query)
+            params = urllib.parse.parse_qs(query_string)
             for n in params.get("name", []):
                 if isinstance(n, str):
                     names.append(n)

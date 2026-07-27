@@ -85,6 +85,20 @@ local function test_http_request()
 	assert_true(output:find("EventSource('/__dev/reload')", 1, true) == nil, "expected no full-page reload script in the shell host page")
 end
 
+local function test_dev_server_container_mux_route()
+	local source = read_file("runtime/dev-server.py")
+	assert_true(source:find('path_only, _, query_string = path.partition%("%?"%)') ~= nil,
+		"expected dev server to split query strings before /__dev/ route matching")
+	assert_true(source:find('if path_only == "/__dev/containers/live":', 1, true) ~= nil,
+		"expected container mux route to match the queryless path")
+	assert_true(source:find('params = urllib.parse.parse_qs(query_string)', 1, true) ~= nil,
+		"expected container mux route to parse repeated name query params")
+
+	local mux_source = read_file("runtime/container_logs.py")
+	assert_true(mux_source:find("def handle_container_stream", 1, true) ~= nil,
+		"expected multiplexed container log handler module")
+end
+
 local function test_response_builder()
 	local response = dev.build_response("shell", "GET", "/", "", {
 		allow_host = true,
@@ -501,6 +515,7 @@ local function test_db_helper()
 end
 
 test_http_request()
+test_dev_server_container_mux_route()
 test_response_builder()
 test_shell_switch_route()
 test_payload_route_request()

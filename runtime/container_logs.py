@@ -17,13 +17,11 @@ import queue
 import socket
 import subprocess
 import threading
-import time
 import re
 
-CONTAINER_NAME_RE = re.compile(r'^[A-Za-z0-9_-]+$')
+CONTAINER_NAME_RE = re.compile(r"^[A-Za-z0-9_-]+$")
 TAIL_LINES = 100
 KEEPALIVE_SECS = 15
-CONNECT_TIMEOUT = 8
 
 
 def _validate_names(names: list[str]) -> list[str]:
@@ -58,8 +56,7 @@ def _reader_thread(name: str, q: queue.Queue, stop_event: threading.Event) -> No
         for line in proc.stdout:  # type: ignore[union-attr]
             if stop_event.is_set():
                 break
-            line = line.rstrip("\n")
-            q.put({"kind": "log", "container": name, "line": line})
+            q.put({"kind": "log", "container": name, "line": line.rstrip("\n")})
 
         proc.stdout.close()  # type: ignore[union-attr]
         returncode = proc.wait(timeout=2)
@@ -90,14 +87,8 @@ def _write_sse(sock: socket.socket, event: str, data: str) -> None:
 
 def handle_container_stream(client_sock: socket.socket, names: list[str]) -> None:
     """GET /__dev/containers/live?name=...&name=... — multiplexed SSE stream."""
-
     valid = _validate_names(names)
-    if not valid:
-        _write_sse(client_sock, "error",
-                   json.dumps({"message": "no valid container names provided"}))
-        return
 
-    # --- Send SSE headers ---
     headers = (
         "HTTP/1.1 200 OK\r\n"
         "Content-Type: text/event-stream\r\n"
@@ -110,72 +101,69 @@ def handle_container_stream(client_sock: socket.socket, names: list[str]) -> Non
     except (OSError, BrokenPipeError):
         return
 
-    # --- Send ready ---
-    try:
-        _write_sse(client_sock, "ready",
-                   json.dumps({"containers": list(valid)}))
-    except ConnectionError:
+    if not valid:
+        try:
+            _write_sse(client_sock, "error",
+                       json.dumps({"message": "no valid container names provided"}))
+        except ConnectionError:
+            pass
+        finally:
+            try:
+                client_sock.close()
+            except OSError:
+                pass
         return
 
-    # --- Start reader threads ---
+    try:
+        _write_sse(client_sock, "ready", json.dumps({"containers": list(valid)}))
+    except ConnectionError:
+        try:
+            client_sock.close()
+        except OSError:
+            pass
+        return
+
     q: queue.Queue = queue.Queue()
     stop_event = threading.Event()
     threads: list[threading.Thread] = []
+    pending = set(valid)
 
     for name in valid:
-        t = threading.Thread(
+        thread = threading.Thread(
             target=_reader_thread,
             args=(name, q, stop_event),
             daemon=True,
         )
-        t.start()
-        threads.append(t)
-
-    # --- SSE drain loop ---
-    pending = set(valid)  # containers that haven't reported closed/error yet
-    last_keepalive = time.monotonic()
-    connected_start = time.monotonic()
+        thread.start()
+        threads.append(thread)
 
     try:
         while pending:
-            elapsed = time.monotonic() - connected_start
-            if elapsed > CONNECT_TIMEOUT and not any(
-                True for _ in range(1)
-            ):
-                pass  # keep waiting
-
             try:
                 msg = q.get(timeout=KEEPALIVE_SECS)
             except queue.Empty:
-                if time.monotonic() - last_keepalive >= KEEPALIVE_SECS:
-                    _write_sse(client_sock, "status",
-                               json.dumps({"container": "", "status": "keepalive"}))
-                    last_keepalive = time.monotonic()
+                _write_sse(client_sock, "status",
+                           json.dumps({"container": "", "status": "keepalive"}))
                 continue
 
-            last_keepalive = time.monotonic()
             kind = msg.get("kind", "")
-            data_str = json.dumps(msg)
-
             if kind in ("status", "log", "error"):
-                _write_sse(client_sock, kind, data_str)
+                _write_sse(client_sock, kind, json.dumps(msg))
 
-            if kind == "status":
-                status_val = msg.get("status", "")
-                container = msg.get("container", "")
-                if status_val in ("closed",) or kind == "error":
-                    pending.discard(container)
-            elif kind == "error":
+            if kind == "status" and msg.get("status") == "closed":
+                pending.discard(msg.get("container", ""))
+            if kind == "error":
                 pending.discard(msg.get("container", ""))
 
-        # All containers done — send final keepalive then exit
-        time.sleep(0.1)
         _write_sse(client_sock, "status",
                    json.dumps({"container": "", "status": "done"}))
-
     except ConnectionError:
-        pass  # client disconnected
+        pass
     finally:
         stop_event.set()
-        for t in threads:
-            t.join(timeout=2)
+        for thread in threads:
+            thread.join(timeout=2)
+        try:
+            client_sock.close()
+        except OSError:
+            pass
