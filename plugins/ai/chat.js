@@ -27,9 +27,9 @@
 			error: null,
 			streaming_content: '',
 			context_summary: '',
-			show_settings: false,
-			api_key: localStorage.getItem('fuwa_ai_deepseek_key') || '',
+			api_key: '',
 			token_count: 0,
+			has_server_config: false,
 		};
 	}
 
@@ -48,16 +48,13 @@
 			.then(function (r) { return r.json(); })
 			.then(function (config) {
 				var server_key = config.DEEP_SEEK_API;
-				if (server_key && !localStorage.getItem('fuwa_ai_deepseek_key')) {
-					// Only auto-populate if user hasn't set their own key
-					var s = createState();
-					s.api_key = server_key;
-					// Don't persist — server key takes precedence each session
+				if (server_key) {
+					setState({ api_key: server_key, has_server_config: true });
 				}
 			})
 			.catch(function () {
 				// /__dev/config only exists when dev server is running;
-				// silently ignore in production/standalone mode
+				// without it, the AI tab shows instructions for setting up .env
 			});
 	}
 
@@ -198,9 +195,9 @@
 
 	async function sendMessage(userMessage) {
 		var s = createState();
-		var key = localStorage.getItem('fuwa_ai_deepseek_key') || s.api_key;
+		var key = s.api_key;
 		if (!key) {
-			setState({ error: 'API key not set. Click the gear icon to configure.', loading: false });
+			setState({ error: 'API key not configured. Set DEEP_SEEK_API in .env and restart the dev server.', loading: false });
 			return;
 		}
 
@@ -273,37 +270,16 @@
 		var text = (s.input || '').trim();
 		if (!text || s.loading) return;
 
-		// Special commands
 		if (text === '/clear') {
 			s.messages = [];
 			setState({ input: '', error: null });
-			return;
-		}
-		if (text === '/clear-key') {
-			localStorage.removeItem('fuwa_ai_deepseek_key');
-			setState({ api_key: '', error: null, input: '', show_settings: false });
-			return;
-		}
-
-		// If no API key yet, prompt
-		if (!localStorage.getItem('fuwa_ai_deepseek_key')) {
-			setState({ show_settings: true, error: 'Set your DeepSeek API key first.' });
 			return;
 		}
 
 		sendMessage(text);
 	}
 
-	function saveApiKey(key) {
-		key = (key || '').trim();
-		if (key) {
-			localStorage.setItem('fuwa_ai_deepseek_key', key);
-			setState({ api_key: key, show_settings: false, error: null });
-		} else {
-			localStorage.removeItem('fuwa_ai_deepseek_key');
-			setState({ api_key: '', show_settings: false, error: null });
-		}
-	}
+
 
 	function handleKeydown(event) {
 		if (event.key === 'Enter' && !event.shiftKey) {
@@ -389,7 +365,6 @@
 			state: state,
 			handleSend: handleSend,
 			handleKeydown: handleKeydown,
-			saveApiKey: saveApiKey,
 			applyCodeBlock: applyCodeBlock,
 			extractCodeBlock: extractCodeBlock,
 		});
