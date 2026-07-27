@@ -129,6 +129,10 @@
 		workspace_state = {
 			open_popover: null,
 			root: null,
+			grafanaOpen: false,
+			toggleGrafana: function () {
+				this.grafanaOpen = !this.grafanaOpen;
+			},
 			togglePopover(name, event) {
 				const workspace = workspaceRoot(event && event.currentTarget);
 				if (!(workspace instanceof Element)) {
