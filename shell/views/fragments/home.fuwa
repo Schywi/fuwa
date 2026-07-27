@@ -32,7 +32,7 @@
             <span class="mac-terminal-light mac-terminal-light--minimize"></span>
             <span class="mac-terminal-light mac-terminal-light--zoom"></span>
           </span>
-          <button class="grafana-trigger tmux-trigger" @click="toggleTmux()">tmux ▸</button>
+          <button class="grafana-trigger tmux-trigger" @click="toggleTmux()">tmux|debug</button>
         </div>
         <div
           class="shell-widget-shell"
