@@ -1,5 +1,5 @@
 <section id="shell-content" class="shell-content">
-  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()">
+  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()" :class="{ 'is-grafana': grafanaOpen }">
     <section class="ide-island ide-preview-island">
       <div
         class="ide-preview-stage"
@@ -14,7 +14,7 @@
       </div>
     </section>
 
-    <div class="ide-panel" v-show="!grafanaOpen">
+    <div class="ide-panel">
       <header class="ide-island ide-header">
         <div class="owner">
           <div class="owner-avatar">DB</div>
@@ -54,7 +54,7 @@
       <footer id="ide-status" class="ide-island ide-status">( •ω•)ﾉ✦ &dashboard.footer_label · &dashboard.active.terminal_label</footer>
     </div>
 
-    <section class="ide-island ide-preview-island ide-preview-island--right" v-show="!grafanaOpen">
+    <section class="ide-island ide-preview-island ide-preview-island--right">
       <div class="ide-preview-block ide-preview-block--terminal">
         <div class="mac-terminal-bar" aria-hidden="true">
           <span class="mac-terminal-lights">
@@ -75,15 +75,13 @@
         </div>
         <pre id="ide-terminal-seed" hidden data-terminal-seed>&dashboard.active.terminal_output</pre>
       </div>
-      <div class="obs-grafana-bar" v-show="!grafanaOpen">
-        <button class="grafana-trigger" @click="toggleGrafana()">Grafana ↗</button>
-      </div>
-      <div class="ide-preview-block ide-preview-block--obs" data-obs-root v-pre>
+      <div class="ide-preview-block ide-preview-block--obs">
         <div class="stage-header">
           <span class="stage-title">Observability</span>
           <span class="stage-subtitle">live request console</span>
-          <span class="obs-stream-label" v-text="streamLabel"></span>
+          <button class="grafana-trigger" @click="toggleGrafana()">Grafana ↗</button>
         </div>
+        <div data-obs-root v-pre>
         <div class="obs-activity-list">
           <div v-for="request in requests" class="obs-request-group">
             <button type="button" class="obs-activity-row" :data-tone="statusTone(request)" @click="toggleExpand(request)">
@@ -108,7 +106,7 @@
       </div>
     </section>
 
-    <div class="grafana-panel" v-show="grafanaOpen">
+    <div class="grafana-panel">
       <iframe class="grafana-frame" src="/dash/signoz" sandbox="allow-scripts allow-same-origin allow-forms" title="Grafana dashboard"></iframe>
       <button class="grafana-back-btn" @click="toggleGrafana()">← Back to code</button>
     </div>

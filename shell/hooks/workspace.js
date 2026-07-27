@@ -131,7 +131,46 @@
 			root: null,
 			grafanaOpen: false,
 			toggleGrafana: function () {
-				this.grafanaOpen = !this.grafanaOpen;
+				var self = this;
+				var panel = document.querySelector('.ide-panel');
+				var right = document.querySelector('.ide-preview-island--right');
+				var grafana = document.querySelector('.grafana-panel');
+				var shell = document.querySelector('.ide-shell');
+
+				if (!panel || !right || !grafana || !shell) {
+					self.grafanaOpen = !self.grafanaOpen;
+					return;
+				}
+
+				var opening = !self.grafanaOpen;
+
+				if (opening) {
+					self.grafanaOpen = true;
+					shell.classList.add('is-grafana');
+				}
+
+				if (window.gsap) {
+					var tl = window.gsap.timeline({
+						onComplete: function () {
+							if (!opening) {
+								self.grafanaOpen = false;
+								shell.classList.remove('is-grafana');
+							}
+						}
+					});
+
+					if (opening) {
+						tl.to([panel, right], { opacity: 0, x: -20, duration: 0.25, ease: 'power2.in', stagger: 0.04 }, 0);
+						tl.fromTo(grafana, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power2.out' }, 0.08);
+					} else {
+						self.grafanaOpen = false;
+						shell.classList.remove('is-grafana');
+						tl.to(grafana, { opacity: 0, scale: 0.97, duration: 0.2, ease: 'power2.in' }, 0);
+						tl.fromTo([panel, right], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out', stagger: 0.04 }, 0.06);
+					}
+				} else {
+					self.grafanaOpen = !self.grafanaOpen;
+				}
 			},
 			openPalette: function () {
 				const workspace = document.querySelector('[data-workspace]');
