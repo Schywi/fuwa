@@ -179,7 +179,8 @@
 	}
 
 	function updateSelectionMarkers(path) {
-		for (const row of document.querySelectorAll('[data-popover] [data-file-path]')) {
+		// Update film strip rows and any remaining popover rows
+		for (const row of document.querySelectorAll('.film-strip-file[data-file-path], [data-popover] [data-file-path]')) {
 			row.setAttribute('data-selected', row.getAttribute('data-file-path') === path ? 'true' : 'false');
 		}
 		const stat = document.getElementById('ide-entry-stat');
@@ -198,7 +199,8 @@
 
 	function handleFileRowClick(event) {
 		const target = event.target instanceof Element ? event.target : null;
-		const row = target ? target.closest('[data-popover] [data-file-path]') : null;
+		// Match film strip rows OR popover rows
+		const row = target ? target.closest('.film-strip-file[data-file-path], [data-popover] [data-file-path]') : null;
 		if (!row) {
 			return;
 		}

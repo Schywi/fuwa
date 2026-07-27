@@ -1,14 +1,44 @@
 <section id="shell-content" class="shell-content">
   <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()">
-    <section class="ide-island ide-preview-island">
-      <div class="ide-preview-head">
-        <div>
-          <p class="shell-kicker">&dashboard.preview_heading</p>
-          <p class="ide-preview-note">&dashboard.preview_note</p>
-        </div>
-        <div class="shell-badge">Browser runtime</div>
+    <!-- ── Film strip ──────────────────────────────────────────── -->
+    <nav class="ide-film-strip" aria-label="Payload files">
+      <div class="film-strip-head">
+        <div class="film-strip-project" data-film-strip-project>&dashboard.active.label</div>
       </div>
 
+      <div class="film-strip-sep"></div>
+
+      <div class="film-strip-files" role="listbox">
+        <button
+          f-for="file in dashboard.active.files"
+          type="button"
+          class="film-strip-file"
+          data-selected="&file.selected"
+          data-file-path="&file.path"
+          hx-get="&file.inspect_url"
+          hx-target="#ide-workspace"
+          hx-swap="outerHTML"
+        >
+          <span class="film-strip-file-dot"></span>
+          <span class="film-strip-file-name">&file.path</span>
+        </button>
+      </div>
+
+      <div class="film-strip-sep"></div>
+
+      <div class="film-strip-foot">
+        <button type="button" class="shell-develop-btn" data-develop-btn>
+          Develop
+        </button>
+        <div class="film-strip-status-line">
+          <span class="film-strip-status-dot" data-status="&dashboard.active.terminal_status" id="ide-runtime-dot"></span>
+          <span id="ide-runtime-state-text">&dashboard.active.terminal_label</span>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ── Preview zone ────────────────────────────────────────── -->
+    <section class="ide-preview-zone">
       <div
         class="ide-preview-stage"
         data-preview-stage
@@ -20,55 +50,27 @@
       >
         &unsafe dashboard.preview_html
       </div>
-
-      <div class="ide-preview-foot">
-        <div class="shell-badge">In-memory live session</div>
-      </div>
     </section>
 
+    <!-- ── Right panel ─────────────────────────────────────────── -->
     <div class="ide-panel">
-      <header class="ide-island ide-header">
+      <header class="ide-header">
         <div class="owner">
-          <div class="owner-avatar">FW</div>
+          <div class="owner-mark">✳</div>
           <div class="owner-meta">
             <div class="owner-name">&dashboard.title</div>
             <div class="owner-sub">&dashboard.eyebrow · &dashboard.active.file_count files</div>
           </div>
         </div>
 
-        <div class="stats">
-          <div class="stat-item">
-            <span class="stat-label">payload</span>
-            <span class="stat-value">&dashboard.active.label</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">entry</span>
-            <span id="ide-entry-stat" class="stat-value">&dashboard.active.selected_file</span>
-          </div>
-          <div class="stat-item">
-            <span class="stat-label">runtime</span>
-            <span id="ide-runtime-state" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
-          </div>
-          <div class="stat-item ide-switcher">
-            <span class="stat-label">switch</span>
-            <div class="ide-switcher-buttons">
-              <button
-                f-for="payload in dashboard.payloads"
-                type="button"
-                class="shell-button ide-switch-button"
-                data-active="&payload.active"
-                hx-post="&payload.switch_route"
-                hx-target="#shell-content"
-                hx-swap="outerHTML"
-              >&payload.label</button>
-            </div>
-          </div>
+        <div class="header-stats">
+          <span id="ide-runtime-state" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
         </div>
       </header>
 
       <include src="views/fragments/workspace.fuwa" />
 
-      <footer id="ide-status" class="ide-island ide-status">( •ω•)ﾉ✦ fuwa shell ready · &dashboard.active.terminal_label</footer>
+      <footer id="ide-status" class="ide-status">( •ω•)ﾉ✦ fuwa shell ready · &dashboard.active.terminal_label</footer>
     </div>
   </div>
 </section>
