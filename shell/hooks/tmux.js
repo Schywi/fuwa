@@ -1,8 +1,8 @@
 (function () {
 	'use strict';
 
-	var terminals = [];
-	var eventSources = [];
+	var terminals = {};
+	var eventSource = null;
 	var mounted = false;
 	var filterErrorsOnly = false;
 
@@ -15,7 +15,6 @@
 	}
 
 	function setSlotStatus(slot, status) {
-		// status: 'connecting' | 'connected' | 'disconnected' | 'error'
 		slot.setAttribute('data-tmux-status', status);
 	}
 
@@ -30,34 +29,72 @@
 			|| lower.indexOf('traceback') !== -1;
 	}
 
-	function connectLogs(term, container, slot) {
+	function connectMux(containersByName) {
 		if (typeof EventSource !== 'function') {
-			term.writeln('\x1b[1;31mSSE not supported\x1b[0m');
-			setSlotStatus(slot, 'error');
+			Object.values(containersByName).forEach(function (t) {
+				t.term.writeln('\x1b[1;31mSSE not supported\x1b[0m');
+				setSlotStatus(t.slot, 'error');
+			});
 			return;
 		}
 
-		setSlotStatus(slot, 'connecting');
-		term.writeln('\x1b[1;33mconnecting...\x1b[0m');
+		var names = Object.keys(containersByName);
+		var url = '/__dev/containers/live?' + names.map(function (n) {
+			return 'name=' + encodeURIComponent(n);
+		}).join('&');
 
-		var es = new EventSource('/__dev/containers/' + container + '/logs');
-		eventSources.push(es);
+		eventSource = new EventSource(url);
 
-		es.addEventListener('open', function () {
-			setSlotStatus(slot, 'connected');
-			term.writeln('\x1b[1;32mconnected\x1b[0m');
+		eventSource.addEventListener('ready', function (e) {
+			log('stream ready');
 		});
 
-		es.addEventListener('message', function (e) {
-			var line = e.data;
-			if (filterErrorsOnly && !isErrorLine(line)) return;
-			term.writeln(line);
+		eventSource.addEventListener('status', function (e) {
+			try {
+				var msg = JSON.parse(e.data);
+				var name = msg.container;
+				if (!name || !containersByName[name]) return;
+				var t = containersByName[name];
+				var status = msg.status || '';
+				if (status === 'connecting') {
+					setSlotStatus(t.slot, 'connecting');
+					t.term.writeln('\x1b[1;33mconnecting...\x1b[0m');
+				} else if (status === 'connected') {
+					setSlotStatus(t.slot, 'connected');
+					t.term.writeln('\x1b[1;32mconnected\x1b[0m');
+				} else if (status === 'closed' || status === 'done') {
+					setSlotStatus(t.slot, 'disconnected');
+				}
+			} catch (_) {}
 		});
 
-		es.addEventListener('error', function () {
-			setSlotStatus(slot, 'disconnected');
-			term.writeln('\x1b[1;31mdisconnected\x1b[0m');
+		eventSource.addEventListener('log', function (e) {
+			try {
+				var msg = JSON.parse(e.data);
+				var name = msg.container;
+				if (!name || !containersByName[name]) return;
+				var line = msg.line || '';
+				if (filterErrorsOnly && !isErrorLine(line)) return;
+				containersByName[name].term.writeln(line);
+			} catch (_) {}
 		});
+
+		eventSource.addEventListener('error', function (e) {
+			try {
+				var msg = JSON.parse(e.data);
+				var name = msg.container;
+				if (!name || !containersByName[name]) return;
+				var t = containersByName[name];
+				setSlotStatus(t.slot, 'error');
+				t.term.writeln('\x1b[1;31m' + (msg.message || 'error') + '\x1b[0m');
+			} catch (_) {}
+		});
+
+		eventSource.onerror = function () {
+			Object.values(containersByName).forEach(function (t) {
+				setSlotStatus(t.slot, 'disconnected');
+			});
+		};
 	}
 
 	function mountAll() {
@@ -67,6 +104,7 @@
 
 		import('/vendor/xterm/xterm-6.0.0.mjs').then(function (mod) {
 			var Terminal = mod.Terminal;
+			var containersByName = {};
 
 			for (var i = 0; i < slots.length; i++) {
 				var slot = slots[i];
@@ -88,29 +126,28 @@
 				});
 
 				term.open(slot);
-				terminals.push({ term: term, label: label, container: container, slot: slot });
-
-				setTimeout(function () {
-					connectLogs(term, container, slot);
-				}, i * 120);
+				containersByName[container] = { term: term, label: label, slot: slot };
 			}
 
+			terminals = containersByName;
 			mounted = true;
-			log('mounted ' + terminals.length + ' terminals');
+
+			connectMux(containersByName);
+			log('mounted ' + Object.keys(containersByName).length + ' terminals');
 		}).catch(function (err) {
 			console.error('[shell:tmux] failed to load xterm', err);
 		});
 	}
 
 	function unmountAll() {
-		for (var i = 0; i < eventSources.length; i++) {
-			try { eventSources[i].close(); } catch (e) {}
+		if (eventSource) {
+			try { eventSource.close(); } catch (e) {}
+			eventSource = null;
 		}
-		eventSources = [];
-		for (var j = 0; j < terminals.length; j++) {
-			try { terminals[j].term.dispose(); } catch (e) {}
-		}
-		terminals = [];
+		Object.values(terminals).forEach(function (t) {
+			try { t.term.dispose(); } catch (e) {}
+		});
+		terminals = {};
 		mounted = false;
 		filterErrorsOnly = false;
 		log('unmounted');

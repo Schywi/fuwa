@@ -1014,60 +1014,6 @@ local function poll_reload_token(token_path, timeout_seconds)
 	return false
 end
 
-local function handle_container_logs(container_name)
-	local headers = {
-		["Content-Type"] = "text/event-stream",
-		["Cache-Control"] = "no-cache",
-		["Connection"] = "keep-alive",
-	}
-
-	io.stdout:write("HTTP/1.1 200 OK\r\n")
-	for name, value in pairs(headers) do
-		io.stdout:write(name, ": ", value, "\r\n")
-	end
-	io.stdout:write("\r\n")
-	io.stdout:write(": connected to " .. container_name .. "\n\n")
-	io.stdout:flush()
-
-	-- Try exact match first, then partial match
-	local cmd = 'docker logs -f --tail 100 ' .. container_name .. ' 2>&1'
-	local pipe = io.popen(cmd, "r")
-	if not pipe then
-		io.stdout:write("data: could not execute docker logs for " .. container_name .. "\n\n")
-		io.stdout:flush()
-		return
-	end
-
-	local first_line = pipe:read("*l")
-	if not first_line then
-		io.stdout:write("data: container " .. container_name .. " not found or not running\n\n")
-		io.stdout:flush()
-		return
-	end
-
-	io.stdout:write("data: " .. first_line .. "\n\n")
-	io.stdout:flush()
-
-	local buffer = ""
-	while true do
-		local chunk = pipe:read(1024)
-		if not chunk then break end
-		buffer = buffer .. chunk
-		-- Emit complete lines as SSE events
-		while true do
-			local newline = buffer:find("\n")
-			if not newline then break end
-			local line = buffer:sub(1, newline - 1)
-			buffer = buffer:sub(newline + 1)
-			if line ~= "" then
-				io.stdout:write("data: " .. line .. "\n\n")
-			end
-		end
-		io.stdout:flush()
-	end
-	pipe:close()
-end
-
 local function handle_reload_request()
 	local headers = {
 		["Content-Type"] = "text/event-stream",
@@ -1181,12 +1127,6 @@ function M.run()
 
 	if request.path == "/__dev/reload" then
 		handle_reload_request()
-		return
-	end
-
-	local container_logs_name = request.path:match("^/__dev/containers/([%w_-]+)/logs$")
-	if container_logs_name and request.method == "GET" then
-		handle_container_logs(container_logs_name)
 		return
 	end
 

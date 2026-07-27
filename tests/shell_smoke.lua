@@ -70,6 +70,14 @@ assert_true(observability_js:find("htmx:beforeSwap", 1, true) ~= nil, "observabi
 assert_true(observability_js:find("htmx:afterSwap", 1, true) ~= nil, "observability should remount after swaps")
 assert_true(observability_js:find("data-widget-state', 'mounted'", 1, true) ~= nil, "observability should mark mounted widget state")
 assert_true(observability_js:find("EventSource('/__dev/traces/live')", 1, true) ~= nil, "observability should tail trace events over SSE")
+
+-- Verify tmux.js uses multiplexed container log stream
+local tmux_js = files["hooks/tmux.js"]
+assert_true(tmux_js ~= nil, "tmux.js should be present in the package")
+assert_true(tmux_js:find("/__dev/containers/live", 1, true) ~= nil, "tmux should use single multiplexed SSE endpoint")
+assert_true(tmux_js:find("connectMux", 1, true) ~= nil, "tmux should route by container name")
+assert_true(tmux_js:find("EventSource('/__dev/containers/", 1, true) == nil, "tmux should not create per-pane EventSources")
+
 assert_true(observability_js:find("expandedTraceId", 1, true) ~= nil, "observability should support per-row expand/collapse")
 assert_true(observability_js:find(".stageSummary", 1, true) ~= nil, "observability should render request-centric summaries")
 assert_true(observability_js:find("toggleExpand", 1, true) ~= nil, "observability should toggle row expansion on click")

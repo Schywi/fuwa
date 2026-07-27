@@ -24,6 +24,8 @@ import queue
 from collections import deque
 from pathlib import Path
 
+from container_logs import handle_container_stream
+
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LUA_BIN = os.environ.get("LUA_BIN", "lua5.4")
@@ -349,6 +351,20 @@ def handle_connection(client_sock: socket.socket) -> None:
 
     if path == "/__dev/traces/live":
         _handle_dev_trace_stream(client_sock)
+        return
+
+    if path == "/__dev/containers/live":
+        # Parse repeated name= query params from the raw request
+        query_start = raw.find(b" /__dev/containers/live?")
+        names: list[str] = []
+        if query_start != -1:
+            query_part = raw[query_start:].split(b" ", 1)[0].decode("utf-8", errors="replace")
+            import urllib.parse
+            params = urllib.parse.parse_qs(urllib.parse.urlparse(query_part).query)
+            for n in params.get("name", []):
+                if isinstance(n, str):
+                    names.append(n)
+        handle_container_stream(client_sock, names)
         return
 
     # ── Forward to Lua ──────────────────────────────────────────────────
