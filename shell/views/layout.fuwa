@@ -254,7 +254,15 @@
       }
 
       .ide-preview-block--obs {
-        overflow-y: auto;
+        overflow: visible;
+        background: transparent;
+        border: 0;
+        border-radius: 0;
+      }
+
+      .ide-preview-block--obs .obs-activity-list {
+        flex: 1;
+        min-height: 0;
       }
 
       .ide-preview-block .stage-header {
