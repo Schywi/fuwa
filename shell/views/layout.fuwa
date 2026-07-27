@@ -29,10 +29,12 @@
     <script defer src="/shell/hooks/observability.js"></script>
     <script defer src="/plugins/ai/worker-bridge.js"></script>
     <script defer src="/plugins/ai/tools/index.js"></script>
-    <script defer src="/plugins/ai/tools/sources.js"></script>
     <script defer src="/plugins/ai/tools/traces.js"></script>
     <script defer src="/plugins/ai/tools/terminal.js"></script>
+    <script defer src="/plugins/ai/tools/sources.js"></script>
     <script defer src="/plugins/ai/tools/runtime.js"></script>
+    <script defer src="/plugins/ai/tools/classifier.js"></script>
+    <script defer src="/plugins/ai/tools/orchestrator.js"></script>
     <script defer src="/plugins/ai/chat.js"></script>
     <style>
       :root {

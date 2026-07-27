@@ -1,92 +1,168 @@
 // Data provider: live runtime state via Wasmoon worker execution.
-// On-demand only — triggered by /db, /modules, /vfs commands.
-// Uses window.FuwaAI.exec() to run Lua snippets in the worker.
+// Schema and counts are medium cost. Sample rows are expensive.
+// All async; sync stubs return cached data.
 (function () {
 	'use strict';
 
 	window.FuwaAITools = window.FuwaAITools || {};
 
+	var cached_schema = null;
+	var cached_modules = null;
+	var cached_vfs = null;
+	var CACHE_TTL_MS = 3000;
+	var cache_ts = 0;
+
+	function is_cache_fresh() {
+		return cached_schema !== null && Date.now() - cache_ts < CACHE_TTL_MS;
+	}
+
+	function getExec() {
+		return window.FuwaAI && window.FuwaAI.exec;
+	}
+
 	window.FuwaAITools.runtime = {
 		name: 'runtime',
-		describe: 'Database schema, loaded modules, VFS listing from live worker',
-		cost: '~500 tokens',
+		describe: 'Database schema, row counts, loaded modules, VFS',
+		cost: '~200-600 tokens',
 		always: false,
-		triggers: ['/db', '/modules', '/vfs', 'schema', 'database', 'module', 'loaded'],
+		triggers: ['/db', '/schema', '/modules', '/vfs', 'database', 'table', 'module'],
 
-		// Synchronous stub — returns empty. The actual data is collected
-		// asynchronously and injected before the API call by chat.js.
-		collect: function () {
-			return ''; // filled by collectAsync
+		// ── async collectors ────────────────────────────────────────
+
+		collectSchemaAsync: async function () {
+			var exec = getExec();
+			if (!exec) return null;
+
+			try {
+				var result = await exec(
+					'local tables = {}\n' +
+					'local rows = __fuwa_db_op({collection="__schema__", op="raw", sql="SELECT name FROM sqlite_master WHERE type=\'table\' AND name NOT LIKE \'sqlite_%\' ORDER BY name"})\n' +
+					'if rows and rows.value then\n' +
+					'  for _, t in ipairs(rows.value) do\n' +
+					'    local count_row = __fuwa_db_op({collection=t.name, op="raw", sql="SELECT COUNT(*) as cnt FROM \\"" .. t.name .. "\\""})\n' +
+					'    local cnt = (count_row and count_row.value and count_row.value[1] and count_row.value[1].cnt) or 0\n' +
+					'    tables[#tables + 1] = t.name .. ":" .. cnt\n' +
+					'  end\n' +
+					'end\n' +
+					'return table.concat(tables, ",")'
+				);
+
+				if (result && result.stdout) {
+					var text = result.stdout.join('').trim();
+					if (text) {
+						var entries = text.split(',').map(function (s) {
+							var parts = s.split(':');
+							return { name: parts[0], rows: parseInt(parts[1], 10) || 0 };
+						});
+						cached_schema = entries;
+						cache_ts = Date.now();
+						return { type: 'db_schema', source: 'runtime', items: [{ tables: entries }] };
+					}
+				}
+			} catch (e) {
+				// worker not booted or DB not initialized
+			}
+			return null;
 		},
 
-		collectAsync: async function (requested_tools) {
-			if (!requested_tools || requested_tools.length === 0) return '';
+		collectSampleAsync: async function (table, limit) {
+			var exec = getExec();
+			if (!exec) return null;
+			table = table || 'fuwa_docs';
+			limit = limit || 3;
 
-			var exec = window.FuwaAI && window.FuwaAI.exec;
-			if (!exec) return '';
-
-			var sections = [];
-
-			if (requested_tools.indexOf('db') !== -1 || requested_tools.indexOf('schema') !== -1) {
-				try {
-					var db_result = await exec(
-						'local db = require("runtime.stdlib.db")\n' +
-						'local tables = db.__raw_query and db.__raw_query("SELECT name FROM sqlite_master WHERE type=\'table\' ORDER BY name") or {}\n' +
-						'local info = {}\n' +
-						'for _, t in ipairs(tables or {}) do\n' +
-						'  local count = db.__raw_query and db.__raw_query("SELECT COUNT(*) as c FROM " .. t.name) or {{c=0}}\n' +
-						'  info[#info + 1] = t.name .. " (" .. (count[1] and count[1].c or 0) .. " rows)"\n' +
-						'end\n' +
-						'return table.concat(info, "\\n")'
-					);
-					if (db_result && db_result.stdout) {
-						var db_text = db_result.stdout.join('\n').trim();
-						if (db_text) sections.push('### Database\n' + db_text);
+			try {
+				var result = await exec(
+					'local rows = __fuwa_db_op({collection="' + table + '", op="all"})\n' +
+					'if not rows or not rows.value then return "[]" end\n' +
+					'local subset = {}\n' +
+					'for i = 1, math.min(' + limit + ', #rows.value) do\n' +
+					'  subset[#subset + 1] = rows.value[i]\n' +
+					'end\n' +
+					'local json = require("runtime.stdlib.compiler.package_web")\n' +
+					'  and require("runtime.stdlib.compiler.bootstrap") or nil\n' +
+					'if json then return json.__json_encode(subset) end\n' +
+					'return "[]"'
+				);
+				if (result && result.result) {
+					try {
+						var rows = JSON.parse(result.result);
+						return { type: 'db_sample', source: 'runtime', items: [{ table: table, rows: rows }] };
+					} catch (e) {
+						return { type: 'db_sample', source: 'runtime', items: [{ table: table, rows: [] }] };
 					}
-				} catch (e) {
-					sections.push('### Database\n(error reading: ' + e.message + ')');
 				}
+			} catch (e) {
+				// silent
 			}
+			return null;
+		},
 
-			if (requested_tools.indexOf('modules') !== -1) {
-				try {
-					var mod_result = await exec(
-						'local names = {}\n' +
-						'for k in pairs(package.loaded) do\n' +
-						'  if type(package.loaded[k]) == "table" then names[#names + 1] = k end\n' +
-						'end\n' +
-						'table.sort(names)\n' +
-						'return table.concat(names, "\\n")'
-					);
-					if (mod_result && mod_result.stdout) {
-						var mod_text = mod_result.stdout.join('\n').trim();
-						if (mod_text) sections.push('### Loaded Modules\n' + mod_text);
-					}
-				} catch (e) {
-					sections.push('### Loaded Modules\n(error reading: ' + e.message + ')');
+		collectModulesAsync: async function () {
+			var exec = getExec();
+			if (!exec) return null;
+			try {
+				var result = await exec(
+					'local names = {}\n' +
+					'for k in pairs(package.loaded) do\n' +
+					'  if type(package.loaded[k]) == "table" then names[#names + 1] = k end\n' +
+					'end\n' +
+					'table.sort(names)\n' +
+					'return table.concat(names, ",")'
+				);
+				if (result && result.stdout) {
+					var modules = result.stdout.join('').split(',').filter(function (s) { return s.trim() !== ''; });
+					cached_modules = modules;
+					return { type: 'modules_list', source: 'runtime', items: [{ modules: modules }] };
 				}
-			}
+			} catch (e) {}
+			return null;
+		},
 
-			if (requested_tools.indexOf('vfs') !== -1) {
-				try {
-					var vfs_result = await exec(
-						'local files = {}\n' +
-						'for k in pairs(_G) do\n' +
-						'  if type(k) == "string" and k:match("%.lua$") then files[#files + 1] = k end\n' +
-						'end\n' +
-						'table.sort(files)\n' +
-						'return table.concat(files, "\\n")'
-					);
-					if (vfs_result && vfs_result.stdout) {
-						var vfs_text = vfs_result.stdout.join('\n').trim();
-						if (vfs_text) sections.push('### VFS Files\n' + vfs_text);
-					}
-				} catch (e) {
-					sections.push('### VFS Files\n(error reading: ' + e.message + ')');
+		collectVfsAsync: async function () {
+			var exec = getExec();
+			if (!exec) return null;
+			try {
+				var result = await exec(
+					'local vfs = {}\n' +
+					'for k, v in pairs(_G) do\n' +
+					'  if type(k) == "string" and type(v) ~= "function" and k:match("%.lua$") then vfs[#vfs + 1] = k end\n' +
+					'end\n' +
+					'table.sort(vfs)\n' +
+					'return table.concat(vfs, ",")'
+				);
+				if (result && result.stdout) {
+					var files = result.stdout.join('').split(',').filter(function (s) { return s.trim() !== ''; });
+					cached_vfs = files;
+					return { type: 'vfs_list', source: 'runtime', items: [{ files: files }] };
 				}
-			}
+			} catch (e) {}
+			return null;
+		},
 
-			return sections.join('\n\n');
+		// ── sync stubs (return cached) ──────────────────────────────
+
+		collectSchemaSync: function () {
+			if (!is_cache_fresh()) return null;
+			return { type: 'db_schema', source: 'runtime', items: [{ tables: cached_schema }] };
+		},
+
+		getCachedSample: function (table, limit) {
+			return null; // sample is always async
+		},
+
+		collectModulesSync: function () {
+			if (cached_modules === null) return null;
+			return { type: 'modules_list', source: 'runtime', items: [{ modules: cached_modules }] };
+		},
+
+		collectVfsSync: function () {
+			if (cached_vfs === null) return null;
+			return { type: 'vfs_list', source: 'runtime', items: [{ files: cached_vfs }] };
+		},
+
+		collect: function () {
+			return this.collectSchemaSync();
 		}
 	};
 

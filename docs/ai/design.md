@@ -1,101 +1,90 @@
-# fuwa AI Plugin — Design
+# fuwa AI Plugin — Design v2
 
 ## Philosophy
 
-The AI plugin is a **client-side add-on**, not a core feature. It lives in
-`/plugins/ai/` and follows the same isolated pattern as observability
-(`shell/hooks/observability.js`): an IIFE that registers itself on a
-`window.FuwaShellAI` global and mounts into a workspace tab via
-`[data-ai-root]`.
+The AI plugin is a **read-only runtime analyst**. It classifies user questions,
+fetches only the minimum relevant data from categorized tools, and uses a
+two-pass planner/analyst loop with the DeepSeek API. It cannot modify code.
 
-**Zero server, zero compiler changes, zero Lua changes.** The plugin calls
-the DeepSeek API directly from the browser using the user's own API key
-(stored in `localStorage`). This is the same model Cursor, Windsurf, and
-Copilot use — the key belongs to the developer, not the application.
+**Zero server proxy.** The API key lives in `.env` (gitignored), read by the
+Python dev server at startup, served to the browser via `/__dev/config`. No
+key ever touches localStorage.
 
 ## Architecture
 
 ```
-Browser (chat.js)                                    DeepSeek API
-     │                                                    │
-     │── POST https://api.deepseek.com/chat/completions ──►
-     │    Authorization: Bearer $KEY (from localStorage)   │
-     │    { model, messages, stream: true }                │
-     │                                                    │
-     │◄── SSE: data: {"choices":[{"delta":{"content":...   │
+User question
+     │
+     ▼
+classifier.js ──► local rules engine, zero-latency
+     │              maps keywords → intent + tool set
+     ▼
+orchestrator.js ──► two-pass loop (max 3 rounds)
+     │
+     ├── auto-fetch cheap tools (traces, active file)
+     ├── call planner (DeepSeek) → JSON: needs_more? which tools?
+     ├── fetch requested tools (sync + async)
+     ├── call analyst (DeepSeek) → JSON: answer + evidence + confidence
+     │
+     ▼
+chat.js ──► renders answer with metadata (intent, fact count, rounds, elapsed)
 ```
 
-## What the AI can access
+## Tool taxonomy
 
-| Resource | How | Trust |
+| Tool | Cost | Auto? | Returns |
+|---|---|---|---|
+| `traces` | ~40 tokens/trace | Yes (5 traces) | `{method, path, status, duration_ms, stages}` |
+| `terminal` | ~200-400 tokens | No | Error blocks only by default |
+| `source_excerpt` | ~300-1000 tokens | No | File slice by path + line range |
+| `active_file` | ~20 tokens | No | Current open file path + line count |
+| `db_schema` | ~100 tokens | No | Table names + row counts |
+| `db_sample` | ~300 tokens | No | First N rows from a table |
+| `modules_list` | ~200 tokens | No | Loaded Lua module names |
+| `vfs_list` | ~200 tokens | No | Files in the worker VFS |
+
+## Intent classification
+
+| Intent | Triggers | Auto-tools |
 |---|---|---|
-| Payload source code | Reads `pending_edits` Map from `editor.js` (exposed via `window.__fuwa_editor_sources`) | Read-only |
-| Compile diagnostics | Worker `stderr` captured by runtime-session.js, forwarded to AI context | Read-only |
-| Live worker execution | `plugins/ai/worker-bridge.js` adds `ai_exec` message type to the Wasmoon worker protocol. AI can request Lua snippet execution → returns stdout + return value | Sandboxed read-only |
-| DB state | Via worker execution — SQL SELECT queries run in the existing SQLite-WASM instance | Read-only |
-| Conversation history | In-memory JS array in chat.js. Cleared on page close. | Ephemeral |
+| `debug_failure` | "error", "crash", "500", "broken" | traces, terminal |
+| `explain_code` | "explain", "what does", named file | active_file |
+| `inspect_database` | "database", "schema", "rows" | db_schema |
+| `perf_analysis` | "slow", "latency", "timing" | traces |
+| `inspect_runtime` | "modules", "loaded", "vfs" | modules_list |
+| `analyze_traces` | "trace", "request", "route" | traces |
+| `general` | (fallback) | traces, active_file |
 
-The AI **cannot** modify files. It can only suggest changes. The user
-decides to apply them. This is the same safety model Cursor uses.
+## Planner prompt
+
+Short, returns JSON only. Decides if more data is needed and which tools to call.
+Uses `deepseek-v4-flash` with `response_format: { type: "json_object" }`.
+
+## Analyst prompt
+
+Takes gathered facts, returns JSON with answer, evidence, root cause, confidence.
+Same model, different system prompt.
 
 ## File structure
 
 ```
 plugins/ai/
-├── chat.js            # Chat UI, conversation state, DeepSeek API calls
-├── worker-bridge.js    # Extends runtime-worker.js with ai_exec message
-└── README.md           # This file (symlink or copy of docs/ai/design.md)
-
-docs/ai/
-└── design.md           # Architecture documentation (this file)
+├── chat.js                # Thin UI shell
+├── worker-bridge.js        # Wasmoon execution bridge
+└── tools/
+    ├── index.js            # Registry + context assembly
+    ├── classifier.js       # Local intent classification (NEW)
+    ├── orchestrator.js     # Planner/analyst loop (NEW)
+    ├── traces.js           # Summarized request traces
+    ├── terminal.js         # Error-block extraction
+    ├── sources.js          # File excerpts (on-demand only)
+    └── runtime.js          # DB schema, samples, modules, VFS
 ```
 
-## API key management
+## Key model
 
-- On first use: prompt for API key, store in `localStorage.fuwa_ai_deepseek_key`
-- Key is only sent to `api.deepseek.com` — never to any other origin
-- Clear key: type `/clear-key` in the chat input
-- Key is scoped to the browser, not the payload
+The DeepSeek API is called from the browser. The API key comes from the
+dev server via `GET /__dev/config`. No key ever stored in localStorage.
 
-## View lifecycle
-
-The AI panel follows the same lifecycle as `[data-obs-root]`:
-
-1. `workspace.js` calls `window.FuwaShellAI.mount(root)` when the ai tab
-   is selected
-2. `chat.js` creates petite-vue state, mounts into `[data-ai-root]`
-3. `window.FuwaShellAI.refresh(scope)` re-mounts on HTMX swaps
-4. `window.FuwaShellAI.unmount(root)` cleans up on tab switch
-
-## Worker bridge protocol
-
-Extends `runtime-worker.js` message handler:
-
-```
-Host → Worker:  { type: "ai_exec", code: "return 1+1" }
-Worker → Host:  { type: "ai_done", stdout: ["2"], result: 2 }
-                { type: "ai_error", error: "syntax error at line 1" }
-```
-
-The Lua snippet runs in the same Wasmoon instance with full access to:
-- VFS (via `__fuwa_vfs_read`)
-- SQLite DB (via `__fuwa_db_op`)
-- All loaded modules (via `package.loaded`)
-
-This is what gives the AI its execution capability — it can query state,
-inspect modules, and verify its own suggestions.
-
-## Future: payload-level AI (Lua stdlib)
-
-If payloads need AI access, add `plugins/runtime/stdlib/ai.lua`:
-
-```lua
-local M = {}
-function M.ask(prompt, opts)
-  -- Posts ai_request to host via postMessage bridge
-  -- Host calls DeepSeek API, returns response
-end
-return M
-```
-
-This is deferred — not needed for the initial IDE assistant.
+Model: `deepseek-v4-flash` for both planner and analyst passes.
+Endpoint: `POST https://api.deepseek.com/chat/completions`
