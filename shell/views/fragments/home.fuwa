@@ -80,10 +80,12 @@
 
     <div class="tmux-panel">
       <button class="grafana-back-btn" @click="toggleTmux()">← Back to code</button>
+      <button class="grafana-back-btn tmux-filter-btn" data-tmux-filter-btn style="right: auto; left: 14px;">errors only</button>
       <div class="tmux-grid">
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-fuwa-1" data-tmux-label="fuwa"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-1" data-tmux-label="signoz"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-ingester-1" data-tmux-label="ingester"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-otlp-bridge-1" data-tmux-label="bridge"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-clickhouse-1" data-tmux-label="clickhouse"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-keeper-1" data-tmux-label="keeper"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-vector-router-1" data-tmux-label="vector"></div>

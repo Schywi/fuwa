@@ -1,12 +1,10 @@
 (function () {
 	'use strict';
 
-	// Tmux panel: mounts xterm.js instances into each tmux-slot in the
-	// bento grid. One terminal per container. Streams docker logs via SSE.
-
 	var terminals = [];
 	var eventSources = [];
 	var mounted = false;
+	var filterErrorsOnly = false;
 
 	function log(step, detail) {
 		if (detail === undefined) {
@@ -16,22 +14,49 @@
 		console.info('[shell:tmux] ' + step, detail);
 	}
 
-	function connectLogs(term, label) {
-		if (typeof EventSource !== 'function') return;
+	function setSlotStatus(slot, status) {
+		// status: 'connecting' | 'connected' | 'disconnected' | 'error'
+		slot.setAttribute('data-tmux-status', status);
+	}
 
-		var es = new EventSource('/__dev/containers/' + label + '/logs');
+	function isErrorLine(line) {
+		var lower = line.toLowerCase();
+		return lower.indexOf('error') !== -1
+			|| lower.indexOf('warn') !== -1
+			|| lower.indexOf('fail') !== -1
+			|| lower.indexOf('fatal') !== -1
+			|| lower.indexOf('panic') !== -1
+			|| lower.indexOf('exception') !== -1
+			|| lower.indexOf('traceback') !== -1;
+	}
+
+	function connectLogs(term, container, slot) {
+		if (typeof EventSource !== 'function') {
+			term.writeln('\x1b[1;31mSSE not supported\x1b[0m');
+			setSlotStatus(slot, 'error');
+			return;
+		}
+
+		setSlotStatus(slot, 'connecting');
+		term.writeln('\x1b[1;33mconnecting...\x1b[0m');
+
+		var es = new EventSource('/__dev/containers/' + container + '/logs');
 		eventSources.push(es);
 
+		es.addEventListener('open', function () {
+			setSlotStatus(slot, 'connected');
+			term.writeln('\x1b[1;32mconnected\x1b[0m');
+		});
+
 		es.addEventListener('message', function (e) {
-			term.writeln(e.data);
+			var line = e.data;
+			if (filterErrorsOnly && !isErrorLine(line)) return;
+			term.writeln(line);
 		});
 
 		es.addEventListener('error', function () {
-			term.writeln('\x1b[1;31m[disconnected]\x1b[0m');
-		});
-
-		es.addEventListener('open', function () {
-			term.writeln('\x1b[1;32m[connected]\x1b[0m');
+			setSlotStatus(slot, 'disconnected');
+			term.writeln('\x1b[1;31mdisconnected\x1b[0m');
 		});
 	}
 
@@ -63,12 +88,11 @@
 				});
 
 				term.open(slot);
-				term.writeln('\x1b[1;35m' + label + '\x1b[0m');
+				terminals.push({ term: term, label: label, container: container, slot: slot });
 
-				terminals.push({ term: term, label: label, slot: slot });
-
-				// Connect SSE log stream
-				connectLogs(term, container);
+				setTimeout(function () {
+					connectLogs(term, container, slot);
+				}, i * 120);
 			}
 
 			mounted = true;
@@ -88,27 +112,27 @@
 		}
 		terminals = [];
 		mounted = false;
+		filterErrorsOnly = false;
 		log('unmounted');
 	}
 
-	// Mount when tmux panel opens
-	document.addEventListener('htmx:afterSwap', function () {
-		var panel = document.querySelector('.tmux-panel');
-		if (panel && panel.offsetParent !== null) {
-			mountAll();
+	function toggleFilter() {
+		filterErrorsOnly = !filterErrorsOnly;
+		var btn = document.querySelector('[data-tmux-filter-btn]');
+		if (btn) {
+			btn.textContent = filterErrorsOnly ? 'errors only ✓' : 'errors only';
+			btn.setAttribute('data-active', filterErrorsOnly ? 'true' : 'false');
 		}
-	});
-
-	// Also check on first load
-	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', function () {
-			var panel = document.querySelector('.tmux-panel');
-			if (panel && panel.offsetParent !== null) mountAll();
-		}, { once: true });
 	}
+
+	document.addEventListener('click', function (e) {
+		var btn = e.target.closest('[data-tmux-filter-btn]');
+		if (btn) { toggleFilter(); }
+	});
 
 	window.FuwaShellTmux = {
 		mountAll: mountAll,
-		unmountAll: unmountAll
+		unmountAll: unmountAll,
+		toggleFilter: toggleFilter
 	};
 })();

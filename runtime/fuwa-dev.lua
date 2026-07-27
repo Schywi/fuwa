@@ -1033,10 +1033,20 @@ local function handle_container_logs(container_name)
 	local cmd = 'docker logs -f --tail 100 ' .. container_name .. ' 2>&1'
 	local pipe = io.popen(cmd, "r")
 	if not pipe then
-		io.stdout:write("data: [tmux] could not open docker logs for " .. container_name .. "\n\n")
+		io.stdout:write("data: could not execute docker logs for " .. container_name .. "\n\n")
 		io.stdout:flush()
 		return
 	end
+
+	local first_line = pipe:read("*l")
+	if not first_line then
+		io.stdout:write("data: container " .. container_name .. " not found or not running\n\n")
+		io.stdout:flush()
+		return
+	end
+
+	io.stdout:write("data: " .. first_line .. "\n\n")
+	io.stdout:flush()
 
 	local buffer = ""
 	while true do
