@@ -25,19 +25,19 @@
         </div>
 
         <div class="stats">
-          <div class="stat-item">
+          <div class="stat-item stat-item--asset">
             <span class="stat-label">asset</span>
             <span class="stat-value">&dashboard.active.label</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item stat-item--entry">
             <span class="stat-label">entry</span>
             <span id="ide-entry-stat" class="stat-value">&dashboard.active.selected_file</span>
           </div>
-          <div class="stat-item">
+          <div class="stat-item stat-item--runtime">
             <span class="stat-label">runtime</span>
             <span id="ide-runtime-state" class="shell-status-pill" data-status="&dashboard.active.terminal_status">&dashboard.active.terminal_label</span>
           </div>
-          <div class="stat-item ide-switcher">
+          <div class="stat-item stat-item--switch ide-switcher">
             <span class="stat-label">switch</span>
             <select class="shell-select" data-switch-select data-switch-current="&dashboard.active.switch_route" aria-label="Switch payload">
               <option
@@ -73,7 +73,7 @@
         </div>
         <pre id="ide-terminal-seed" hidden data-terminal-seed>&dashboard.active.terminal_output</pre>
       </div>
-      <div class="ide-preview-block ide-preview-block--obs" data-obs-root>
+      <div class="ide-preview-block ide-preview-block--obs" data-obs-root v-pre>
         <div class="stage-header">
           <span class="stage-title">Observability</span>
           <span class="stage-subtitle">live request console</span>
