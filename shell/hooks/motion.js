@@ -128,11 +128,11 @@
 	/* ── Typewriter header tips ──────────────────────────────────────── */
 
 	var typewriterTips = [
-		'⌘K opens the file launcher — type to filter, ↵ to open',
-		'Switch payloads to see different apps in the phone preview',
-		'Edits compile automatically — watch the terminal for output',
-		'Click Grafana ↗ to inspect runtime traces and metrics',
-		'The phone preview runs a live Wasmoon runtime in your browser'
+		{ text: '⌘K opens the file launcher — type to filter, ↵ to open', kao: '(˶˃⤙˂˶)' },
+		{ text: 'Switch payloads to see different apps in the phone preview', kao: '( •ω•)ﾉ' },
+		{ text: 'Edits compile automatically — watch the terminal for output', kao: '(=`ω´=)' },
+		{ text: 'Click Grafana ↗ to inspect runtime traces and metrics', kao: '(˘ω˘)' },
+		{ text: 'The phone preview runs a live Wasmoon runtime in your browser', kao: '( ˘▽˘)っ' }
 	];
 
 	var typewriterTimer = null;
@@ -148,11 +148,12 @@
 		el.classList.add('typewriter-active');
 
 		var tip = typewriterTips[typewriterTipIndex];
+		var fullText = tip.text + '  ' + tip.kao;
 
 		if (typewriterPhase === 'typing') {
 			typewriterCharIndex++;
-			el.textContent = tip.substring(0, typewriterCharIndex);
-			if (typewriterCharIndex >= tip.length) {
+			el.textContent = fullText.substring(0, typewriterCharIndex);
+			if (typewriterCharIndex >= fullText.length) {
 				typewriterPhase = 'holding';
 				typewriterTimer = setTimeout(typewriterTick, 4000);
 				return;
@@ -163,7 +164,7 @@
 			typewriterTimer = setTimeout(typewriterTick, 18);
 		} else if (typewriterPhase === 'deleting') {
 			typewriterCharIndex--;
-			el.textContent = tip.substring(0, typewriterCharIndex);
+			el.textContent = fullText.substring(0, typewriterCharIndex);
 			if (typewriterCharIndex <= 0) {
 				typewriterPhase = 'typing';
 				typewriterTipIndex = (typewriterTipIndex + 1) % typewriterTips.length;
