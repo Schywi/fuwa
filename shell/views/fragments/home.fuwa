@@ -1,6 +1,5 @@
 <section id="shell-content" class="shell-content">
   <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()">
-    <!-- ── Film strip ──────────────────────────────────────────── -->
     <nav class="ide-film-strip" aria-label="Payload files">
       <div class="film-strip-head">
         <div class="film-strip-project" data-film-strip-project>&dashboard.active.label</div>
@@ -37,7 +36,6 @@
       </div>
     </nav>
 
-    <!-- ── Preview zone ────────────────────────────────────────── -->
     <section class="ide-preview-zone">
       <div
         class="ide-preview-stage"
@@ -52,7 +50,6 @@
       </div>
     </section>
 
-    <!-- ── Right panel ─────────────────────────────────────────── -->
     <div class="ide-panel">
       <header class="ide-header">
         <div class="owner">
