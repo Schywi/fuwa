@@ -1,14 +1,6 @@
 <section id="shell-content" class="shell-content">
   <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()">
     <section class="ide-island ide-preview-island">
-      <div class="ide-preview-head">
-        <div>
-          <p class="shell-kicker">&dashboard.preview_heading</p>
-          <p class="ide-preview-note">&dashboard.preview_note</p>
-        </div>
-        <div class="shell-badge">Browser runtime</div>
-      </div>
-
       <div
         class="ide-preview-stage"
         data-preview-stage
@@ -19,10 +11,6 @@
         data-bundle-url="&dashboard.active.bundle_url"
       >
         &unsafe dashboard.preview_html
-      </div>
-
-      <div class="ide-preview-foot">
-        <div class="shell-badge">In-memory live session</div>
       </div>
     </section>
 
