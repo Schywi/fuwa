@@ -160,7 +160,7 @@
 		filterErrorsOnly = !filterErrorsOnly;
 		var btn = document.querySelector('[data-tmux-filter-btn]');
 		if (btn) {
-			btn.textContent = filterErrorsOnly ? 'errors only ✓' : 'errors only';
+			btn.textContent = filterErrorsOnly ? 'Errors only ✓' : 'Errors only';
 			btn.setAttribute('data-active', filterErrorsOnly ? 'true' : 'false');
 		}
 		if (!mounted) return;

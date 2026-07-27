@@ -1304,7 +1304,7 @@
       .tmux-slot[data-tmux-status="disconnected"]::before { color: rgba(248, 113, 113, 0.95); }
       .tmux-slot[data-tmux-status="error"]::before { color: rgba(248, 113, 113, 0.95); }
 
-      .tmux-filter-btn { font-size: 0.56rem; padding: 0 10px; height: 24px; }
+      .tmux-filter-btn { font-size: 0.82rem; padding: 0 14px; height: 32px; }
       .tmux-filter-btn[data-active="true"] { color: var(--accent-strong); border-color: var(--accent-soft); }
 
       @media (max-width: 900px) {
