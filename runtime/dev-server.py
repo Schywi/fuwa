@@ -24,6 +24,8 @@ import queue
 from collections import deque
 from pathlib import Path
 
+import vector_ingest
+
 
 ROOT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 LUA_BIN = os.environ.get("LUA_BIN", "lua5.4")
@@ -138,7 +140,7 @@ def add_trace(event_json: str) -> None:
         event["_ts"] = time.time()
         event_json = json.dumps(event)
     except (json.JSONDecodeError, TypeError):
-        pass
+        return
     with _trace_lock:
         _trace_buffer.append(event_json)
     with _trace_subscribers_lock:
@@ -155,6 +157,12 @@ def add_trace(event_json: str) -> None:
                 subscriber.put_nowait(event_json)
             except queue.Full:
                 pass
+
+    # Forward to Vector/OTLP ingestion pipeline (Architecture B)
+    try:
+        vector_ingest.ingest_event(event)
+    except Exception:
+        pass  # ingestion failures must not crash the dev server
 
 
 def _stderr_reader(proc: subprocess.Popen) -> None:
@@ -423,6 +431,8 @@ def main() -> None:
 
     threading.Thread(target=file_watcher, daemon=True, name="file-watcher").start()
 
+    vector_ingest.start()
+
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     server.bind(("127.0.0.1", port))
@@ -450,6 +460,7 @@ def main() -> None:
             if _running:
                 raise
 
+    vector_ingest.shutdown()
     server.close()
     print("fuwa dev server stopped.")
 

@@ -11,7 +11,7 @@ ACCEPTANCE_TESTS = tests/acceptance.lua
 # Needs python3 (the sqlite_local provider shells out to a python helper).
 INTEGRATION_TESTS = tests/dev_server_smoke.lua
 
-.PHONY: help test test-unit test-smoke test-acceptance test-integration compile-check lint
+.PHONY: help test test-unit test-smoke test-acceptance test-integration test-python compile-check lint
 
 help:
 	@echo "Targets:"
@@ -21,6 +21,7 @@ help:
 	@echo "  test-smoke        compiler + shell smoke checks"
 	@echo "  test-acceptance   acceptance suites"
 	@echo "  test-integration  dev server smoke (needs python3)"
+	@echo "  test-python       Python unit tests (vector_ingest)"
 	@echo "  test              everything, fail-fast, cheapest first"
 
 # Stage 1 — does every Lua file even parse? loadfile parse-checks without running.
@@ -50,6 +51,11 @@ test-acceptance:
 test-integration:
 	@for f in $(INTEGRATION_TESTS); do echo ">> $$f"; $(LUA) $$f || exit 1; done
 
+# Python unit tests (vector_ingest bridge).
+test-python:
+	@echo ">> Python unit tests"
+	@cd $(CURDIR) && python3 -m unittest tests.unit.test_vector_ingest -v || exit 1
+
 # Everything, cheapest first so a parse error fails in seconds, not minutes.
-test: compile-check test-unit test-smoke test-acceptance test-integration
+test: compile-check test-unit test-smoke test-acceptance test-integration test-python
 	@echo "ALL TESTS PASSED"
