@@ -1,12 +1,9 @@
 (function () {
 	'use strict';
 
-	// AI assistant chat panel.  Follows the same IIFE + global-registration
-	// pattern as shell/hooks/observability.js.  Mounts into [data-ai-root]
-	// when the workspace tab is selected.
-	//
-	// Dependencies: petite-vue (for reactive state), editor.js (for
-	// window.FuwaShellEditor.pendingEdits to read payload source).
+	// Read-only AI assistant.  Reads source files and runtime data through
+	// categorized tools (plugins/ai/tools/*.js).  Cannot modify code.
+	// The API key comes exclusively from the dev server via /__dev/config.
 
 	var ROOT_SELECTOR = '[data-ai-root]';
 	var DEEPSEEK_URL = 'https://api.deepseek.com/chat/completions';
@@ -29,7 +26,6 @@
 			context_summary: '',
 			api_key: '',
 			token_count: 0,
-			has_server_config: false,
 		};
 	}
 
@@ -39,23 +35,6 @@
 			? window.PetiteVue.reactive(blankState())
 			: blankState();
 		return state;
-	}
-
-	// ── server config ────────────────────────────────────────────────────
-
-	function loadConfig() {
-		fetch('/__dev/config')
-			.then(function (r) { return r.json(); })
-			.then(function (config) {
-				var server_key = config.DEEP_SEEK_API;
-				if (server_key) {
-					setState({ api_key: server_key, has_server_config: true });
-				}
-			})
-			.catch(function () {
-				// /__dev/config only exists when dev server is running;
-				// without it, the AI tab shows instructions for setting up .env
-			});
 	}
 
 	// ── helpers ──────────────────────────────────────────────────────────
@@ -69,84 +48,6 @@
 		window.FuwaObservability && window.FuwaObservability.log('shell:ai', msg, detail);
 	}
 
-	function readSources() {
-		var editor = window.FuwaShellEditor;
-		if (!editor || !(editor.pendingEdits instanceof Map)) return {};
-
-		var files = {};
-		editor.pendingEdits.forEach(function (content, path) {
-			files[path] = content;
-		});
-
-		// Also check hidden inputs for files not yet opened in editor
-		var form = document.getElementById('ide-editor-form');
-		if (form) {
-			var pathInput = form.querySelector('input[name="path"]');
-			var contentsInput = form.querySelector('input[name="contents"]');
-			if (pathInput && contentsInput && pathInput.value) {
-				var path = pathInput.value;
-				if (!files[path]) {
-					files[path] = contentsInput.value;
-				}
-			}
-		}
-
-		return files;
-	}
-
-	function estimateTokens(text) {
-		// Rough: ~4 chars per token for English text.  Good enough for
-		// a context-size gauge.
-		var total = 0;
-		if (typeof text === 'string') total += Math.ceil(text.length / 4);
-		if (state) {
-			state.messages.forEach(function (m) {
-				total += Math.ceil((m.content || '').length / 4);
-			});
-		}
-		return total;
-	}
-
-	function buildSystemPrompt(files) {
-		var file_list = Object.keys(files).sort();
-		if (file_list.length === 0) {
-			return 'You are a helpful coding assistant for the fuwa web framework. '
-				+ 'Fuwa compiles .fuwa files (a Ruby-like DSL) to Lua and runs them in '
-				+ 'a browser-based Wasmoon (Lua 5.4) VM with SQLite storage. '
-				+ 'No payload source files are currently open. Ask the user to open some files.';
-		}
-
-		var prompt = 'You are a helpful coding assistant for the fuwa web framework.\n\n';
-		prompt += 'Fuwa is a full-stack web framework that runs entirely in the browser: '
-			+ '.fuwa source files compile to Lua, execute in a Wasmoon (Lua 5.4) Web Worker, '
-			+ 'and persist state in SQLite-WASM. The frontend uses htmx + petite-vue + UnoCSS.\n\n';
-		prompt += 'Here are the current payload source files:\n\n';
-
-		file_list.forEach(function (path) {
-			var content = files[path];
-			prompt += '### ' + path + '\n```lua\n' + content + '\n```\n\n';
-		});
-
-		prompt += 'When answering:\n';
-		prompt += '- Reference specific files by name.\n';
-		prompt += '- If suggesting code changes, wrap them in ```lua blocks with the file path as a comment on the first line, e.g. ```lua\n-- app.fuwa\n';
-		prompt += '- Prefer concrete, minimal changes over rewrites.\n';
-		prompt += '- If you need more context, ask.';
-
-		return prompt;
-	}
-
-	function buildContextLabel() {
-		var files = readSources();
-		var keys = Object.keys(files);
-		if (keys.length === 0) return 'No files open';
-		var total_lines = 0;
-		keys.forEach(function (k) {
-			total_lines += (files[k] || '').split('\n').length;
-		});
-		return keys.length + ' files \u00b7 ' + total_lines + ' lines';
-	}
-
 	function setState(updates) {
 		var s = createState();
 		Object.keys(updates).forEach(function (k) {
@@ -154,30 +55,78 @@
 		});
 	}
 
+	function buildContextSummary() {
+		var tools = window.FuwaAITools;
+		if (!tools || !tools.list) return '';
+		var entries = tools.list();
+		if (entries.length === 0) return 'No data sources available';
+		return entries.length + ' data sources ready';
+	}
+
+	// ── server config ────────────────────────────────────────────────────
+
+	function loadConfig() {
+		fetch('/__dev/config')
+			.then(function (r) { return r.json(); })
+			.then(function (config) {
+				var server_key = config.DEEP_SEEK_API;
+				if (server_key) {
+					setState({ api_key: server_key });
+				}
+			})
+			.catch(function () {
+				// /__dev/config only exists when dev server is running
+			});
+
+		// Prefetch traces in the background
+		if (window.FuwaAITools && window.FuwaAITools.prefetch) {
+			window.FuwaAITools.prefetch();
+		}
+	}
+
+	// ── system prompt builder ────────────────────────────────────────────
+
+	function buildSystemPrompt(userMessage) {
+		var tools = window.FuwaAITools;
+		var ctx = tools && tools.buildContext ? tools.buildContext(userMessage) : { context: '', tools_ref: '', requested_tools: [] };
+
+		var prompt = [
+			'You are a READ-ONLY assistant for the fuwa web framework.',
+			'',
+			'Fuwa is a full-stack web framework that runs entirely in the browser: .fuwa source files compile to Lua, execute in a Wasmoon (Lua 5.4) Web Worker, and persist state in SQLite-WASM. The frontend uses htmx + petite-vue + UnoCSS.',
+			'',
+			'RULES:',
+			'- You CANNOT modify code. Explain, analyze, and suggest only.',
+			'- Reference specific files by name.',
+			'- If you need more context, ask the user to check a specific tool.',
+			'- Keep answers concise and actionable.',
+			'',
+			ctx.tools_ref,
+			'',
+			ctx.context,
+		].join('\n');
+
+		return { prompt: prompt, requested_tools: ctx.requested_tools };
+	}
+
 	// ── DeepSeek API ────────────────────────────────────────────────────
 
-	function buildMessages(userMessage) {
-		var files = readSources();
-		var system = buildSystemPrompt(files);
+	function buildMessages(userMessage, systemPrompt) {
+		var msgs = [{ role: 'system', content: systemPrompt }];
 
-		var msgs = [{ role: 'system', content: system }];
-
-		// Last N conversation turns (omit system prompt from history)
+		// Last N conversation turns
 		var recent = state.messages.slice(-10);
 		recent.forEach(function (m) {
 			msgs.push({ role: m.role, content: m.content });
 		});
 
 		msgs.push({ role: 'user', content: userMessage });
-
 		return msgs;
 	}
 
 	function handleStreamLine(line, buffer) {
 		if (!line || line.trim() === '') return;
-
 		if (line === 'data: [DONE]') return;
-
 		if (!line.startsWith('data: ')) return;
 
 		var json_str = line.slice(6);
@@ -186,11 +135,18 @@
 			var delta = parsed.choices && parsed.choices[0] && parsed.choices[0].delta;
 			if (delta && delta.content) {
 				buffer.content += delta.content;
-				setState({ streaming_content: buffer.content, token_count: estimateTokens(buffer.content) });
+				setState({ streaming_content: buffer.content });
 			}
 		} catch (e) {
 			// skip malformed lines
 		}
+	}
+
+	async function collectOnDemandContext(requested_tools) {
+		if (!requested_tools || requested_tools.length === 0) return '';
+		var tools = window.FuwaAITools;
+		if (!tools || !tools.collectOnDemand) return '';
+		return tools.collectOnDemand(requested_tools);
 	}
 
 	async function sendMessage(userMessage) {
@@ -201,11 +157,25 @@
 			return;
 		}
 
-		var s = createState();
 		s.messages.push({ role: 'user', content: userMessage, id: 'u' + Date.now() });
-		setState({ loading: true, error: null, streaming_content: '', context_summary: buildContextLabel() });
+		setState({ loading: true, error: null, streaming_content: '', context_summary: buildContextSummary() });
 
-		var msgs = buildMessages(userMessage);
+		var built = buildSystemPrompt(userMessage);
+		var msgs = buildMessages(userMessage, built.prompt);
+
+		// Collect on-demand data (DB, modules, terminal) if triggered
+		if (built.requested_tools.length > 0) {
+			try {
+				var extra = await collectOnDemandContext(built.requested_tools);
+				if (extra) {
+					// Append to system prompt
+					msgs[0].content = msgs[0].content + '\n\n' + extra;
+				}
+			} catch (e) {
+				log('on-demand collect error', e.message);
+			}
+		}
+
 		var buffer = { content: '' };
 
 		try {
@@ -246,12 +216,10 @@
 				});
 			}
 
-			// Process any remaining data
 			if (leftover.trim()) {
 				handleStreamLine(leftover, buffer);
 			}
 
-			// Finalize
 			if (buffer.content) {
 				s.messages.push({ role: 'assistant', content: buffer.content, id: 'a' + Date.now() });
 			} else {
@@ -279,90 +247,11 @@
 		sendMessage(text);
 	}
 
-
-
 	function handleKeydown(event) {
 		if (event.key === 'Enter' && !event.shiftKey) {
 			event.preventDefault();
 			handleSend();
 		}
-	}
-
-	// ── apply suggestion ─────────────────────────────────────────────────
-
-	function resolveFilePath(first_line) {
-		var match = first_line.match(/^--\s*(\S+)/);
-		if (match) return match[1];
-		// Fallback: current open file
-		var form = document.getElementById('ide-editor-form');
-		if (form) {
-			var pathInput = form.querySelector('input[name="path"]');
-			if (pathInput && pathInput.value) return pathInput.value;
-		}
-		return null;
-	}
-
-	function previewAndApply(code_block) {
-		var lines = code_block.split('\n');
-		var first_line = lines[0] || '';
-		var file_path = resolveFilePath(first_line);
-
-		if (file_path && first_line.match(/^--\s*\S+/)) {
-			lines.shift(); // Remove the comment line
-		}
-
-		var content = lines.join('\n').trim();
-		if (!content) {
-			log('apply: empty content');
-			return;
-		}
-
-		if (!file_path) {
-			alert('Could not determine which file to apply to.\nAdd a -- filename.fuwa comment on the first line of the code block.');
-			return;
-		}
-
-		// Show preview and ask for confirmation
-		var line_count = content.split('\n').length;
-		var preview = content.length > 300 ? content.slice(0, 300) + '\n...' : content;
-		var ok = confirm(
-			'Apply this change to ' + file_path + '?' +
-			'\n\n' + line_count + ' lines:\n\n' + preview +
-			'\n\nClick OK to apply, Cancel to skip.'
-		);
-		if (!ok) return;
-
-		// Find and switch to the file
-		var editor = window.FuwaShellEditor;
-		if (!editor || typeof editor.switchFile !== 'function') {
-			log('apply: editor not available');
-			return;
-		}
-
-		var root = document.querySelector('[data-editor-root]');
-		if (root) {
-			editor.switchFile(root, file_path, content);
-			log('apply: switched to ' + file_path, {lines: line_count});
-		}
-	}
-
-	function extractAllCodeBlocks(text) {
-		// Match all ```lua or ``` blocks. Handles \r\n, optional newline
-		// after opening fence, and returns {code, language} for each.
-		var blocks = [];
-		var re = /```(\w*)\s*\r?\n([\s\S]*?)```/g;
-		var match;
-		while ((match = re.exec(text)) !== null) {
-			blocks.push({
-				code: match[2].trimEnd(),
-				language: match[1] || 'plain'
-			});
-		}
-		return blocks;
-	}
-
-	function hasCodeBlocks(text) {
-		return extractAllCodeBlocks(text).length > 0;
 	}
 
 	// ── lifecycle ────────────────────────────────────────────────────────
@@ -380,22 +269,18 @@
 			return;
 		}
 
-		// Each mount gets a fresh reactive state singleton
 		state = createState();
 		app = window.PetiteVue.createApp({
 			state: state,
 			handleSend: handleSend,
 			handleKeydown: handleKeydown,
-			previewAndApply: previewAndApply,
-			extractAllCodeBlocks: extractAllCodeBlocks,
-			hasCodeBlocks: hasCodeBlocks,
 		});
 		app.mount(root);
 		mounted_roots.add(root);
 		root.setAttribute('data-widget-state', 'mounted');
 
 		loadConfig();
-		setState({ context_summary: buildContextLabel() });
+		setState({ context_summary: buildContextSummary() });
 	}
 
 	function unmount(root) {
@@ -420,7 +305,6 @@
 		selector: ROOT_SELECTOR,
 	};
 
-	// Wire into htmx lifecycle
 	document.addEventListener('htmx:beforeSwap', function (e) {
 		var s = e.detail && e.detail.target;
 		var roots = (s && s.querySelectorAll) ? s.querySelectorAll(ROOT_SELECTOR) : [];

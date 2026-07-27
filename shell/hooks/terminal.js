@@ -260,6 +260,19 @@
 		write,
 		clear,
 		dispose,
+		readLines: function (session_id, count) {
+			var session = sessions.get(session_id);
+			if (!session) return '';
+			var buffer = session.terminal.buffer.active;
+			var total = buffer.length;
+			var start = Math.max(0, total - (count || 20));
+			var lines = [];
+			for (var i = start; i < total; i++) {
+				var line = buffer.getLine(i);
+				if (line) lines.push(line.translateToString());
+			}
+			return lines.join('\n');
+		},
 		selector: ROOT_SELECTOR
 	};
 
