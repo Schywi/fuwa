@@ -91,15 +91,42 @@ local function build_payload_card(host, payload_id, selected_file)
 	local files = descriptor.files or host.list_payload_files(payload_id) or {}
 	local file_name = choose_selected_file(files, selected_file)
 	local file_source = file_name and host.read_payload_file(payload_id, file_name) or ""
+
+	-- Sort files by path for predictable grouping
+	table.sort(files)
+
+	-- Build file list with folder headers inserted between directory groups
 	local file_items = {}
+	local last_dir = nil
 	for _, path in ipairs(files) do
+		local dir = dirname(path)
+		local indent = 0
+		if dir ~= "" then
+			-- Count directory depth by counting "/" separators
+			for _ in dir:gmatch("/") do indent = indent + 1 end
+		end
+
+		-- Insert folder header when directory changes
+		if dir ~= last_dir then
+			last_dir = dir
+			if dir ~= "" then
+				file_items[#file_items + 1] = {
+					is_folder_header = true,
+					label = dir .. "/",
+					indent_level = indent - 1,
+					path = "",
+					name = "",
+				}
+			end
+		end
+
 		file_items[#file_items + 1] = {
 			path = path,
 			name = basename(path),
-			directory = dirname(path),
-			directory_label = dirname(path) ~= "" and (dirname(path) .. "/") or "root entry",
+			indent_level = indent,
 			kind_label = file_kind_label(path),
 			selected = path == file_name,
+			is_folder_header = false,
 			inspect_url = "/inspect/" .. encode_query_component(payload_id) .. "?file=" .. encode_query_component(path),
 		}
 	end

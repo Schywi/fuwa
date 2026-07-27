@@ -34,12 +34,23 @@
         <input type="text" data-popover-search placeholder="Jump to file…" aria-label="Filter files" />
       </div>
       <div class="popover-list" role="listbox">
+        <div
+          f-for="file in dashboard.active.files"
+          f-if="file.is_folder_header"
+          class="popover-folder-header"
+          style="padding-left: calc(10px + &file.indent_level * 14px)"
+          data-folder-header
+        >
+          <span class="popover-folder-header-label">&file.label</span>
+        </div>
         <button
           f-for="file in dashboard.active.files"
+          f-if="not file.is_folder_header"
           type="button"
           class="popover-row-command"
           data-selected="&file.selected"
           data-file-path="&file.path"
+          style="padding-left: calc(10px + &file.indent_level * 14px)"
           @click="closePopover()"
           hx-get="&file.inspect_url"
           hx-target="#ide-workspace"
@@ -47,7 +58,6 @@
         >
           <span class="popover-row-command-main">
             <span class="popover-row-command-title">&file.name</span>
-            <span class="popover-row-command-meta">&file.directory_label</span>
           </span>
           <span class="popover-row-command-kind">&file.kind_label</span>
         </button>

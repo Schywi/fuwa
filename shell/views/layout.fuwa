@@ -697,6 +697,26 @@
         color: #8f97bb;
       }
 
+      .popover-folder-header {
+        display: flex;
+        align-items: center;
+        min-height: 22px;
+        padding: 0 10px;
+        font-size: 0.58rem;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: rgba(255, 255, 255, 0.22);
+        pointer-events: none;
+        user-select: none;
+      }
+
+      .popover-folder-header-label {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
       .popover-row-command {
         display: flex;
         align-items: center;

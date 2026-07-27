@@ -73,6 +73,20 @@
 			row.hidden = needle !== '' && !row.dataset.filePath.toLowerCase().includes(needle);
 			row.removeAttribute('data-focused');
 		}
+		// Hide folder headers when all their files are filtered out
+		const children = Array.from(popover.children);
+		let current_header = null;
+		let visible_in_group = false;
+		for (const child of children) {
+			if (child.hasAttribute('data-folder-header')) {
+				if (current_header) current_header.hidden = needle !== '' && !visible_in_group;
+				current_header = child;
+				visible_in_group = false;
+			} else if (child.hasAttribute('data-file-path')) {
+				if (!child.hidden) visible_in_group = true;
+			}
+		}
+		if (current_header) current_header.hidden = needle !== '' && !visible_in_group;
 	}
 
 	function focusRow(popover, index) {
