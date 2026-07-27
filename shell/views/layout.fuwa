@@ -197,7 +197,8 @@
         box-shadow: none;
         backdrop-filter: none;
         aspect-ratio: auto;
-        overflow: visible;
+        overflow: hidden;
+        min-height: 0;
       }
 
       .ide-preview-island--right::before {
