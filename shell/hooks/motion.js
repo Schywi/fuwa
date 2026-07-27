@@ -125,20 +125,6 @@
 		log('develop:started');
 	}
 
-	/* ── Develop button pulse ───────────────────────────────────────── */
-	function setDeveloping(is_developing) {
-		var btn = document.querySelector('[data-develop-btn]');
-		if (!btn) { return; }
-
-		if (is_developing) {
-			btn.setAttribute('data-state', 'developing');
-			btn.textContent = 'Developing...';
-		} else {
-			btn.removeAttribute('data-state');
-			btn.textContent = 'Develop';
-		}
-	}
-
 	/* ── Boot ───────────────────────────────────────────────────────── */
 
 	function boot() {
@@ -156,11 +142,10 @@
 		boot();
 	}
 
-	// Re-run loader on shell-content swaps (payload switches)
+	// Develop preview on shell-content swaps (payload switches)
 	document.addEventListener('htmx:afterSwap', function (event) {
 		var target = event.detail?.target || event.detail?.elt;
 		if (target instanceof Element && target.id === 'shell-content') {
-			// Don't re-run the full curtain loader, but develop the preview
 			var stage = document.querySelector('[data-preview-stage]');
 			if (stage) {
 				setTimeout(function () { developPreview(stage); }, 100);
@@ -168,41 +153,8 @@
 		}
 	});
 
-	// Wire DEVELOP button click
-	document.addEventListener('click', function (event) {
-		var btn = event.target instanceof Element ? event.target.closest('[data-develop-btn]') : null;
-		if (!btn) { return; }
-
-		setDeveloping(true);
-		var stage = document.querySelector('[data-preview-stage]');
-		developPreview(stage);
-
-		// Trigger a preview refresh if available
-		if (window.FuwaShellPreview && typeof window.FuwaShellPreview.refresh === 'function') {
-			window.FuwaShellPreview.refresh().then(function () {
-				setDeveloping(false);
-				developPreview(stage);
-			}).catch(function () {
-				setDeveloping(false);
-			});
-		} else {
-			setTimeout(function () { setDeveloping(false); }, 1200);
-		}
-	});
-
-	// Listen for editor changes to trigger mini-develop
-	document.addEventListener('fuwa:editor-change', function () {
-		// Only do a quick develop pulse if not already developing
-		var btn = document.querySelector('[data-develop-btn]');
-		if (btn && !btn.hasAttribute('data-state')) {
-			setDeveloping(true);
-			setTimeout(function () { setDeveloping(false); }, 800);
-		}
-	});
-
 	window.FuwaShellMotion = {
 		developPreview: developPreview,
-		setDeveloping: setDeveloping,
 		runLoader: runLoader
 	};
 })();
