@@ -79,7 +79,7 @@
 
       .shell-content {
         height: 92vh;
-        width: min(1060px, 96vw);
+        width: min(1160px, 96vw);
       }
 
       .shell-kicker {
