@@ -335,19 +335,6 @@
 		booted = true;
 		log('boot:mount-shell', describeScope(shell));
 		mount(shell);
-
-		// Mount terminal and observability in right island blocks
-		setTimeout(function () {
-			if (window.FuwaShellTerminal) {
-				window.FuwaShellTerminal.refresh(document);
-			}
-			if (window.FuwaShellObservability) {
-				var obsRoot = document.querySelector('[data-obs-root]');
-				if (obsRoot) {
-					window.FuwaShellObservability.mount(obsRoot);
-				}
-			}
-		}, 50);
 	}
 
 	workspace_state = createState();
@@ -386,16 +373,5 @@
 		});
 		initialize(target);
 		mount(target);
-
-		// Mount terminal and observability in right island blocks
-		if (window.FuwaShellTerminal) {
-			window.FuwaShellTerminal.refresh(document);
-		}
-		if (window.FuwaShellObservability) {
-			var obsRoot = document.querySelector('[data-obs-root]');
-			if (obsRoot) {
-				window.FuwaShellObservability.mount(obsRoot);
-			}
-		}
 	});
 })();

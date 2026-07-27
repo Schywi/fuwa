@@ -80,7 +80,7 @@
 
       .shell-content {
         height: 92vh;
-        width: min(1160px, 96vw);
+        width: min(1210px, 96vw);
       }
 
       .shell-kicker {
@@ -184,6 +184,7 @@
       }
 
       .ide-preview-island--right {
+        width: min(345px, 44vw);
         display: flex;
         flex-direction: column;
         gap: 5px;

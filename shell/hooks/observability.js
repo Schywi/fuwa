@@ -262,7 +262,10 @@
 	});
 	document.addEventListener('htmx:afterSwap', function (e) {
 		var s = e.detail && e.detail.target;
-		var roots = (s && s.querySelectorAll) ? s.querySelectorAll(ROOT_SELECTOR) : document.querySelectorAll(ROOT_SELECTOR);
+		// Only remount obs roots that are inside the swapped target.
+		// Obs roots outside (e.g. in shell-content) self-boot and persist.
+		if (!(s && s.querySelectorAll)) return;
+		var roots = s.querySelectorAll(ROOT_SELECTOR);
 		for (var i = 0; i < roots.length; i++) { if (!roots[i].hidden) mount(roots[i]); }
 	});
 
