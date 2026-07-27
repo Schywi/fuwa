@@ -56,13 +56,12 @@ class DashboardShapeTests(unittest.TestCase):
 
 
 class PayloadQualificationTests(unittest.TestCase):
-    def test_qualify_payload_keeps_flat_top_level_shape(self):
+    def test_qualify_payload_emits_widget_layout_dashboard_shape(self):
         payload = bootstrap.qualify_payload(
             {
                 "title": "Fuwa Overview",
                 "description": "overview",
                 "tags": ["fuwa"],
-                "spec": {"panels": []},
             }
         )
 
@@ -70,6 +69,11 @@ class PayloadQualificationTests(unittest.TestCase):
         self.assertEqual(payload["description"], "overview")
         self.assertIn("uploadedGrafana", payload)
         self.assertEqual(payload["version"], "v5")
+        self.assertIn("layout", payload)
+        self.assertIn("widgets", payload)
+        self.assertEqual(len(payload["layout"]), 3)
+        self.assertEqual(len(payload["widgets"]), 3)
+        self.assertNotIn("spec", payload)
         self.assertNotIn("data", payload)
 
     def test_build_create_payload_omits_nested_dashboard_data(self):
@@ -77,7 +81,7 @@ class PayloadQualificationTests(unittest.TestCase):
             {
                 "title": "Fuwa Overview",
                 "description": "overview",
-                "spec": {"panels": [{"title": "hello"}]},
+                "widgets": [{"title": "hello"}],
                 "uploadedGrafana": False,
                 "version": "v5",
             }
@@ -92,6 +96,19 @@ class PayloadQualificationTests(unittest.TestCase):
                 "version": "v5",
             },
         )
+
+    def test_qualify_payload_keeps_real_widget_dashboards(self):
+        payload = bootstrap.qualify_payload(
+            {
+                "title": "Existing",
+                "description": "ok",
+                "layout": [{"i": "abc", "w": 4, "h": 4, "x": 0, "y": 0}],
+                "widgets": [{"id": "abc", "title": "hello"}],
+            }
+        )
+
+        self.assertEqual(payload["layout"][0]["i"], "abc")
+        self.assertEqual(payload["widgets"][0]["id"], "abc")
 
 
 if __name__ == "__main__":

@@ -12,6 +12,7 @@ import time
 from copy import deepcopy
 from pathlib import Path
 from urllib import request, error
+from uuid import uuid4
 
 SIGNOZ_URL = os.getenv("SIGNOZ_URL", "http://signoz:8080/dash/signoz")
 SEEDS_DIR = Path(os.getenv("SEEDS_DIR", "/seeds/dashboards"))
@@ -158,24 +159,25 @@ def map_existing_dashboards(existing):
 
 def qualify_payload(payload):
     """
-    Patch minimal seed payloads with a complete SigNoz v2 dashboard structure.
+    Patch minimal seed payloads with a complete SigNoz dashboard structure.
     
     A JSON seed can be sparse (just title + tags).  This function fills in a 
     sensible default spec if none exists, so seeds don't need to carry the 
     whole schema.
     """
     data = deepcopy(payload.get("data", payload))
-    spec = data.get("spec")
-    if spec and spec.get("panels"):
+    if data.get("widgets") and data.get("layout"):
         qualified = data
     else:
-    # Attach a minimal set of panels based on the dashboard title
         title = data.get("title", "")
-        data["spec"] = {"panels": _panels_for_title(title)}
-        qualified = data
+        qualified = build_dashboard_payload(title, data.get("description", ""), data.get("tags", []))
 
     qualified.setdefault("uploadedGrafana", False)
     qualified.setdefault("version", "v5")
+    qualified.setdefault("panelMap", {})
+    qualified.setdefault("variables", {})
+    qualified.setdefault("dotMigrated", True)
+    qualified.setdefault("uuid", str(uuid4()))
     return qualified
 
 
@@ -188,78 +190,194 @@ def build_create_payload(payload):
     }
 
 
-def _panels_for_title(title: str) -> list:
-    """Return a list of default panel specs for a given dashboard title."""
+def _default_filter(include_route: bool = False, error_only: bool = False) -> str:
+    filters = ["serviceName EXISTS", "spanKind = 'Server'"]
+    if include_route:
+        filters.append("httpRoute EXISTS")
+    if error_only:
+        filters.append("statusCode = 'STATUS_CODE_ERROR'")
+    return " AND ".join(filters)
+
+
+def _widget(panel_type: str, title: str, query_data: list[dict], *,
+            width: int, height: int, x: int, y: int,
+            y_axis_unit: str = "none") -> tuple[dict, dict]:
+    widget_id = str(uuid4())
+    widget = {
+        "id": widget_id,
+        "title": title,
+        "description": "",
+        "panelTypes": panel_type,
+        "timePreferance": "GLOBAL_TIME",
+        "yAxisUnit": y_axis_unit,
+        "nullZeroValues": "zero",
+        "opacity": "1",
+        "isStacked": False,
+        "mergeAllActiveQueries": False,
+        "fillSpans": False,
+        "stackedBarChart": False,
+        "softMin": 0,
+        "softMax": 0,
+        "bucketCount": 30,
+        "bucketWidth": 0,
+        "thresholds": [],
+        "selectedLogFields": [
+            {"name": "body", "type": "", "dataType": "string"},
+            {"name": "timestamp", "type": "", "dataType": "string"},
+        ],
+        "selectedTracesFields": [
+            {"key": "serviceName", "dataType": "string", "isColumn": True, "isJSON": False, "type": "tag"},
+            {"key": "name", "dataType": "string", "isColumn": True, "isJSON": False, "type": "tag"},
+            {"key": "durationNano", "dataType": "float64", "isColumn": True, "isJSON": False, "type": "tag"},
+            {"key": "httpMethod", "dataType": "string", "isColumn": True, "isJSON": False, "type": "tag"},
+            {"key": "httpRoute", "dataType": "string", "isColumn": True, "isJSON": False, "type": "tag"},
+            {"key": "statusCode", "dataType": "string", "isColumn": True, "isJSON": False, "type": "tag"},
+        ],
+        "query": {
+            "queryType": "builder",
+            "id": str(uuid4()),
+            "builder": {
+                "queryData": query_data,
+                "queryFormulas": [],
+            },
+            "clickhouse_sql": [{"name": "A", "query": "", "legend": "", "disabled": False}],
+            "promql": [{"name": "A", "query": "", "legend": "", "disabled": False}],
+        },
+    }
+    layout = {
+        "i": widget_id,
+        "w": width,
+        "h": height,
+        "x": x,
+        "y": y,
+        "moved": False,
+        "static": False,
+    }
+    return widget, layout
+
+
+def _builder_query(expression: str, legend: str, aggregate: str | None, *,
+                   group_by: list[str] | None = None,
+                   order_by: list[dict] | None = None,
+                   panel_type: str = "graph",
+                   limit: int | None = None) -> dict:
+    query = {
+        "queryName": expression,
+        "expression": expression,
+        "disabled": False,
+        "stepInterval": 60,
+        "dataSource": "traces",
+        "legend": legend,
+        "filters": None,
+        "functions": [],
+        "limit": limit,
+        "offset": 0,
+        "pageSize": 10,
+        "groupBy": [],
+        "orderBy": order_by or [],
+        "having": {"expression": ""},
+        "filter": {"expression": _default_filter(include_route=bool(group_by))},
+    }
+
+    if panel_type != "list":
+        query["aggregations"] = [{"expression": aggregate}] if aggregate else []
+    if group_by:
+        query["groupBy"] = [
+            {"key": key, "dataType": "string", "isColumn": True, "isJSON": False, "type": "tag"}
+            for key in group_by
+        ]
+
+    return query
+
+
+def build_dashboard_payload(title: str, description: str, tags: list[str]) -> dict:
+    widgets = []
+    layout = []
+
+    for widget, placement in _widgets_for_title(title):
+        widgets.append(widget)
+        layout.append(placement)
+
+    return {
+        "title": title,
+        "description": description,
+        "tags": tags,
+        "layout": layout,
+        "widgets": widgets,
+        "panelMap": {},
+        "variables": {},
+        "dotMigrated": True,
+        "uuid": str(uuid4()),
+    }
+
+
+def _widgets_for_title(title: str) -> list[tuple[dict, dict]]:
+    """Return usable SigNoz v5 widgets/layout entries for a given dashboard title."""
     title_lower = title.lower()
-    
+
     if "overview" in title_lower:
         return [
-            _panel("Request count (traces)", "signoz/TimeSeriesPanel", traces_query("count", None)),
-            _panel("Error count", "signoz/TimeSeriesPanel", traces_query("count", None, error_filter=True)),
-            _panel("Requests by route", "signoz/BarChartPanel", traces_query("count", None, group_by=["http.route"])),
+            _widget(
+                "graph",
+                "Request count",
+                [_builder_query("A", "Requests", "count()")],
+                width=6,
+                height=6,
+                x=0,
+                y=0,
+                y_axis_unit="short",
+            ),
+            _widget(
+                "graph",
+                "Average latency",
+                [_builder_query("A", "Avg duration", "avg(durationNano)")],
+                width=6,
+                height=6,
+                x=6,
+                y=0,
+                y_axis_unit="ns",
+            ),
+            _widget(
+                "table",
+                "Requests by route",
+                [_builder_query(
+                    "A",
+                    "Count",
+                    "count()",
+                    group_by=["httpRoute", "httpMethod"],
+                    order_by=[{"columnName": "count()", "order": "desc"}],
+                    limit=10,
+                )],
+                width=12,
+                height=8,
+                x=0,
+                y=6,
+                y_axis_unit="short",
+            ),
         ]
     if "latency" in title_lower:
         return [
-            _panel("p50 latency (ms)", "signoz/TimeSeriesPanel", traces_query("p50", "duration_ms")),
-            _panel("p95 latency (ms)", "signoz/TimeSeriesPanel", traces_query("p95", "duration_ms")),
-            _panel("p99 latency (ms)", "signoz/TimeSeriesPanel", traces_query("p99", "duration_ms")),
+            _widget("graph", "p50 latency", [_builder_query("A", "p50", "p50(durationNano)")], width=4, height=6, x=0, y=0, y_axis_unit="ns"),
+            _widget("graph", "p95 latency", [_builder_query("A", "p95", "p95(durationNano)")], width=4, height=6, x=4, y=0, y_axis_unit="ns"),
+            _widget("graph", "p99 latency", [_builder_query("A", "p99", "p99(durationNano)")], width=4, height=6, x=8, y=0, y_axis_unit="ns"),
         ]
     if "error" in title_lower:
+        error_query = _builder_query("A", "Errors", "count()")
+        error_query["filter"] = {"expression": _default_filter(include_route=False, error_only=True)}
+        error_table = _builder_query(
+            "A",
+            "Count",
+            "count()",
+            group_by=["httpRoute", "httpMethod"],
+            order_by=[{"columnName": "count()", "order": "desc"}],
+            limit=10,
+        )
+        error_table["filter"] = {"expression": _default_filter(include_route=True, error_only=True)}
         return [
-            _panel("Errors over time", "signoz/TimeSeriesPanel", traces_query("count", None, error_filter=True)),
-            _panel("Errors by route", "signoz/TablePanel", traces_query("count", None, error_filter=True, group_by=["http.route"])),
-            _panel("Error rate (%)", "signoz/TimeSeriesPanel", traces_query("rate", None, error_filter=True)),
+            _widget("graph", "Errors over time", [error_query], width=6, height=6, x=0, y=0, y_axis_unit="short"),
+            _widget("table", "Errors by route", [error_table], width=6, height=6, x=6, y=0, y_axis_unit="short"),
         ]
     return []
-
-
-def _panel(title: str, panel_kind: str, query: dict) -> dict:
-    return {
-        "title": title,
-        "panelKind": panel_kind,
-        "query": query,
-        "yAxisUnit": "ms" if "latency" in title.lower() else "short",
-        "width": 6 if panel_kind == "signoz/TablePanel" else 4,
-        "height": 4,
-        "x": 0,
-        "y": 0,
-    }
-
-
-def traces_query(operator: str, attribute: str | None = None,
-                 error_filter: bool = False,
-                 group_by: list[str] | None = None) -> dict:
-    """Build a SigNoz V3 builder query for traces."""
-    filters = []
-    if error_filter:
-        filters.append({
-            "key": "has_error",
-            "op": "=",
-            "value": "true",
-            "dataType": "bool",
-            "type": "attribute",
-        })
-    
-    query = {
-        "queryType": "builder",
-        "dataSource": "traces",
-        "aggregateOperator": operator.upper(),
-        "aggregateAttribute": attribute or "",
-        "filters": {"items": filters, "op": "AND"},
-        "groupBy": [{"key": g, "dataType": "string", "type": "attribute"} for g in (group_by or [])],
-        "orderBy": [],
-        "limit": 10,
-        "stepInterval": 60,
-        "having": [],
-    }
-    
-    # Wrap in the V3 composite query envelope
-    return {
-        "clickhouse_sql": None,
-        "promql": None,
-        "builder": query,
-        "id": "panel-1",
-    }
 
 
 def mark_seeded():
