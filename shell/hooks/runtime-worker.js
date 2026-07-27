@@ -512,5 +512,80 @@ self.onmessage = function (event) {
 				post({ type: 'stderr', text: text + '\n' });
 				post({ type: 'done', id: message.id, ok: false, runMs: 0 });
 			});
+		return;
+	}
+
+	// ── AI execution ────────────────────────────────────────────────────
+	// ai_exec runs a Lua snippet in the live Wasmoon instance with full
+	// access to VFS, SQLite DB, and loaded modules.  Stdout is captured
+	// and returned alongside the serialized return value.
+	if (message.type === 'ai_exec') {
+		var captured = [];
+		function captureStdout() {
+			var args = Array.prototype.slice.call(arguments).map(String);
+			captured.push(args.join('\t'));
+		}
+
+		runQueue = runQueue
+			.then(async function () {
+				await boot();
+				if (!lua) {
+					post({ type: 'ai_error', id: message.id, error: 'Lua engine is not booted' });
+					return;
+				}
+
+				// Swap in a capture sink
+				var originalPrint = lua.global.get('__fuwa_print');
+				lua.global.set('__fuwa_print', captureStdout);
+
+				try {
+					// Wrap user code so we can grab the return value
+					var wrapped = [
+						'local __ai_result = nil',
+						'local __ai_fn = load([====[' + message.code + ']====], "=ai_exec")',
+						'if type(__ai_fn) ~= "function" then',
+						'  error("syntax error in ai_exec snippet")',
+						'end',
+						'__ai_result = __ai_fn()',
+						'return __ai_result',
+					].join('\n');
+
+					// Execute — wasmoon returns the last expression value
+					var rawResult = await lua.doString(wrapped);
+
+					// Serialize result for postMessage
+					var serialized = null;
+					try {
+						serialized = JSON.stringify(rawResult);
+					} catch (jsonErr) {
+						serialized = String(rawResult);
+					}
+
+					post({
+						type: 'ai_done',
+						id: message.id,
+						stdout: captured,
+						result: serialized,
+					});
+				} catch (execError) {
+					post({
+						type: 'ai_error',
+						id: message.id,
+						error: execError instanceof Error ? execError.message : String(execError),
+						stdout: captured,
+					});
+				} finally {
+					// Restore original print sink
+					lua.global.set('__fuwa_print', originalPrint);
+				}
+			})
+			.catch(function (error) {
+				post({
+					type: 'ai_error',
+					id: message.id,
+					error: error instanceof Error ? error.message : String(error),
+				});
+			});
+		return;
 	}
 };

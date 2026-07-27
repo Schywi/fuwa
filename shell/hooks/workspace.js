@@ -197,6 +197,14 @@
 			}
 		}
 
+		// Cleanup previous ai view
+		if (prev === 'ai' && window.FuwaShellAI) {
+			var prevAiRoot = workspace.querySelector('[data-ai-root]');
+			if (prevAiRoot) {
+				window.FuwaShellAI.unmount(prevAiRoot);
+			}
+		}
+
 		log('view-switch', {
 			view: view,
 			workspace: describeScope(workspace)
@@ -217,6 +225,13 @@
 			var obsRoot = workspace.querySelector('[data-obs-root]');
 			if (obsRoot) {
 				window.FuwaShellObservability.mount(obsRoot);
+			}
+		}
+
+		if (view === 'ai' && window.FuwaShellAI) {
+			var aiRoot = workspace.querySelector('[data-ai-root]');
+			if (aiRoot) {
+				window.FuwaShellAI.mount(aiRoot);
 			}
 		}
 

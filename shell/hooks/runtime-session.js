@@ -359,6 +359,10 @@
 			setLiveReload: setLiveReload,
 			handleTenantRequest: handleTenantRequest,
 			dispose: dispose,
+			post: post,
+			get worker() {
+				return worker;
+			},
 			get state() {
 				return state;
 			}
