@@ -59,6 +59,9 @@
       <footer id="ide-status" class="ide-island ide-status">( •ω•)ﾉ✦ fuwa shell ready · &dashboard.active.terminal_label</footer>
     </div>
 
-    <section class="ide-island ide-preview-island"></section>
+    <section class="ide-island ide-preview-island ide-preview-island--right">
+      <div class="ide-preview-block"></div>
+      <div class="ide-preview-block"></div>
+    </section>
   </div>
 </section>

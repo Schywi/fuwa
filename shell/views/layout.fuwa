@@ -162,6 +162,20 @@
         background: var(--panel-strong);
       }
 
+      .ide-preview-island--right {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        padding: 5px;
+      }
+
+      .ide-preview-block {
+        flex: 1;
+        border-radius: 4px;
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+      }
+
       .ide-preview-head {
         display: flex;
         align-items: start;
