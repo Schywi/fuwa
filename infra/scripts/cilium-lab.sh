@@ -14,6 +14,8 @@ set -euo pipefail
 CLUSTER_NAME="${CLUSTER_NAME:-cilium-lab}"
 HUBBLE_NODE_PORT="${HUBBLE_NODE_PORT:-30080}"
 CILIUM_OPERATOR_REPLICAS="${CILIUM_OPERATOR_REPLICAS:-1}"
+OPENRESTY_NETWORK="${OPENRESTY_NETWORK:-docker-compose_default}"
+HUBBLE_PROXY_ALIAS="${HUBBLE_PROXY_ALIAS:-hubble-ui}"
 K3D_VERSION="v5.7.5"
 CILIUM_CLI_VERSION="v0.18.0"
 BIN_DIR="${HOME}/.local/bin"
@@ -68,6 +70,36 @@ cilium_install_args() {
         5m
 }
 
+k3d_serverlb_container() {
+    printf 'k3d-%s-serverlb\n' "$CLUSTER_NAME"
+}
+
+hubble_proxy_connect_args() {
+    printf '%s\n' \
+        network \
+        connect \
+        --alias \
+        "$HUBBLE_PROXY_ALIAS" \
+        "$OPENRESTY_NETWORK" \
+        "$(k3d_serverlb_container)"
+}
+
+bridge_hubble_proxy() {
+    if ! command -v docker &>/dev/null; then
+        return 0
+    fi
+
+    local serverlb
+    serverlb="$(k3d_serverlb_container)"
+    if ! docker ps --format '{{.Names}}' | grep -qx "$serverlb"; then
+        return 0
+    fi
+
+    local connect_args=()
+    mapfile -t connect_args < <(hubble_proxy_connect_args)
+    docker "${connect_args[@]}" 2>/dev/null || true
+}
+
 # ── commands ─────────────────────────────────────────────────────────
 
 cmd_up() {
@@ -76,6 +108,7 @@ cmd_up() {
 
     if k3d cluster list 2>/dev/null | grep -q "^${CLUSTER_NAME} "; then
         yellow "cluster '${CLUSTER_NAME}' already exists"
+        bridge_hubble_proxy
         cmd_status
         return 0
     fi
@@ -85,6 +118,7 @@ cmd_up() {
         --k3s-arg "--disable=traefik@server:0" \
         --k3s-arg "--flannel-backend=none@server:0" \
         -p "${HUBBLE_NODE_PORT}:${HUBBLE_NODE_PORT}@server:0"
+    bridge_hubble_proxy
 
     green "📦 Installing Cilium + Hubble ..."
     helm repo add cilium https://helm.cilium.io/ 2>/dev/null || true
