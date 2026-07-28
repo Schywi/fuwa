@@ -76,6 +76,12 @@ class CiliumLabTests(unittest.TestCase):
             "rewrite ^/dash/hubble/api(/.*)$ /api$1 break;",
             nginx_conf,
         )
+        self.assertIn('location = /__hubble_root__ {', nginx_conf)
+        self.assertIn('location = /dash/hubble/ {', nginx_conf)
+        self.assertIn(
+            "body = body:gsub('href=\"/\"', 'href=\"/dash/hubble/\"', 1)",
+            nginx_conf,
+        )
         self.assertIn(
             "map $http_referer $root_asset_upstream {",
             nginx_conf,
