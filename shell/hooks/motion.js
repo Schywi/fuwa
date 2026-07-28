@@ -220,10 +220,12 @@
 	function showArchFallback(definition, errorText) {
 		var el = document.querySelector('[data-arch-diagram]');
 		if (!el) return;
-		var message = errorText
-			? '<div style="color:#fca5a5;font-size:0.78rem;margin-bottom:12px">Mermaid render failed: ' + escapeHtml(errorText) + '</div>'
-			: '<div style="color:#a1a1aa;font-size:0.78rem;margin-bottom:12px">Loading Mermaid…</div>';
-		el.innerHTML = message + '<pre style="margin:0;color:#c0caf5;font-size:0.72rem;line-height:1.45;white-space:pre;min-width:max-content">' + escapeHtml(definition || '') + '</pre>';
+		setArchMessage(
+			el,
+			definition,
+			errorText ? 'error' : 'info',
+			errorText || 'Loading Mermaid…'
+		);
 	}
 
 	function archDiagramRoot() {
@@ -237,6 +239,7 @@
 
 		var inner = container.querySelector('.arch-diagram-inner');
 		if (!inner) {
+			container.innerHTML = '';
 			inner = document.createElement('div');
 			inner.className = 'arch-diagram-inner';
 			container.appendChild(inner);
