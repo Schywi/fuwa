@@ -73,9 +73,23 @@
 		return /^[a-zA-Z][a-zA-Z\d+\-.]*:/.test(value) || value.startsWith('//');
 	}
 
+	function isHostManagedPath(path) {
+		return typeof path === 'string' && (
+			path.startsWith('/vendor/')
+			|| path.startsWith('/shell/')
+			|| path.startsWith('/runtime/')
+			|| path.startsWith('/__dev/')
+			|| path.startsWith('/dash/')
+			|| path.startsWith('/api/')
+		);
+	}
+
 	function rebaseAppPath(path, appBasePath) {
 		const normalized = normalizeAppBasePath(appBasePath);
 		if (!path || isAbsoluteUrl(path) || !path.startsWith('/')) {
+			return path;
+		}
+		if (isHostManagedPath(path)) {
 			return path;
 		}
 		if (!normalized) {

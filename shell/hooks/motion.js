@@ -534,6 +534,7 @@
 
 	window.FuwaShellMotion = {
 		developPreview: developPreview,
+		loadMermaid: loadMermaid,
 		runLoader: runLoader,
 		startTypewriter: startTypewriter
 	};

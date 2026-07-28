@@ -35,6 +35,7 @@ t.test("motion hook ships detailed frontend backend and infra mermaids", functio
 
 	t.contains(motion, "joinDiagram", "expected readable multi-line mermaid source builder")
 	t.contains(motion, "activeArchTabName", "expected active-tab rerender helper")
+	t.contains(motion, "loadMermaid: loadMermaid", "expected public architecture loader export for workspace toggle")
 	t.contains(motion, 'subgraph Browser["Browser - IDE Shell"]', "expected browser subgraph")
 	t.contains(motion, 'subgraph Tenant["Tenant iframe"]', "expected tenant subgraph")
 	t.contains(motion, 'subgraph Worker["Web Worker (Wasmoon)"]', "expected worker subgraph")
@@ -62,6 +63,18 @@ t.test("architecture prompt records the current repo corrections", function()
 	t.contains(prompt, "runtime/container_logs.py", "expected corrected container log path")
 	t.contains(prompt, "shell/hooks/motion.js", "expected panel source-of-truth note")
 	t.contains(prompt, "infra/docker-compose/dev.yml", "expected corrected dev infra topology reference")
+end)
+
+t.test("workspace and tenant runtime keep architecture and vendor assets on the host path", function()
+	local workspace = read_file("shell/hooks/workspace.js")
+	local tenant = read_file("shell/hooks/tenant-runtime.js")
+
+	t.contains(workspace, "window.FuwaShellMotion.loadMermaid()", "expected workspace to call the exported motion hook")
+	t.contains(tenant, "function isHostManagedPath(path)", "expected tenant host-path guard")
+	t.contains(tenant, "path.startsWith('/vendor/')", "expected vendor assets to stay rooted at /vendor")
+	t.contains(tenant, "path.startsWith('/shell/')", "expected shell assets to stay rooted at /shell")
+	t.contains(tenant, "path.startsWith('/runtime/')", "expected runtime assets to stay rooted at /runtime")
+	t.contains(tenant, "if (isHostManagedPath(path)) {", "expected rebasing bypass for host-managed assets")
 end)
 
 if results.failed > 0 then

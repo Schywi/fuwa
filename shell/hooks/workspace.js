@@ -163,7 +163,9 @@
 				if (opening) {
 					self.archOpen = true;
 					shell.classList.add('is-arch');
-					loadMermaid();
+					if (window.FuwaShellMotion && typeof window.FuwaShellMotion.loadMermaid === 'function') {
+						window.FuwaShellMotion.loadMermaid();
+					}
 				}
 
 				if (window.gsap) {
