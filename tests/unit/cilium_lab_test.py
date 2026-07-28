@@ -71,6 +71,35 @@ class CiliumLabTests(unittest.TestCase):
         )
         self.assertIn("set $hubble_upstream hubble-ui:30080;", nginx_conf)
         self.assertIn("proxy_pass http://$hubble_upstream;", nginx_conf)
+        self.assertIn("location /dash/hubble/api/ {", nginx_conf)
+        self.assertIn(
+            "rewrite ^/dash/hubble/api(/.*)$ /api$1 break;",
+            nginx_conf,
+        )
+        self.assertIn(
+            "map $http_referer $root_asset_upstream {",
+            nginx_conf,
+        )
+        self.assertIn(
+            "~^https?://[^/]+/dash/hubble/\" hubble-ui:30080;",
+            nginx_conf,
+        )
+        self.assertIn(
+            "map $http_referer $api_upstream_host {",
+            nginx_conf,
+        )
+        self.assertIn(
+            "map $http_referer $api_upstream_prefix {",
+            nginx_conf,
+        )
+        self.assertIn(
+            "rewrite ^/api/?(.*)$ $api_upstream_prefix$1 break;",
+            nginx_conf,
+        )
+        self.assertIn(
+            "location ~* ^/(bundle\\.main\\.[^/]+\\.(js|css|map)|favicon[^/]*\\.(png|ico))$ {",
+            nginx_conf,
+        )
 
     def test_hubble_proxy_bridge_honors_cluster_and_network_overrides(self):
         args = script_lines(
