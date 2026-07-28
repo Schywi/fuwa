@@ -198,27 +198,43 @@
 		return active ? active.getAttribute('data-arch-tab') || 'frontend' : 'frontend';
 	}
 
+	function escapeHtml(value) {
+		return String(value)
+			.replaceAll('&', '&amp;')
+			.replaceAll('<', '&lt;')
+			.replaceAll('>', '&gt;');
+	}
+
+	function showArchFallback(definition, errorText) {
+		var el = document.querySelector('[data-arch-diagram]');
+		if (!el) return;
+		var message = errorText
+			? '<div style="color:#fca5a5;font-size:0.78rem;margin-bottom:12px">Mermaid render failed: ' + escapeHtml(errorText) + '</div>'
+			: '<div style="color:#a1a1aa;font-size:0.78rem;margin-bottom:12px">Loading Mermaid…</div>';
+		el.innerHTML = message + '<pre style="margin:0;color:#c0caf5;font-size:0.72rem;line-height:1.45;white-space:pre;min-width:max-content">' + escapeHtml(definition || '') + '</pre>';
+	}
+
 	var mermaidDefinitions = {
 		frontend: joinDiagram([
 			'flowchart TD',
 			'  subgraph Browser["Browser - IDE Shell"]',
 			'    direction TD',
-			'    BLayout[shell/views/layout.fuwa<br/>vendor + hook loader]',
-			'    BHome[shell/views/fragments/home.fuwa<br/>preview + terminal + obs + tmux + arch]',
-			'    BWorkspace[shell/views/fragments/workspace.fuwa<br/>stable data-workspace chrome]',
-			'    BHTMX[vendor/htmx/htmx-1.9.12.min.js<br/>swap lifecycle]',
-			'    BPetite[vendor/petite-vue/petite-vue-0.4.1.iife.js<br/>shell reactivity]',
-			'    BGSAP[vendor/gsap/gsap-3.15.0.min.js<br/>loader + panel transitions]',
-			'    BEditor[shell/hooks/editor.js<br/>CodeMirror 6 + pendingEdits]',
-			'    BWorkspaceHook[shell/hooks/workspace.js<br/>popover state + toggleArch/toggleGrafana/toggleTmux]',
-			'    BPreview[shell/hooks/preview.js<br/>preview orchestrator]',
-			'    BDriver[shell/hooks/preview-browser.js<br/>iframe relay + ordered tenant queue]',
-			'    BSession[shell/hooks/runtime-session.js<br/>files Map + debounce + worker lifecycle]',
-			'    BTerminal[shell/hooks/terminal.js<br/>xterm detach/reparent + write()]',
-			'    BObs[shell/hooks/observability.js<br/>ring buffer + SSE + appendEvents()]',
-			'    BMotion[shell/hooks/motion.js<br/>Mermaid tab renderer + darkroom motion]',
-			'    BTmux[shell/hooks/tmux.js<br/>EventSource mux for container logs]',
-			'    BCursor[shell/hooks/cursor.js<br/>loupe cursor]',
+			'    BLayout["shell/views/layout.fuwa :: vendor and hook loader"]',
+			'    BHome["shell/views/fragments/home.fuwa :: preview terminal obs tmux arch"]',
+			'    BWorkspace["shell/views/fragments/workspace.fuwa :: stable data-workspace chrome"]',
+			'    BHTMX["vendor/htmx/htmx-1.9.12.min.js :: swap lifecycle"]',
+			'    BPetite["vendor/petite-vue/petite-vue-0.4.1.iife.js :: shell reactivity"]',
+			'    BGSAP["vendor/gsap/gsap-3.15.0.min.js :: loader and panel transitions"]',
+			'    BEditor["shell/hooks/editor.js :: CodeMirror 6 and pendingEdits"]',
+			'    BWorkspaceHook["shell/hooks/workspace.js :: popover state and panel toggles"]',
+			'    BPreview["shell/hooks/preview.js :: preview orchestrator"]',
+			'    BDriver["shell/hooks/preview-browser.js :: iframe relay and ordered tenant queue"]',
+			'    BSession["shell/hooks/runtime-session.js :: files map debounce worker lifecycle"]',
+			'    BTerminal["shell/hooks/terminal.js :: xterm detach reparent write"]',
+			'    BObs["shell/hooks/observability.js :: ring buffer SSE appendEvents"]',
+			'    BMotion["shell/hooks/motion.js :: Mermaid tab renderer and darkroom motion"]',
+			'    BTmux["shell/hooks/tmux.js :: EventSource mux for container logs"]',
+			'    BCursor["shell/hooks/cursor.js :: loupe cursor"]',
 			'    BLayout --> BHome',
 			'    BLayout --> BHTMX',
 			'    BLayout --> BPetite',
@@ -248,11 +264,11 @@
 			'  end',
 			'  subgraph Tenant["Tenant iframe"]',
 			'    direction TD',
-			'    TTenantHtml[runtime/browser/init.lua<br/>build_runtime_srcdoc() serves /runtime/tenant.html]',
-			'    TTenant[shell/hooks/tenant-runtime.js<br/>TenantXMLHttpRequest + swap/reply/stream]',
-			'    TDOM[runtime/browser/init.lua<br/>srcdoc #app / phone shell scaffold]',
-			'    TPetite[vendor/petite-vue/petite-vue-0.4.1.iife.js<br/>tenant reactivity]',
-			'    THTMX[vendor/htmx/htmx-1.9.12.min.js<br/>tenant XHR client]',
+			'    TTenantHtml["runtime/browser/init.lua :: build_runtime_srcdoc serves /runtime/tenant.html"]',
+			'    TTenant["shell/hooks/tenant-runtime.js :: TenantXMLHttpRequest swap reply stream"]',
+			'    TDOM["runtime/browser/init.lua :: srcdoc app root and phone shell scaffold"]',
+			'    TPetite["vendor/petite-vue/petite-vue-0.4.1.iife.js :: tenant reactivity"]',
+			'    THTMX["vendor/htmx/htmx-1.9.12.min.js :: tenant XHR client"]',
 			'    TTenantHtml --> TDOM',
 			'    TTenantHtml --> TTenant',
 			'    TPetite --> TDOM',
@@ -261,11 +277,11 @@
 			'  end',
 			'  subgraph Worker["Web Worker (Wasmoon)"]',
 			'    direction TD',
-			'    WWorker[shell/hooks/runtime-worker.js<br/>boot/run queue + in-VM package_web.build()]',
-			'    WWasmoon[vendor/wasmoon/wasmoon-1.16.0.js<br/>Lua 5.4 engine]',
-			'    WSqlite[vendor/sqlite-wasm/index.mjs<br/>vendor/sqlite-wasm/sqlite3.wasm]',
-			'    WPackage[runtime/stdlib/compiler/package_web.lua<br/>same compiler entry in worker + server]',
-			'    WTrace[runtime/trace.lua<br/>trace_mod.set_sink -> __fuwa_trace_sink]',
+			'    WWorker["shell/hooks/runtime-worker.js :: boot run queue in-VM package_web.build"]',
+			'    WWasmoon["vendor/wasmoon/wasmoon-1.16.0.js :: Lua 5.4 engine"]',
+			'    WSqlite["vendor/sqlite-wasm/index.mjs and vendor/sqlite-wasm/sqlite3.wasm"]',
+			'    WPackage["runtime/stdlib/compiler/package_web.lua :: same compiler entry in worker and server"]',
+			'    WTrace["runtime/trace.lua :: trace_mod.set_sink to __fuwa_trace_sink"]',
 			'    WWorker --> WWasmoon',
 			'    WWorker --> WSqlite',
 			'    WWorker -->|require() through VFS| WPackage',
@@ -277,21 +293,21 @@
 			'  TDOM -->|user action -> XMLHttpRequest| TTenant',
 			'  BSession -->|boot/run + files/sources| WWorker',
 			'  WWorker -->|html/stdout/stderr/trace/done| BSession',
-			'  BTmux -->|EventSource /__dev/containers/live| PyLogs[runtime/container_logs.py<br/>SSE mux endpoint]',
+			'  BTmux -->|EventSource /__dev/containers/live| PyLogs["runtime/container_logs.py :: SSE mux endpoint"]',
 			'  %% shell/hooks/preview-server.js and shell/hooks/tenant-bridge.js remain legacy route-backed preview helpers and are not loaded by shell/views/layout.fuwa.'
 		]),
 		backend: joinDiagram([
 			'flowchart TD',
 			'  subgraph Template["Template layer (.fuwa)"]',
 			'    direction TD',
-			'    TApp[shell/app.fuwa<br/>GET / · GET /inspect/:payload_id · POST /switch/:payload_id]',
-			'    TPage[shell/pages/home.fuwa<br/>Dashboard.build() + ShellViews.render_fragment()]',
-			'    TRootView[shell/view.fuwa<br/>include views/layout.fuwa]',
-			'    THomeView[shell/views/home.fuwa<br/>include fragments/home.fuwa]',
-			'    TLayout[shell/views/layout.fuwa<br/>shell HTML + CSS + vendor imports]',
-			'    TFragHome[shell/views/fragments/home.fuwa<br/>preview + terminal/obs/tmux/arch panes]',
-			'    TFragWs[shell/views/fragments/workspace.fuwa<br/>command palette + editor form]',
-			'    TFragOob[shell/views/fragments/workspace-oob.fuwa<br/>OOB file/status targets]',
+			'    TApp["shell/app.fuwa :: GET slash GET inspect POST switch"]',
+			'    TPage["shell/pages/home.fuwa :: Dashboard.build and ShellViews.render_fragment"]',
+			'    TRootView["shell/view.fuwa :: include views/layout.fuwa"]',
+			'    THomeView["shell/views/home.fuwa :: include fragments/home.fuwa"]',
+			'    TLayout["shell/views/layout.fuwa :: shell HTML CSS vendor imports"]',
+			'    TFragHome["shell/views/fragments/home.fuwa :: preview terminal obs tmux arch"]',
+			'    TFragWs["shell/views/fragments/workspace.fuwa :: command palette and editor form"]',
+			'    TFragOob["shell/views/fragments/workspace-oob.fuwa :: OOB file and status targets"]',
 			'    TApp --> TPage',
 			'    TRootView --> TLayout',
 			'    THomeView --> TFragHome',
@@ -300,32 +316,32 @@
 			'  end',
 			'  subgraph Python["Python dev server"]',
 			'    direction TD',
-			'    PServer[runtime/dev-server.py<br/>raw sockets + /__dev routes + stdin/stdout bridge]',
-			'    PTrace[runtime/dev-server.py<br/>_trace_buffer + SSE subscribers]',
-			'    PWatch[runtime/dev-server.py<br/>file_watcher() -> .fuwa-dev/reload-token]',
-			'    PLogs[runtime/container_logs.py<br/>docker logs -f reader threads + queue.Queue]',
+			'    PServer["runtime/dev-server.py :: raw sockets __dev routes stdin stdout bridge"]',
+			'    PTrace["runtime/dev-server.py :: trace buffer and SSE subscribers"]',
+			'    PWatch["runtime/dev-server.py :: file_watcher to .fuwa-dev/reload-token"]',
+			'    PLogs["runtime/container_logs.py :: docker logs reader threads and queue"]',
 			'    PServer --> PTrace',
 			'    PServer --> PWatch',
 			'    PServer -->|/__dev/containers/live| PLogs',
 			'  end',
 			'  subgraph Lua["Lua CGI handler"]',
 			'    direction TD',
-			'    LServer[runtime/fuwa-dev.lua<br/>HTTP parse + static assets + payload dispatch]',
-			'    LBundle[runtime/fuwa-dev.lua<br/>build_bundle_response() + /runtime/tenant.html]',
+			'    LServer["runtime/fuwa-dev.lua :: HTTP parse static assets payload dispatch"]',
+			'    LBundle["runtime/fuwa-dev.lua :: build_bundle_response and /runtime/tenant.html"]',
 			'  end',
 			'  subgraph Compiler["Compiler"]',
 			'    direction TD',
-			'    CPackage[runtime/stdlib/compiler/package_web.lua<br/>build() wrapper + main.lua]',
-			'    CInit[runtime/stdlib/compiler/init.lua<br/>compile_runtime_files()]',
-			'    CModules[runtime/stdlib/compiler/modules.lua<br/>module/view entry compiler]',
-			'    CActions[runtime/stdlib/compiler/actions.lua<br/>render/redirect/fail sugar]',
-			'    CRoutes[runtime/stdlib/compiler/routes.lua<br/>routes -> web.app()]',
-			'    CView[runtime/stdlib/compiler/view.lua<br/>include expansion + M.render()]',
-			'    CImports[runtime/stdlib/compiler/imports.lua<br/>import parsing]',
-			'    CSchema[runtime/stdlib/compiler/schema.lua<br/>schema -> model compiler]',
-			'    CResponses[runtime/stdlib/compiler/responses.lua<br/>response expression parsing]',
-			'    CDiagnostics[runtime/stdlib/compiler/diagnostics.lua<br/>error aggregation]',
-			'    CBootstrap[runtime/stdlib/compiler/bootstrap.lua<br/>handle_request() main.lua scaffold]',
+			'    CPackage["runtime/stdlib/compiler/package_web.lua :: build wrapper and main.lua"]',
+			'    CInit["runtime/stdlib/compiler/init.lua :: compile_runtime_files"]',
+			'    CModules["runtime/stdlib/compiler/modules.lua :: module and view entry compiler"]',
+			'    CActions["runtime/stdlib/compiler/actions.lua :: render redirect fail sugar"]',
+			'    CRoutes["runtime/stdlib/compiler/routes.lua :: routes to web.app"]',
+			'    CView["runtime/stdlib/compiler/view.lua :: include expansion and M.render"]',
+			'    CImports["runtime/stdlib/compiler/imports.lua :: import parsing"]',
+			'    CSchema["runtime/stdlib/compiler/schema.lua :: schema to model compiler"]',
+			'    CResponses["runtime/stdlib/compiler/responses.lua :: response expression parsing"]',
+			'    CDiagnostics["runtime/stdlib/compiler/diagnostics.lua :: error aggregation"]',
+			'    CBootstrap["runtime/stdlib/compiler/bootstrap.lua :: handle_request main.lua scaffold"]',
 			'    CPackage --> CInit',
 			'    CInit --> CModules',
 			'    CModules --> CActions',
@@ -339,18 +355,18 @@
 			'  end',
 			'  subgraph Runtime["Runtime + host"]',
 			'    direction TD',
-			'    RWeb[runtime/stdlib/web.lua<br/>app.dispatch() + render_response()]',
-			'    RView[runtime/stdlib/view.lua<br/>HTML AST renderer f-if/f-for/&bindings]',
-			'    RDb[runtime/stdlib/db.lua<br/>DB facade + provider bridge]',
-			'    RSchema[runtime/stdlib/schema.lua<br/>model CRUD + validate]',
-			'    RResult[runtime/stdlib/result.lua<br/>Ok/Err helpers]',
-			'    RTrace[runtime/trace.lua<br/>trace.span() + sink/scopes]',
-			'    RLog[runtime/log.lua<br/>pretty_sink + serialize()]',
-			'    HCapabilities[runtime/host/capabilities.lua<br/>describe/list/read/write/compile payload]',
-			'    HDashboard[runtime/host/dashboard.lua<br/>workspace data + bundle/runtime URLs]',
-			'    HShellViews[runtime/host/shell_views.lua<br/>render_fragment() include expansion]',
-			'    HBootstrap[runtime/host/bootstrap.lua<br/>legacy host bootstrap srcdoc]',
-			'    HBrowser[runtime/browser/init.lua<br/>bundle.build() + build_runtime_srcdoc()]',
+			'    RWeb["runtime/stdlib/web.lua :: app.dispatch and render_response"]',
+			'    RView["runtime/stdlib/view.lua :: HTML AST renderer f-if f-for bindings"]',
+			'    RDb["runtime/stdlib/db.lua :: DB facade and provider bridge"]',
+			'    RSchema["runtime/stdlib/schema.lua :: model CRUD and validate"]',
+			'    RResult["runtime/stdlib/result.lua :: Ok Err helpers"]',
+			'    RTrace["runtime/trace.lua :: trace.span sink scopes"]',
+			'    RLog["runtime/log.lua :: pretty_sink and serialize"]',
+			'    HCapabilities["runtime/host/capabilities.lua :: describe list read write compile payload"]',
+			'    HDashboard["runtime/host/dashboard.lua :: workspace data bundle and runtime URLs"]',
+			'    HShellViews["runtime/host/shell_views.lua :: render_fragment include expansion"]',
+			'    HBootstrap["runtime/host/bootstrap.lua :: legacy host bootstrap srcdoc"]',
+			'    HBrowser["runtime/browser/init.lua :: bundle.build and build_runtime_srcdoc"]',
 			'    RDb --> RSchema',
 			'  end',
 			'  PServer -->|forward non-/__dev HTTP via stdin| LServer',
@@ -382,22 +398,22 @@
 			'flowchart TD',
 			'  subgraph Edge["Compose entry + edge proxy"]',
 			'    direction TD',
-			'    IDev[fuwa-infra-exploration/infra/docker-compose/dev.yml<br/>includes app.dev.yml + openresty.yml + signoz.yml + telemetry.yml]',
-			'    IOpenResty[fuwa-infra-exploration/infra/openresty/dev/nginx.conf<br/>/ -> fuwa:8080 · /dash/* observability proxies]',
-			'    IFuwa[fuwa-infra-exploration/infra/docker-compose/app.dev.yml<br/>fuwa service runs ./dev.sh]',
+			'    IDev["fuwa-infra-exploration/infra/docker-compose/dev.yml :: includes app.dev openresty signoz telemetry"]',
+			'    IOpenResty["fuwa-infra-exploration/infra/openresty/dev/nginx.conf :: slash to fuwa and dash proxies"]',
+			'    IFuwa["fuwa-infra-exploration/infra/docker-compose/app.dev.yml :: fuwa service runs dev.sh"]',
 			'    IDev --> IOpenResty',
 			'    IDev --> IFuwa',
 			'  end',
 			'  subgraph Telemetry["Telemetry + dashboards"]',
 			'    direction TD',
-			'    IVectorCfg[fuwa-infra-exploration/infra/docker-compose/vector.toml<br/>http_server :8687 + metrics + otlp_bridge sink]',
-			'    IBridge[fuwa-infra-exploration/infra/docker-compose/otlp-bridge.py<br/>TCP :4321 JSON -> OTLP HTTP /v1/traces]',
-			'    IVM[fuwa-infra-exploration/infra/docker-compose/telemetry.yml<br/>victoriametrics service]',
-			'    ISignoz[fuwa-infra-exploration/infra/docker-compose/signoz.yml<br/>signoz UI/API service]',
-			'    IIngester[fuwa-infra-exploration/infra/docker-compose/signoz/ingester.yaml<br/>signoz-ingester OTLP receiver :4317/:4318]',
-			'    IClick[fuwa-infra-exploration/infra/docker-compose/signoz.yml<br/>signoz-clickhouse service]',
-			'    IKeeper[fuwa-infra-exploration/infra/docker-compose/signoz/keeper-0.yaml<br/>signoz-keeper coordination]',
-			'    ISeed[fuwa-infra-exploration/infra/docker-compose/signoz-bootstrap.py<br/>seed dashboards from infra/signoz-seeds/*]',
+			'    IVectorCfg["fuwa-infra-exploration/infra/docker-compose/vector.toml :: http_server 8687 metrics otlp_bridge sink"]',
+			'    IBridge["fuwa-infra-exploration/infra/docker-compose/otlp-bridge.py :: TCP 4321 JSON to OTLP HTTP traces"]',
+			'    IVM["fuwa-infra-exploration/infra/docker-compose/telemetry.yml :: victoriametrics service"]',
+			'    ISignoz["fuwa-infra-exploration/infra/docker-compose/signoz.yml :: signoz UI and API service"]',
+			'    IIngester["fuwa-infra-exploration/infra/docker-compose/signoz/ingester.yaml :: signoz-ingester OTLP receiver"]',
+			'    IClick["fuwa-infra-exploration/infra/docker-compose/signoz.yml :: signoz-clickhouse service"]',
+			'    IKeeper["fuwa-infra-exploration/infra/docker-compose/signoz/keeper-0.yaml :: signoz-keeper coordination"]',
+			'    ISeed["fuwa-infra-exploration/infra/docker-compose/signoz-bootstrap.py :: seed dashboards from infra/signoz-seeds"]',
 			'    IVectorCfg --> IBridge',
 			'    IVectorCfg --> IVM',
 			'    IBridge --> IIngester',
@@ -435,29 +451,44 @@
 
 		var script = document.createElement('script');
 		script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+		showArchFallback(mermaidDefinitions[activeArchTabName()] || '', '');
 		script.onload = function () {
 			mermaidLoaded = true;
 			if (window.mermaid) {
-				window.mermaid.initialize({ startOnLoad: false, theme: 'dark', themeVariables: { primaryColor: '#b48cff', primaryTextColor: '#c0caf5', lineColor: '#414868', fontSize: '11px' } });
+				window.mermaid.initialize({
+					startOnLoad: false,
+					securityLevel: 'loose',
+					theme: 'dark',
+					flowchart: { htmlLabels: false, useMaxWidth: false },
+					themeVariables: { primaryColor: '#b48cff', primaryTextColor: '#c0caf5', lineColor: '#414868', fontSize: '11px' }
+				});
 			}
 			renderArchDiagram(activeArchTabName());
+		};
+		script.onerror = function () {
+			showArchFallback(mermaidDefinitions[activeArchTabName()] || '', 'script load failed');
 		};
 		document.head.appendChild(script);
 	}
 
 	function renderArchDiagram(tab) {
-		if (!window.mermaid) return;
 		var el = document.querySelector('[data-arch-diagram]');
 		if (!el) return;
 		var def = mermaidDefinitions[tab] || '';
+		if (!window.mermaid) {
+			showArchFallback(def, 'Mermaid runtime unavailable');
+			return;
+		}
 		el.innerHTML = '';
 		el.removeAttribute('data-processed');
 		try {
-			window.mermaid.render('arch-diagram-svg', def).then(function (result) {
+			window.mermaid.render('arch-diagram-svg-' + tab + '-' + Date.now(), def).then(function (result) {
 				el.innerHTML = result.svg;
+			}).catch(function (error) {
+				showArchFallback(def, error && error.message ? error.message : String(error));
 			});
 		} catch (e) {
-			el.innerHTML = '<pre style="color:#c0caf5;font-size:0.75rem">' + def + '</pre>';
+			showArchFallback(def, e && e.message ? e.message : String(e));
 		}
 	}
 
