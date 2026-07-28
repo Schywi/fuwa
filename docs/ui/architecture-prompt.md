@@ -11,6 +11,14 @@ architecture at every layer — frontend, template, compiler, runtime, dev serve
 and infra. Use Mermaid `graph TD` or `flowchart` syntax with `subgraph` for each
 layer. Use `%%` comments to annotate non-obvious relationships.
 
+## Current Repo Corrections
+
+- As of **July 28, 2026**, the live architecture panel consumes **three focused Mermaid tabs** from `shell/hooks/motion.js` (`frontend`, `backend`, `infra`) rather than one monolithic graph in the shell UI.
+- The container log SSE helper path is `runtime/container_logs.py`, not `runtime/container-logs.py`.
+- The current dev infra topology is rooted at `/mnt/DATA/development/projects/repos/fuwa-infra-exploration/infra/docker-compose/dev.yml`, which includes `app.dev.yml`, `openresty.yml`, `signoz.yml`, and `telemetry.yml`.
+- `/mnt/DATA/development/projects/repos/fuwa-infra-exploration/infra/docker-compose/observability.yml` is an alternate Uptrace-oriented stack, not the default container set wired into `shell/views/fragments/home.fuwa`.
+- If you need the panel-ready output instead of the single unified research diagram, treat `shell/hooks/motion.js` as the source of truth for the currently shipped tabbed diagrams.
+
 **Rules:**
 - **No redundancy.** If a component appears in multiple layers, show it once and
   connect it with cross-layer edges.

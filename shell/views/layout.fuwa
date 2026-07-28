@@ -1356,7 +1356,12 @@
         overflow: auto;
       }
 
-      .arch-diagram svg { max-width: 100%; height: auto; }
+      .arch-diagram svg {
+        display: block;
+        max-width: none;
+        min-width: 100%;
+        height: auto;
+      }
 
       @media (max-width: 900px) {
         .ide-shell {

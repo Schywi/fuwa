@@ -1,0 +1,75 @@
+local results = {
+	passed = 0,
+	failed = 0,
+	failures = {},
+}
+
+local t = {}
+
+function t.test(name, fn)
+	local ok, err = pcall(fn)
+	if ok then
+		results.passed = results.passed + 1
+		return
+	end
+
+	results.failed = results.failed + 1
+	results.failures[#results.failures + 1] = string.format("%s\n  %s", name, tostring(err))
+end
+
+function t.contains(haystack, needle, label)
+	if not tostring(haystack):find(needle, 1, true) then
+		error(label or string.format("expected to find %q", needle), 2)
+	end
+end
+
+local function read_file(path)
+	local file = assert(io.open(path, "rb"))
+	local contents = file:read("*a")
+	file:close()
+	return contents
+end
+
+t.test("motion hook ships detailed frontend backend and infra mermaids", function()
+	local motion = read_file("shell/hooks/motion.js")
+
+	t.contains(motion, "joinDiagram", "expected readable multi-line mermaid source builder")
+	t.contains(motion, "activeArchTabName", "expected active-tab rerender helper")
+	t.contains(motion, 'subgraph Browser["Browser - IDE Shell"]', "expected browser subgraph")
+	t.contains(motion, 'subgraph Tenant["Tenant iframe"]', "expected tenant subgraph")
+	t.contains(motion, 'subgraph Worker["Web Worker (Wasmoon)"]', "expected worker subgraph")
+	t.contains(motion, 'subgraph Python["Python dev server"]', "expected python subgraph")
+	t.contains(motion, "shell/hooks/runtime-worker.js", "expected worker file path in mermaid")
+	t.contains(motion, "runtime/stdlib/compiler/package_web.lua", "expected compiler boundary path in mermaid")
+	t.contains(motion, "runtime/container_logs.py", "expected actual container log module path in mermaid")
+	t.contains(motion, "fuwa-infra-exploration/infra/docker-compose/dev.yml", "expected infra compose entrypoint in mermaid")
+	t.contains(motion, "fontSize: '11px'", "expected denser mermaid font size for larger diagrams")
+end)
+
+t.test("layout keeps large architecture diagrams scrollable", function()
+	local layout = read_file("shell/views/layout.fuwa")
+
+	t.contains(layout, ".arch-diagram svg {", "expected architecture svg styling block")
+	t.contains(layout, "max-width: none;", "expected svg overflow instead of forced shrink")
+	t.contains(layout, "min-width: 100%;", "expected svg to fill the panel when narrower than the viewport")
+end)
+
+t.test("architecture prompt records the current repo corrections", function()
+	local prompt = read_file("docs/ui/architecture-prompt.md")
+
+	t.contains(prompt, "Current Repo Corrections", "expected prompt correction section")
+	t.contains(prompt, "July 28, 2026", "expected explicit correction date")
+	t.contains(prompt, "runtime/container_logs.py", "expected corrected container log path")
+	t.contains(prompt, "shell/hooks/motion.js", "expected panel source-of-truth note")
+	t.contains(prompt, "infra/docker-compose/dev.yml", "expected corrected dev infra topology reference")
+end)
+
+if results.failed > 0 then
+	io.stderr:write(string.format("%d tests failed\n\n", results.failed))
+	for _, failure in ipairs(results.failures) do
+		io.stderr:write(failure .. "\n\n")
+	end
+	os.exit(1)
+end
+
+print(string.format("ok - %d architecture panel tests", results.passed))

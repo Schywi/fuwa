@@ -242,6 +242,15 @@ local function test_raw_asset_requests()
 	assert_true(observability_js:find("fetch('/__dev/traces')", 1, true) ~= nil, "expected trace snapshot seed on mount")
 	assert_true(observability_js:find(".stageSummary", 1, true) ~= nil, "expected request-centric activity summaries")
 
+	local motion_js = run_command(
+		"printf 'GET /shell/hooks/motion.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(motion_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected motion hook to respond")
+	assert_true(motion_js:find('subgraph Browser["Browser - IDE Shell"]', 1, true) ~= nil, "expected detailed frontend mermaid tab")
+	assert_true(motion_js:find("runtime/stdlib/compiler/package_web.lua", 1, true) ~= nil, "expected compiler boundary in mermaid content")
+	assert_true(motion_js:find("runtime/container_logs.py", 1, true) ~= nil, "expected underscore container log path in mermaid content")
+	assert_true(motion_js:find("fuwa-infra-exploration/infra/docker-compose/dev.yml", 1, true) ~= nil, "expected dev infra compose path in mermaid content")
+
 	local xterm_mjs = run_command(
 		"printf 'GET /vendor/xterm/xterm-6.0.0.mjs HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
 	)

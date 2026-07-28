@@ -38,6 +38,7 @@ local files = collect_files("shell")
 local workspace_js = files["hooks/workspace.js"]
 local editor_js = files["hooks/editor.js"]
 local observability_js = files["hooks/observability.js"]
+local motion_js = files["hooks/motion.js"]
 local home_fuwa = files["views/fragments/home.fuwa"]
 local workspace_fuwa = files["views/fragments/workspace.fuwa"]
 local layout_fuwa = files["views/layout.fuwa"]
@@ -83,6 +84,13 @@ assert_true(tmux_js:find("fontSize: 9", 1, true) ~= nil, "tmux should reduce the
 assert_true(observability_js:find("expandedTraceId", 1, true) ~= nil, "observability should support per-row expand/collapse")
 assert_true(observability_js:find(".stageSummary", 1, true) ~= nil, "observability should render request-centric summaries")
 assert_true(observability_js:find("toggleExpand", 1, true) ~= nil, "observability should toggle row expansion on click")
+assert_true(motion_js:find("joinDiagram", 1, true) ~= nil, "motion should assemble mermaid diagrams from readable line arrays")
+assert_true(motion_js:find('subgraph Browser["Browser - IDE Shell"]', 1, true) ~= nil, "motion should expose the browser architecture tab")
+assert_true(motion_js:find("shell/hooks/runtime-worker.js", 1, true) ~= nil, "motion should reference the worker runtime path")
+assert_true(motion_js:find("runtime/stdlib/compiler/package_web.lua", 1, true) ~= nil, "motion should reference the shared compiler boundary")
+assert_true(motion_js:find("runtime/container_logs.py", 1, true) ~= nil, "motion should reference the actual container log endpoint path")
+assert_true(motion_js:find("fuwa-infra-exploration/infra/docker-compose/dev.yml", 1, true) ~= nil, "motion should reference the dev infra compose entrypoint")
+assert_true(motion_js:find("activeArchTabName", 1, true) ~= nil, "motion should re-render the active architecture tab after reopen")
 assert_true(layout_fuwa:find('.shell-widget-shell[data-widget-kind="editor"] > div', 1, true) ~= nil, "shell should let the editor host fill the panel")
 assert_true(home_fuwa:find('v-scope="FuwaShellWorkspace.createState()"', 1, true) ~= nil, "shell should mount petite-vue on the stable shell parent")
 assert_true(workspace_fuwa:find('v-scope="FuwaShellWorkspace.createState()"', 1, true) == nil, "shell should not mount petite-vue on the swapped workspace")
