@@ -17,6 +17,7 @@
     <div class="ide-panel">
       <header class="ide-island ide-header">
         <div class="owner-sub typewriter-line"></div>
+        <button class="grafana-trigger" @click="toggleArch()">architecture ↗</button>
       </header>
 
       <include src="views/fragments/workspace.fuwa" />
@@ -91,6 +92,16 @@
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-vector-router-1" data-tmux-label="vector"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-victoriametrics-1" data-tmux-label="victoria"></div>
       </div>
+    </div>
+
+    <div class="arch-panel">
+      <button class="grafana-back-btn" @click="toggleArch()">← Back to code</button>
+      <div class="arch-tabs">
+        <button class="arch-tab arch-tab--active" data-arch-tab="frontend">Frontend</button>
+        <button class="arch-tab" data-arch-tab="backend">Backend</button>
+        <button class="arch-tab" data-arch-tab="infra">Infra</button>
+      </div>
+      <div class="arch-diagram" data-arch-diagram></div>
     </div>
   </div>
 </section>

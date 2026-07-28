@@ -186,6 +186,58 @@
 		typewriterTick();
 	}
 
+	/* ── Architecture panel (mermaid) ────────────────────────────────── */
+
+	var mermaidLoaded = false;
+	var mermaidDefinitions = {
+		frontend: 'graph TD\n  A[Browser] --> B[HTMX + petite-vue]\n  B --> C[editor.js CodeMirror]\n  B --> D[terminal.js xterm]\n  B --> E[workspace.js state]\n  C --> F[preview.js orchestrator]\n  F --> G[preview-browser.js iframe]\n  G --> H[runtime-session.js worker]\n  H --> I[runtime-worker.js Wasmoon]\n  G --> J[tenant-runtime.js]\n  E --> K[observability.js SSE]\n  E --> L[tmux.js container logs]',
+		backend: 'graph TD\n  A[Python dev-server.py] --> B[fuwa-dev.lua CGI]\n  B --> C[package_web.build]\n  C --> D[compiler transpiler]\n  D --> E[stdlib web.lua router]\n  E --> F[host capabilities]\n  F --> G[dashboard.lua]\n  F --> H[shell_views.lua]\n  G --> I[stdlib view.lua SSR]\n  I --> J[HTML response]',
+		infra: 'graph TD\n  A[openresty :8080] --> B[fuwa app]\n  A --> C[signoz :3301]\n  B --> D[vector-router]\n  D --> E[otlp-bridge]\n  E --> F[signoz-ingester]\n  F --> G[clickhouse]\n  D --> H[victoriametrics]\n  G --> I[keeper]'
+	};
+
+	function loadMermaid() {
+		if (mermaidLoaded) return;
+		if (document.querySelector('script[src*="mermaid"]')) { mermaidLoaded = true; return; }
+
+		var script = document.createElement('script');
+		script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+		script.onload = function () {
+			mermaidLoaded = true;
+			if (window.mermaid) {
+				window.mermaid.initialize({ startOnLoad: false, theme: 'dark', themeVariables: { primaryColor: '#b48cff', primaryTextColor: '#c0caf5', lineColor: '#414868', fontSize: '13px' } });
+			}
+			renderArchDiagram('frontend');
+		};
+		document.head.appendChild(script);
+	}
+
+	function renderArchDiagram(tab) {
+		if (!window.mermaid) return;
+		var el = document.querySelector('[data-arch-diagram]');
+		if (!el) return;
+		var def = mermaidDefinitions[tab] || '';
+		el.innerHTML = '';
+		el.removeAttribute('data-processed');
+		try {
+			window.mermaid.render('arch-diagram-svg', def).then(function (result) {
+				el.innerHTML = result.svg;
+			});
+		} catch (e) {
+			el.innerHTML = '<pre style="color:#c0caf5;font-size:0.75rem">' + def + '</pre>';
+		}
+	}
+
+	document.addEventListener('click', function (e) {
+		var tab = e.target.closest('[data-arch-tab]');
+		if (!tab) return;
+		var name = tab.getAttribute('data-arch-tab');
+		if (!name) return;
+
+		document.querySelectorAll('.arch-tab').forEach(function (t) { t.classList.remove('arch-tab--active'); });
+		tab.classList.add('arch-tab--active');
+		renderArchDiagram(name);
+	});
+
 	/* ── Boot ───────────────────────────────────────────────────────── */
 
 	function boot() {

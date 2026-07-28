@@ -145,6 +145,50 @@
 			root: null,
 			grafanaOpen: false,
 			tmuxOpen: false,
+			archOpen: false,
+			toggleArch: function () {
+				var self = this;
+				var panel = document.querySelector('.ide-panel');
+				var right = document.querySelector('.ide-preview-island--right');
+				var archPanel = document.querySelector('.arch-panel');
+				var shell = document.querySelector('.ide-shell');
+
+				if (!panel || !right || !archPanel || !shell) {
+					self.archOpen = !self.archOpen;
+					return;
+				}
+
+				var opening = !self.archOpen;
+
+				if (opening) {
+					self.archOpen = true;
+					shell.classList.add('is-arch');
+					loadMermaid();
+				}
+
+				if (window.gsap) {
+					var tl = window.gsap.timeline({
+						onComplete: function () {
+							if (!opening) {
+								self.archOpen = false;
+								shell.classList.remove('is-arch');
+							}
+						}
+					});
+
+					if (opening) {
+						tl.to([panel, right], { opacity: 0, x: -20, duration: 0.25, ease: 'power2.in', stagger: 0.04 }, 0);
+						tl.fromTo(archPanel, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power2.out' }, 0.08);
+					} else {
+						self.archOpen = false;
+						shell.classList.remove('is-arch');
+						tl.to(archPanel, { opacity: 0, scale: 0.97, duration: 0.2, ease: 'power2.in' }, 0);
+						tl.fromTo([panel, right], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out', stagger: 0.04 }, 0.06);
+					}
+				} else {
+					self.archOpen = !self.archOpen;
+				}
+			},
 			toggleTmux: function () {
 				var self = this;
 				var panel = document.querySelector('.ide-panel');
