@@ -41,7 +41,7 @@ t.test("motion hook ships detailed frontend backend and infra mermaids", functio
 	t.contains(motion, "window.mermaid.parse(def)", "expected parse-before-render validation")
 	t.contains(motion, "applyArchZoom", "expected width-based zoom helper")
 	t.contains(motion, "archDrag", "expected drag-to-pan state")
-	t.contains(motion, "'block'", "expected block-diagram tabs")
+	t.contains(motion, "'graph LR'", "expected graph-based frontend/backend tabs")
 	t.contains(motion, "'architecture-beta'", "expected architecture-beta infra tab")
 	t.contains(motion, 'group edge(cloud)[Edge and app]', "expected grouped infra topology")
 	t.contains(motion, 'shell/hooks/tenant-runtime.js', "expected tenant runtime path in frontend mermaid")
