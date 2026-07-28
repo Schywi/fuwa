@@ -475,32 +475,54 @@
 		var el = document.querySelector('[data-arch-diagram]');
 		if (!el) return;
 		var def = mermaidDefinitions[tab] || '';
+
+		var inner = el.querySelector('.arch-diagram-inner');
+		if (!inner) {
+			inner = document.createElement('div');
+			inner.className = 'arch-diagram-inner';
+			el.appendChild(inner);
+		}
+		inner.style.transform = 'scale(1)';
+
 		if (!window.mermaid) {
-			showArchFallback(def, 'Mermaid runtime unavailable');
+			inner.innerHTML = '<pre style="color:#c0caf5;font-size:0.75rem;padding:20px">' + def.replace(/</g, '&lt;') + '</pre>';
 			return;
 		}
-		el.innerHTML = '';
-		el.removeAttribute('data-processed');
+		inner.innerHTML = '';
 		try {
 			window.mermaid.render('arch-diagram-svg-' + tab + '-' + Date.now(), def).then(function (result) {
-				el.innerHTML = result.svg;
+				inner.innerHTML = result.svg;
 			}).catch(function (error) {
-				showArchFallback(def, error && error.message ? error.message : String(error));
+				inner.innerHTML = '<pre style="color:#fb7185;font-size:0.75rem;padding:20px">' + (error && error.message ? error.message.replace(/</g, '&lt;') : 'parse error') + '</pre>';
 			});
 		} catch (e) {
-			showArchFallback(def, e && e.message ? e.message : String(e));
+			inner.innerHTML = '<pre style="color:#fb7185;font-size:0.75rem;padding:20px">' + (e && e.message ? e.message.replace(/</g, '&lt;') : 'error') + '</pre>';
 		}
 	}
 
+	var archZoom = 1;
 	document.addEventListener('click', function (e) {
 		var tab = e.target.closest('[data-arch-tab]');
-		if (!tab) return;
-		var name = tab.getAttribute('data-arch-tab');
-		if (!name) return;
+		if (tab) {
+			var name = tab.getAttribute('data-arch-tab');
+			if (!name) return;
+			document.querySelectorAll('.arch-tab').forEach(function (t) { t.classList.remove('arch-tab--active'); });
+			tab.classList.add('arch-tab--active');
+			archZoom = 1;
+			renderArchDiagram(name);
+			return;
+		}
 
-		document.querySelectorAll('.arch-tab').forEach(function (t) { t.classList.remove('arch-tab--active'); });
-		tab.classList.add('arch-tab--active');
-		renderArchDiagram(name);
+		var zoom = e.target.closest('[data-arch-zoom]');
+		if (zoom) {
+			var action = zoom.getAttribute('data-arch-zoom');
+			var inner = document.querySelector('.arch-diagram-inner');
+			if (!inner) return;
+			if (action === 'in') archZoom = Math.min(3, archZoom + 0.2);
+			else if (action === 'out') archZoom = Math.max(0.3, archZoom - 0.2);
+			else archZoom = 1;
+			inner.style.transform = 'scale(' + archZoom + ')';
+		}
 	});
 
 	/* ── Boot ───────────────────────────────────────────────────────── */

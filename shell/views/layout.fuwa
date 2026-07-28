@@ -1349,17 +1349,51 @@
       .arch-tab:hover { color: var(--ink); background: rgba(255, 255, 255, 0.03); }
       .arch-tab--active { color: var(--accent-strong); background: rgba(255, 255, 255, 0.04); border-color: rgba(255, 255, 255, 0.1); }
 
+      .arch-zoom-bar {
+        position: absolute;
+        top: 10px;
+        right: 140px;
+        display: flex;
+        gap: 1px;
+        z-index: 10;
+      }
+
+      .arch-zoom-btn {
+        width: 28px;
+        height: 28px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        background: rgba(10, 9, 13, 0.88);
+        backdrop-filter: blur(8px);
+        color: rgba(255, 255, 255, 0.5);
+        font-size: 0.75rem;
+        cursor: pointer;
+        transition: color 0.15s ease, border-color 0.15s ease;
+      }
+
+      .arch-zoom-btn:first-child { border-radius: 6px 0 0 6px; }
+      .arch-zoom-btn:last-child  { border-radius: 0 6px 6px 0; }
+      .arch-zoom-btn:hover { color: #fff; border-color: rgba(255, 255, 255, 0.25); }
+
       .arch-diagram {
         flex: 1;
         min-height: 0;
-        padding: 16px;
         overflow: auto;
       }
 
-      .arch-diagram svg {
+      .arch-diagram-inner {
+        transform-origin: 0 0;
+        transition: transform 0.15s ease;
+        min-width: 100%;
+        min-height: 100%;
+        display: inline-block;
+      }
+
+      .arch-diagram-inner svg {
         display: block;
         max-width: none;
-        min-width: 100%;
         height: auto;
       }
 

@@ -96,6 +96,11 @@
 
     <div class="arch-panel">
       <button class="grafana-back-btn" @click="toggleArch()">← Back to code</button>
+      <div class="arch-zoom-bar">
+        <button class="arch-zoom-btn" data-arch-zoom="in" title="Zoom in">+</button>
+        <button class="arch-zoom-btn" data-arch-zoom="out" title="Zoom out">−</button>
+        <button class="arch-zoom-btn" data-arch-zoom="reset" title="Reset">⟲</button>
+      </div>
       <div class="arch-tabs">
         <button class="arch-tab arch-tab--active" data-arch-tab="frontend">Frontend</button>
         <button class="arch-tab" data-arch-tab="backend">Backend</button>
