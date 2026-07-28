@@ -1227,21 +1227,22 @@
         gap: 4px;
         height: 22px;
         padding: 0 8px;
-        border: 1px solid rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(180, 140, 255, 0.35);
         border-radius: 4px;
-        background: transparent;
-        color: var(--muted);
+        background: rgba(180, 140, 255, 0.08);
+        color: var(--accent-strong);
         font-size: 0.6rem;
-        font-weight: 600;
+        font-weight: 700;
         letter-spacing: 0.05em;
         text-transform: uppercase;
         cursor: pointer;
-        transition: color 0.2s ease, border-color 0.2s ease;
+        transition: color 0.2s ease, border-color 0.2s ease, background 0.2s ease;
       }
 
       .grafana-trigger:hover {
-        color: var(--accent-strong);
-        border-color: var(--accent-soft);
+        color: #fff;
+        border-color: rgba(180, 140, 255, 0.6);
+        background: rgba(180, 140, 255, 0.16);
       }
 
       .ide-shell.is-grafana .ide-panel,
