@@ -1381,14 +1381,19 @@
         flex: 1;
         min-height: 0;
         overflow: auto;
+        position: relative;
+        cursor: default;
+      }
+
+      .arch-diagram.is-draggable { cursor: grab; }
+      .arch-diagram.is-dragging {
+        cursor: grabbing;
+        user-select: none;
       }
 
       .arch-diagram-inner {
-        transform-origin: 0 0;
-        transition: transform 0.15s ease;
+        display: block;
         min-width: 100%;
-        min-height: 100%;
-        display: inline-block;
       }
 
       .arch-diagram-inner svg {

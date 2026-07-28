@@ -189,6 +189,18 @@
 	/* ── Architecture panel (mermaid) ────────────────────────────────── */
 
 	var mermaidLoaded = false;
+	var mermaidInitialized = false;
+	var mermaidLoadPromise = null;
+	var archZoom = 1;
+	var archDrag = {
+		active: false,
+		startX: 0,
+		startY: 0,
+		scrollLeft: 0,
+		scrollTop: 0,
+		container: null
+	};
+
 	function joinDiagram(lines) {
 		return lines.join('\n');
 	}
@@ -212,6 +224,169 @@
 			? '<div style="color:#fca5a5;font-size:0.78rem;margin-bottom:12px">Mermaid render failed: ' + escapeHtml(errorText) + '</div>'
 			: '<div style="color:#a1a1aa;font-size:0.78rem;margin-bottom:12px">Loading Mermaid…</div>';
 		el.innerHTML = message + '<pre style="margin:0;color:#c0caf5;font-size:0.72rem;line-height:1.45;white-space:pre;min-width:max-content">' + escapeHtml(definition || '') + '</pre>';
+	}
+
+	function archDiagramRoot() {
+		return document.querySelector('[data-arch-diagram]');
+	}
+
+	function ensureArchInner(container) {
+		if (!(container instanceof Element)) {
+			return null;
+		}
+
+		var inner = container.querySelector('.arch-diagram-inner');
+		if (!inner) {
+			inner = document.createElement('div');
+			inner.className = 'arch-diagram-inner';
+			container.appendChild(inner);
+		}
+		return inner;
+	}
+
+	function setArchMessage(container, definition, tone, message) {
+		var inner = ensureArchInner(container);
+		if (!inner) return;
+		var color = tone === 'error' ? '#fb7185' : '#c0caf5';
+		inner.innerHTML =
+			'<div style="color:' + color + ';font-size:0.78rem;margin-bottom:12px">' + escapeHtml(message) + '</div>' +
+			'<pre style="margin:0;color:#c0caf5;font-size:0.72rem;line-height:1.45;white-space:pre;min-width:max-content">' +
+			escapeHtml(definition || '') +
+			'</pre>';
+		container.classList.remove('is-draggable', 'is-dragging');
+	}
+
+	function mermaidScript() {
+		return document.getElementById('fuwa-arch-mermaid');
+	}
+
+	function ensureMermaidRuntime() {
+		if (window.mermaid) {
+			if (!mermaidInitialized) {
+				window.mermaid.initialize({
+					startOnLoad: false,
+					securityLevel: 'loose',
+					theme: 'dark',
+					flowchart: { htmlLabels: false, useMaxWidth: false },
+					themeVariables: { primaryColor: '#b48cff', primaryTextColor: '#c0caf5', lineColor: '#414868', fontSize: '11px' }
+				});
+				mermaidInitialized = true;
+			}
+			mermaidLoaded = true;
+			return Promise.resolve(window.mermaid);
+		}
+
+		if (mermaidLoadPromise) {
+			return mermaidLoadPromise;
+		}
+
+		mermaidLoadPromise = new Promise(function (resolve, reject) {
+			var script = mermaidScript();
+			var timeout = null;
+
+			function cleanup() {
+				if (timeout) {
+					clearTimeout(timeout);
+				}
+				script?.removeEventListener('load', onLoad);
+				script?.removeEventListener('error', onError);
+			}
+
+			function finishResolve() {
+				cleanup();
+				ensureMermaidRuntime().then(resolve, reject);
+			}
+
+			function finishReject(error) {
+				cleanup();
+				mermaidLoadPromise = null;
+				reject(error);
+			}
+
+			function onLoad() {
+				if (window.mermaid) {
+					finishResolve();
+					return;
+				}
+				finishReject(new Error('Mermaid script loaded without runtime'));
+			}
+
+			function onError() {
+				finishReject(new Error('script load failed'));
+			}
+
+			if (!script) {
+				script = document.createElement('script');
+				script.id = 'fuwa-arch-mermaid';
+				script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+				document.head.appendChild(script);
+			}
+
+			script.addEventListener('load', onLoad);
+			script.addEventListener('error', onError);
+			timeout = setTimeout(function () {
+				if (window.mermaid) {
+					finishResolve();
+					return;
+				}
+				finishReject(new Error('Mermaid load timed out'));
+			}, 12000);
+
+			if (window.mermaid) {
+				finishResolve();
+			}
+		}).finally(function () {
+			mermaidLoadPromise = null;
+		});
+
+		return mermaidLoadPromise;
+	}
+
+	function currentArchSvg() {
+		return document.querySelector('.arch-diagram-inner svg');
+	}
+
+	function applyArchZoom() {
+		var container = archDiagramRoot();
+		var svg = currentArchSvg();
+		if (!(container instanceof Element) || !(svg instanceof SVGElement)) {
+			return;
+		}
+
+		var viewBox = svg.getAttribute('viewBox');
+		var baseWidth = Number(svg.dataset.baseWidth || 0);
+		if (!(baseWidth > 0)) {
+			if (viewBox) {
+				var parts = viewBox.split(/\s+/);
+				baseWidth = Number(parts[2] || 0);
+			}
+			if (!(baseWidth > 0)) {
+				baseWidth = Math.max(svg.getBoundingClientRect().width, container.clientWidth || 0, 1);
+			}
+			svg.dataset.baseWidth = String(baseWidth);
+		}
+
+		var targetWidth = Math.max(container.clientWidth || 0, Math.round(baseWidth * archZoom));
+		svg.style.width = targetWidth + 'px';
+		svg.style.height = 'auto';
+
+		if (container.scrollWidth > container.clientWidth + 4 || container.scrollHeight > container.clientHeight + 4) {
+			container.classList.add('is-draggable');
+		} else {
+			container.classList.remove('is-draggable', 'is-dragging');
+		}
+	}
+
+	function resetArchViewport() {
+		var container = archDiagramRoot();
+		if (!(container instanceof Element)) {
+			return;
+		}
+		archZoom = 1;
+		container.scrollLeft = 0;
+		container.scrollTop = 0;
+		container.classList.remove('is-dragging');
+		applyArchZoom();
 	}
 
 	var mermaidDefinitions = {
@@ -437,38 +612,17 @@
 	};
 
 	function loadMermaid() {
-		if (mermaidLoaded && window.mermaid) {
-			renderArchDiagram(activeArchTabName());
-			return;
-		}
-		if (document.querySelector('script[src*="mermaid"]')) {
-			if (window.mermaid) {
-				mermaidLoaded = true;
-				renderArchDiagram(activeArchTabName());
-			}
-			return;
-		}
-
-		var script = document.createElement('script');
-		script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
-		showArchFallback(mermaidDefinitions[activeArchTabName()] || '', '');
-		script.onload = function () {
-			mermaidLoaded = true;
-			if (window.mermaid) {
-				window.mermaid.initialize({
-					startOnLoad: false,
-					securityLevel: 'loose',
-					theme: 'dark',
-					flowchart: { htmlLabels: false, useMaxWidth: false },
-					themeVariables: { primaryColor: '#b48cff', primaryTextColor: '#c0caf5', lineColor: '#414868', fontSize: '11px' }
-				});
-			}
-			renderArchDiagram(activeArchTabName());
-		};
-		script.onerror = function () {
-			showArchFallback(mermaidDefinitions[activeArchTabName()] || '', 'script load failed');
-		};
-		document.head.appendChild(script);
+		var tab = activeArchTabName();
+		var definition = mermaidDefinitions[tab] || '';
+		showArchFallback(definition, '');
+		return ensureMermaidRuntime()
+			.then(function () {
+				return renderArchDiagram(tab);
+			})
+			.catch(function (error) {
+				showArchFallback(definition, error && error.message ? error.message : 'script load failed');
+				return false;
+			});
 	}
 
 	function renderArchDiagram(tab) {
@@ -476,31 +630,25 @@
 		if (!el) return;
 		var def = mermaidDefinitions[tab] || '';
 
-		var inner = el.querySelector('.arch-diagram-inner');
-		if (!inner) {
-			inner = document.createElement('div');
-			inner.className = 'arch-diagram-inner';
-			el.appendChild(inner);
-		}
-		inner.style.transform = 'scale(1)';
+		var inner = ensureArchInner(el);
+		if (!inner) return;
+		inner.innerHTML = '';
 
 		if (!window.mermaid) {
-			inner.innerHTML = '<pre style="color:#c0caf5;font-size:0.75rem;padding:20px">' + def.replace(/</g, '&lt;') + '</pre>';
-			return;
+			setArchMessage(el, def, 'info', 'Mermaid runtime unavailable');
+			return Promise.resolve(false);
 		}
-		inner.innerHTML = '';
-		try {
-			window.mermaid.render('arch-diagram-svg-' + tab + '-' + Date.now(), def).then(function (result) {
-				inner.innerHTML = result.svg;
-			}).catch(function (error) {
-				inner.innerHTML = '<pre style="color:#fb7185;font-size:0.75rem;padding:20px">' + (error && error.message ? error.message.replace(/</g, '&lt;') : 'parse error') + '</pre>';
-			});
-		} catch (e) {
-			inner.innerHTML = '<pre style="color:#fb7185;font-size:0.75rem;padding:20px">' + (e && e.message ? e.message.replace(/</g, '&lt;') : 'error') + '</pre>';
-		}
+
+		return window.mermaid.render('arch-diagram-svg-' + tab + '-' + Date.now(), def).then(function (result) {
+			inner.innerHTML = result.svg;
+			resetArchViewport();
+			return true;
+		}).catch(function (error) {
+			setArchMessage(el, def, 'error', error && error.message ? error.message : 'parse error');
+			return false;
+		});
 	}
 
-	var archZoom = 1;
 	document.addEventListener('click', function (e) {
 		var tab = e.target.closest('[data-arch-tab]');
 		if (tab) {
@@ -508,21 +656,62 @@
 			if (!name) return;
 			document.querySelectorAll('.arch-tab').forEach(function (t) { t.classList.remove('arch-tab--active'); });
 			tab.classList.add('arch-tab--active');
-			archZoom = 1;
-			renderArchDiagram(name);
+			void loadMermaid();
 			return;
 		}
 
 		var zoom = e.target.closest('[data-arch-zoom]');
 		if (zoom) {
 			var action = zoom.getAttribute('data-arch-zoom');
-			var inner = document.querySelector('.arch-diagram-inner');
-			if (!inner) return;
 			if (action === 'in') archZoom = Math.min(3, archZoom + 0.2);
 			else if (action === 'out') archZoom = Math.max(0.3, archZoom - 0.2);
-			else archZoom = 1;
-			inner.style.transform = 'scale(' + archZoom + ')';
+			else resetArchViewport();
+			if (action !== 'reset') {
+				applyArchZoom();
+			}
 		}
+	});
+
+	document.addEventListener('pointerdown', function (e) {
+		var container = e.target.closest('[data-arch-diagram]');
+		if (!(container instanceof Element) || !container.classList.contains('is-draggable')) {
+			return;
+		}
+		if (e.target.closest('[data-arch-zoom], [data-arch-tab], .grafana-back-btn')) {
+			return;
+		}
+		archDrag.active = true;
+		archDrag.startX = e.clientX;
+		archDrag.startY = e.clientY;
+		archDrag.scrollLeft = container.scrollLeft;
+		archDrag.scrollTop = container.scrollTop;
+		archDrag.container = container;
+		container.classList.add('is-dragging');
+	});
+
+	document.addEventListener('pointermove', function (e) {
+		if (!archDrag.active || !(archDrag.container instanceof Element)) {
+			return;
+		}
+		e.preventDefault();
+		archDrag.container.scrollLeft = archDrag.scrollLeft - (e.clientX - archDrag.startX);
+		archDrag.container.scrollTop = archDrag.scrollTop - (e.clientY - archDrag.startY);
+	});
+
+	document.addEventListener('pointerup', function () {
+		if (archDrag.container instanceof Element) {
+			archDrag.container.classList.remove('is-dragging');
+		}
+		archDrag.active = false;
+		archDrag.container = null;
+	});
+
+	document.addEventListener('pointercancel', function () {
+		if (archDrag.container instanceof Element) {
+			archDrag.container.classList.remove('is-dragging');
+		}
+		archDrag.active = false;
+		archDrag.container = null;
 	});
 
 	/* ── Boot ───────────────────────────────────────────────────────── */
