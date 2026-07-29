@@ -8,4 +8,7 @@ set -a
 [ -f .env.local ] && . ./.env.local
 set +a
 
-exec python3 runtime/dev-server.py "$@"
+# Ensure .fuwa-dev directory exists (for state, reload token, SQLite)
+mkdir -p .fuwa-dev
+
+exec tilt up --cwd "$(dirname "$0")" --file infra/Tiltfile "$@"

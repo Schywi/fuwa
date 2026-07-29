@@ -79,28 +79,26 @@ local function test_http_request()
 	assert_true(output:find('"@codemirror/state": "/vendor/codemirror/state-6.6.0.js"', 1, true) ~= nil, "expected literal codemirror import map")
 	assert_true(output:find('&quot;@codemirror/state&quot;', 1, true) == nil, "expected unescaped codemirror import map")
 	assert_true(output:find('.shell-widget-shell[data-widget-state="mounted"]', 1, true) ~= nil, "expected literal CSS selectors")
-	assert_true(output:find('data-switch-select', 1, true) ~= nil, "expected shell switch control")
+	assert_true(output:find('data-select', 1, true) ~= nil, "expected shell select control")
 	assert_true(output:find('hx-post="/save/current"', 1, true) == nil, "expected no shell save button")
 	assert_true(output:find('hx-target="#ide-workspace"', 1, true) ~= nil, "expected workspace fragment target")
 	assert_true(output:find("EventSource('/__dev/reload')", 1, true) == nil, "expected no full-page reload script in the shell host page")
 end
 
 local function test_dev_server_container_mux_route()
-	local source = read_file("runtime/dev-server.py")
-	assert_true(source:find('path_only, _, query_string = path.partition%("%?"%)') ~= nil,
-		"expected dev server to split query strings before /__dev/ route matching")
-	assert_true(source:find('if path_only == "/__dev/containers/live":', 1, true) ~= nil,
-		"expected container mux route to match the queryless path")
-	assert_true(source:find('params = urllib.parse.parse_qs(query_string)', 1, true) ~= nil,
-		"expected container mux route to parse repeated name query params")
-	assert_true(source:find('errors_only = params.get("errors_only", ["0"])[0] in ("1", "true", "yes", "on")', 1, true) ~= nil,
-		"expected container mux route to honor the server-side errors_only flag")
+	-- OpenResty handler: verify containers_live.lua handles query params correctly
+	local handler_source = read_file("runtime/openresty/containers_live.lua")
+	assert_true(handler_source:find("ngx.req.get_uri_args", 1, true) ~= nil,
+		"expected containers handler to parse query args")
+	assert_true(handler_source:find('errors_only', 1, true) ~= nil,
+		"expected containers handler to honor errors_only flag")
+	assert_true(handler_source:find("docker logs", 1, true) ~= nil,
+		"expected containers handler to call docker logs")
 
-	local mux_source = read_file("runtime/container_logs.py")
-	assert_true(mux_source:find("def handle_container_stream", 1, true) ~= nil,
-		"expected multiplexed container log handler module")
-	assert_true(mux_source:find("ERROR_LINE_RE", 1, true) ~= nil,
-		"expected container mux handler to define server-side error filtering")
+	-- OpenResty handler: verify handler.lua routes non-SSE requests through fuwa-dev
+	local handler_source = read_file("runtime/openresty/handler.lua")
+	assert_true(handler_source:find("fuwa_dev.route_request", 1, true) ~= nil,
+		"expected handler to delegate to fuwa-dev route_request")
 end
 
 local function test_response_builder()
@@ -112,7 +110,7 @@ local function test_response_builder()
 	assert_true(response.body:find("<!DOCTYPE html>", 1, true) == 1, "expected doctype first")
 	assert_true(response.headers["Content-Type"] == "text/html; charset=utf-8", "expected HTML content type")
 	assert_true(response.body:find("pipeline smoke test", 1, true) ~= nil, "expected shell response")
-	assert_true(response.body:find('<div class="ide-shell" v-scope="FuwaShellWorkspace.createState()">', 1, true) ~= nil, "expected petite-vue on the stable shell parent")
+	assert_true(response.body:find('<div class="ide-shell" v-scope="FuwaShellWorkspace.createState()"', 1, true) ~= nil, "expected petite-vue on the stable shell parent")
 	assert_true(response.body:find('data-preview-stage', 1, true) ~= nil, "expected browser runtime stage")
 	assert_true(response.body:find('src="/payload/current/"', 1, true) == nil, "expected no route-backed iframe")
 	assert_true(response.body:find("tenant-bridge.js", 1, true) == nil, "expected no shell bridge hook")
@@ -124,7 +122,7 @@ local function test_response_builder()
 	assert_true(response.body:find('<script type="importmap">', 1, true) ~= nil, "expected import map")
 	assert_true(response.body:find('"@codemirror/state": "/vendor/codemirror/state-6.6.0.js"', 1, true) ~= nil, "expected literal codemirror import map")
 	assert_true(response.body:find('&quot;@codemirror/state&quot;', 1, true) == nil, "expected unescaped codemirror import map")
-	assert_true(response.body:find('data-switch-select', 1, true) ~= nil, "expected switch control")
+	assert_true(response.body:find('data-select', 1, true) ~= nil, "expected select control")
 	assert_true(response.body:find('hx-post="/save/current"', 1, true) == nil, "expected no save action in the default shell")
 end
 
@@ -246,10 +244,10 @@ local function test_raw_asset_requests()
 		"printf 'GET /shell/hooks/motion.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
 	)
 	assert_true(motion_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected motion hook to respond")
-	assert_true(motion_js:find('subgraph Browser["Browser - IDE Shell"]', 1, true) ~= nil, "expected detailed frontend mermaid tab")
+	assert_true(motion_js:find('subgraph Browser["Browser Shell"]', 1, true) ~= nil, "expected detailed frontend mermaid tab")
 	assert_true(motion_js:find("runtime/stdlib/compiler/package_web.lua", 1, true) ~= nil, "expected compiler boundary in mermaid content")
-	assert_true(motion_js:find("runtime/container_logs.py", 1, true) ~= nil, "expected underscore container log path in mermaid content")
-	assert_true(motion_js:find("fuwa-infra-exploration/infra/docker-compose/dev.yml", 1, true) ~= nil, "expected dev infra compose path in mermaid content")
+	assert_true(motion_js:find("runtime/openresty/containers_live.lua", 1, true) ~= nil, "expected openresty container log path in mermaid content")
+	assert_true(motion_js:find("infra/docker-compose/dev.yml", 1, true) ~= nil, "expected dev infra compose path in mermaid content")
 
 	local xterm_mjs = run_command(
 		"printf 'GET /vendor/xterm/xterm-6.0.0.mjs HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"

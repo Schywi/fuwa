@@ -14,7 +14,7 @@ layer. Use `%%` comments to annotate non-obvious relationships.
 ## Current Repo Corrections
 
 - As of **July 28, 2026**, the live architecture panel consumes **three focused Mermaid tabs** from `shell/hooks/motion.js` (`frontend`, `backend`, `infra`) rather than one monolithic graph in the shell UI.
-- The container log SSE helper path is `runtime/container_logs.py`, not `runtime/container-logs.py`.
+- The container log SSE helper path is `runtime/openresty/containers_live.lua` (migrated from Python `container_logs.py` to OpenResty/Lua as of July 2026).
 - The current dev infra topology is rooted at `/mnt/DATA/development/projects/repos/fuwa-infra-exploration/infra/docker-compose/dev.yml`, which includes `app.dev.yml`, `openresty.yml`, `signoz.yml`, and `telemetry.yml`.
 - `/mnt/DATA/development/projects/repos/fuwa-infra-exploration/infra/docker-compose/observability.yml` is an alternate Uptrace-oriented stack, not the default container set wired into `shell/views/fragments/home.fuwa`.
 - If you need the panel-ready output instead of the single unified research diagram, treat `shell/hooks/motion.js` as the source of truth for the currently shipped tabbed diagrams.
@@ -30,7 +30,7 @@ layer. Use `%%` comments to annotate non-obvious relationships.
   runtime stdlib, host capabilities, dev server, infra containers.
 - **Kaomoji welcome but optional.** Can use them as node labels for personality.
 - **Include the observability pipeline.** Show how traces flow from Lua →
-  stderr → Python ring buffer → SSE → browser, and from Wasmoon → postMessage →
+  stderr → OpenResty shared dict ring buffer → SSE → browser, and from Wasmoon → postMessage →
   appendEvents → petite-vue.
 
 ## Codebase Inventory
@@ -47,10 +47,10 @@ layer. Use `%%` comments to annotate non-obvious relationships.
 | `runtime-session.js` | Owns Wasmoon Web Worker lifecycle. Seeds in-memory files Map. 650ms live-reload debounce. Routes worker messages to terminal + tenant + observability. | Creates/destroys `runtime-worker.js` Web Worker. Calls `FuwaShellTerminal.write()` and `FuwaShellObservability.appendEvents()` |
 | `runtime-worker.js` | Web Worker running Wasmoon (Lua 5.4 in WASM) + SQLite-WASM. Boots engine, installs JS→Lua bridge globals, compiles `.fuwa` in-VM, executes main.lua. | Receives `run` messages from `runtime-session.js`. Posts `html`, `stdout`, `stderr`, `trace` back |
 | `tenant-runtime.js` | Inside sandboxed iframe. Replaces `XMLHttpRequest` with `TenantXMLHttpRequest` that routes htmx AJAX through postMessage. Handles `swap`, `clear`, `reply`, `stream` commands. | Receives host commands from `preview-browser.js`. Normalizes paths against `appBasePath` |
-| `observability.js` | Diegetic obs console. Ring buffer (max 200 events). SSE connection to `/__dev/traces/live`. Groups events by `trace_id`. `FuwaObservability.log()` as centralized log bus. `FuwaShellObservability.appendEvents()` for Wasmoon traces. | petite-vue reactive state. Receives traces from Python SSE AND from worker via appendEvents. |
+| `observability.js` | Diegetic obs console. Ring buffer (max 200 events). SSE connection to `/__dev/traces/live`. Groups events by `trace_id`. `FuwaObservability.log()` as centralized log bus. `FuwaShellObservability.appendEvents()` for Wasmoon traces. | petite-vue reactive state. Receives traces from OpenResty SSE AND from worker via appendEvents. |
 | `motion.js` | GSAP animations: darkroom curtain loader, develop-from-black overlay, typewriter header tips (5 cycling tips with typing/holding/deleting phases). | Pure visual. Respects `prefers-reduced-motion` |
 | `cursor.js` | Custom loupe cursor: dot + trailing ring, `mix-blend-mode: difference`, expands on interactive elements. | Pure DOM. RAF-driven with lerp smoothing |
-| `tmux.js` | Multi-container log viewer. 8 xterm instances. Single multiplexed SSE connection to `/__dev/containers/live?name=...`. Routes structured JSON events to correct terminal by container name. Error-only filtering. | Depends on Python `container-logs.py` SSE endpoint and Docker |
+| `tmux.js` | Multi-container log viewer. 8 xterm instances. Single multiplexed SSE connection to `/__dev/containers/live?name=...`. Routes structured JSON events to correct terminal by container name. Error-only filtering. | Depends on OpenResty `containers_live.lua` SSE endpoint and Docker |
 | `tenant-bridge.js` | Legacy route-backed preview: fetches payload URL, parses HTML, strips+revives scripts, mounts petite-vue+htmx. | Used as fallback when browser runtime not active |
 
 ### Frontend Orchestration
@@ -117,13 +117,19 @@ Pipeline: `.fuwa` source → `package_web.build()` → compiler transpiles → m
 - `init.lua`: Generates `/runtime/tenant.html` — the tenant iframe HTML with phone-shell, petite-vue, htmx, tenant-runtime.js. Builds the `build_runtime_srcdoc()` function.
 - Bundle builder: Generates `bundle.json` with compiled sources for the Web Worker
 
-### Dev Server — `runtime/dev-server.py`, `runtime/fuwa-dev.lua`, `runtime/container-logs.py`
+### Dev Server — `nginx.conf`, `runtime/openresty/*.lua`, `runtime/fuwa-dev.lua`
 
-- **`dev-server.py`**: Python HTTP server (raw sockets). File watcher (polling). `/__dev/` API routes: traces (GET/POST), trace stream (SSE), container logs (SSE). Observability: ring buffer + SSE fan-out. Forwards all other requests to `fuwa-dev.lua` via stdin/stdout. Stderr reader pipes `__VECTOR__` lines into ring buffer.
+- **`nginx.conf`**: OpenResty (nginx + LuaJIT) router. Routes: `/__dev/traces` → `traces.lua`, `/__dev/traces/live` → `traces_live.lua`, `/__dev/containers/live` → `containers_live.lua`, everything else → `handler.lua` which delegates to `fuwa-dev.lua` in-process. Migrated from Python `dev-server.py` (July 2026).
 
-- **`fuwa-dev.lua`**: Lua CGI handler. HTTP parsing, static file serving (`/shell/hooks/*`, `/vendor/*`), payload compilation (`package_web.build`), module loading + dispatch, template rendering, bundle building, DB ops, trace → stderr (`__VECTOR__` format).
+- **`runtime/openresty/handler.lua`**: Wraps `fuwa-dev.route_request()`. Handles `/__dev/reload` SSE with non-blocking `ngx.sleep()`. Routes all non-SSE requests through `fuwa-dev.lua` in-process (no CGI fork).
 
-- **`container-logs.py`**: Multiplexed container log streaming. One SSE endpoint, per-container `docker logs -f` subprocesses, reader threads, shared `queue.Queue`, structured JSON events (`ready`, `status`, `log`, `error`).
+- **`runtime/openresty/traces.lua`**: Trace ring buffer (GET/POST) backed by `ngx.shared.DICT`. Replaces Python ring buffer + `__VECTOR__` stderr pipe.
+
+- **`runtime/openresty/traces_live.lua`**: SSE stream polling trace counter every 100ms.
+
+- **`runtime/openresty/containers_live.lua`**: Docker container log SSE multiplexer. Polls `docker logs --tail` per container.
+
+- **`runtime/fuwa-dev.lua`**: Lua request handler. `route_request()` returns `{status, headers, body}`. HTTP parsing, static file serving, payload compilation (`package_web.build`), module loading + dispatch, template rendering, bundle building, DB ops.
 
 ### Infra — `fuwa-infra-exploration/infra/docker-compose/`
 
@@ -141,19 +147,19 @@ Pipeline: `.fuwa` source → `package_web.build()` → compiler transpiles → m
 ### Data Flows
 
 **Request flow (full page):**
-Browser → Python dev-server → stdin → fuwa-dev.lua → package_web.build → load modules → dispatch route → action handler → view.render → HTML → stdout → Python → client socket → browser → HTMX + petite-vue + hooks boot
+Browser → OpenResty (nginx) → handler.lua → fuwa-dev.route_request() → package_web.build → load modules → dispatch route → action handler → view.render → HTML → ngx.print() → browser → HTMX + petite-vue + hooks boot
 
 **Live edit flow:**
 CodeMirror keystroke → `fuwa:editor-change` → preview.js `updateCode()` → runtime-session.js 650ms debounce → postMessage to Web Worker → Wasmoon compiles + executes → postMessage back → send to tenant iframe → tenant-runtime.js swaps HTML → url rewrite → script revival → petite-vue/htmx re-process
 
 **Observability flow (Lua side):**
-fuwa-dev.lua `trace.span()` → `dev_trace_sink()` → stderr `__VECTOR__` json → Python `_stderr_reader()` → ring buffer → SSE fan-out to browser observability.js + POST to vector-router:8687 → vector → otlp-bridge → signoz-ingester → clickhouse → SigNoz dashboard
+fuwa-dev.lua `trace.sink()` → `ngx.shared.traces` ring buffer → SSE fan-out to browser observability.js + (optional) vector POST |
 
 **Observability flow (Wasmoon side):**
 runtime-worker.js `__fuwa_trace_sink()` → postMessage `{type:"trace"}` → runtime-session.js → `FuwaShellObservability.appendEvents()` → observability.js ring buffer + POST to /__dev/traces → Python ring buffer
 
 **Container log flow:**
-tmux.js single EventSource → `/__dev/containers/live?name=...` → Python container-logs.py → 8x `docker logs -f` reader threads → queue.Queue → SSE (ready/status/log/error) → browser routes by container name → xterm instances
+tmux.js single EventSource → `/__dev/containers/live?name=...` → OpenResty containers_live.lua → `docker logs --tail` polling → SSE (ready/status/log/error) → browser routes by container name → xterm instances
 
 ### Build System — `Makefile`
 
@@ -176,7 +182,7 @@ Produce a **single Mermaid `graph TD` diagram** with these subgraphs:
 1. `subgraph Browser["Browser — IDE Shell"]` — all hooks, their relationships, HTMX/petite-vue orchestration
 2. `subgraph Tenant["Tenant iframe"]` — tenant-runtime.js, postMessage bridge
 3. `subgraph Worker["Web Worker (Wasmoon)"]` — runtime-worker.js, Wasmoon engine, in-VM compiler
-4. `subgraph Python["Python Dev Server"]` — dev-server.py, ring buffer, SSE fan-out, file watcher
+4. `subgraph OpenResty["OpenResty"]` — nginx.conf, handler.lua, traces.lua, containers_live.lua, shared dict ring buffer, SSE fan-out, file watcher
 5. `subgraph Lua["Lua CGI Handler"]` — fuwa-dev.lua, request dispatch, template rendering
 6. `subgraph Compiler["Compiler"]` — package_web, modules, actions, view compiler, bootstrap
 7. `subgraph Runtime["Runtime stdlib"]` — web.lua, view.lua, db.lua, trace.lua, schema.lua

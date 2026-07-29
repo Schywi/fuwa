@@ -1,0 +1,14 @@
+FROM openresty/openresty:latest
+
+# Python 3 needed by sqlite_local DB provider (io.popen("python3 runtime/sqlite_local.py"))
+RUN apt-get update && apt-get install -y --no-install-recommends python3 && \
+    rm -rf /var/lib/apt/lists/*
+
+# nginx.conf is copied at build time; code is volume-mounted
+COPY nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
+
+WORKDIR /app
+
+EXPOSE 8080
+
+CMD ["/usr/local/openresty/bin/openresty", "-g", "daemon off;"]

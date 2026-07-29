@@ -1,0 +1,16 @@
+services:
+  openresty:
+    build:
+      context: ..
+      dockerfile: infra/Dockerfile.openresty
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount entire repo so lua_code_cache off picks up live edits
+      - ..:/app
+      # Docker socket for container log streaming
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - FUWA_DB_PATH=/app/.fuwa-dev/sqlite-local.db
+    working_dir: /app
+    network_mode: bridge
