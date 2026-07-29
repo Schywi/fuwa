@@ -1,42 +1,14 @@
-# Tiltfile — dev workflow for fuwa OpenResty dev server.
-# Start with:  tilt up
-# Or via:      ./dev.sh
+# Tiltfile — minimal, working Docker Compose workflow for the OpenResty dev server.
+# Start with:
+#   tilt up --file infra/Tiltfile
+# Or via:
+#   ./dev.sh
+#
+# The repo is bind-mounted into /app and nginx runs with `lua_code_cache off`,
+# so Lua edits are picked up live without extra Tilt-side file watching.
 
-# OpenResty service with live-reload
-docker_compose('./infra/docker-compose.yml')
+docker_compose('./docker-compose.yml')
 
-# Watch Lua files — no rebuild needed (lua_code_cache off),
-# but we print the changed file for visibility
-local_resource(
-  'lua-sources',
-  labels=['Lua'],
-  trigger_mode=TRIGGER_MODE_AUTO,
-)
-watch_file('./runtime/**/*.lua', 'lua-sources')
-watch_file('./shell/**/*.lua', 'lua-sources')
-watch_file('./payloads/**/*.lua', 'lua-sources')
-
-# Watch .fuwa files
-local_resource(
-  'fuwa-sources',
-  labels=['fuwa'],
-  trigger_mode=TRIGGER_MODE_AUTO,
-)
-watch_file('./shell/**/*.fuwa', 'fuwa-sources')
-watch_file('./payloads/**/*.fuwa', 'fuwa-sources')
-
-# Watch nginx.conf changes — these need a container restart
-local_resource(
-  'nginx-config',
-  labels=['nginx'],
-  trigger_mode=TRIGGER_MODE_AUTO,
-)
-watch_file('./nginx.conf', 'nginx-config')
-
-# Print the URL on startup
-local('echo')
-local_resource(
-  'fuwa-dev',
-  serve_cmd='echo "fuwa dev → http://localhost:8080"',
-  labels=['dev'],
-)
+# Register the compose service with Tilt. Docker Compose publishes the service
+# on `${FUWA_HTTP_PORT:-8080}`, so we do not add Tilt-managed port forwards here.
+dc_resource('openresty')

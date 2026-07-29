@@ -8,6 +8,8 @@ set -a
 [ -f .env.local ] && . ./.env.local
 set +a
 
+export FUWA_HTTP_PORT="${FUWA_HTTP_PORT:-8080}"
+
 # Ensure .fuwa-dev directory exists (for state, reload token, SQLite)
 mkdir -p .fuwa-dev
 

@@ -60,6 +60,11 @@ local function file_watcher(premature)
 		end
 	end)
 
+	if not ok then
+		ngx.log(ngx.ERR, "file_watcher error: ", tostring(err))
+	end
+
+	-- Always reschedule so the watch chain never dies silently
 	ngx.timer.at(0.5, file_watcher)
 end
 
