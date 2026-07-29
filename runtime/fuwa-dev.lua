@@ -269,7 +269,9 @@ local function dev_trace_sink(event)
 	log.pretty_sink(event)
 end
 
-trace.set_sink(dev_trace_sink)
+if not ngx then
+	trace.set_sink(dev_trace_sink)
+end
 
 local function register_runtime_preloads()
 	for module_name, relative_path in pairs(runtime_preloads) do
@@ -977,6 +979,27 @@ local function read_request()
 	}
 end
 
+local NOT_FOUND_RESPONSE = {
+	status = 404,
+	headers = {
+		["Content-Type"] = "text/plain; charset=utf-8",
+		["Content-Length"] = "9",
+		["Connection"] = "close",
+	},
+	body = "Not found",
+}
+
+local function redirect_response(location)
+	return {
+		status = 302,
+		headers = {
+			["Location"] = location,
+			["Connection"] = "close",
+		},
+		body = "",
+	}
+end
+
 local function write_http_response(response)
 	io.stdout:write(status_line(response.status), "\r\n")
 	for name, value in pairs(response.headers or {}) do
@@ -1035,72 +1058,34 @@ local function handle_reload_request()
 	end
 end
 
-function M.run()
-	io.stdout:setvbuf("no")
-	ensure_path(reload_token_path, "")
-
-	local request = read_request()
-	if not request then
-		return
+-- route_request returns a response table {status, headers, body} for
+-- non-streaming routes. It returns nil for SSE/streaming endpoints that
+-- must hold the connection open — those are handled externally.
+function M.route_request(method, path, body)
+	-- Static assets: shell hooks
+	if path:match("^/shell/hooks/") then
+		local relative_path = path:gsub("^/shell/", "", 1)
+		return serve_static_asset(shell_root .. "/" .. relative_path) or NOT_FOUND_RESPONSE
 	end
 
-	if request.path:match("^/shell/hooks/") then
-		local relative_path = request.path:gsub("^/shell/", "", 1)
-		local asset = serve_static_asset(shell_root .. "/" .. relative_path)
-		if asset then
-			write_http_response(asset)
-		else
-			write_http_response({
-				status = 404,
-				headers = {
-					["Content-Type"] = "text/plain; charset=utf-8",
-					["Content-Length"] = "9",
-					["Connection"] = "close",
-				},
-				body = "Not found",
-			})
-		end
-		return
+	-- Static assets: vendor
+	if path:match("^/vendor/") then
+		local relative_path = path:gsub("^/vendor/", "", 1)
+		return serve_static_asset(vendor_root .. "/" .. relative_path) or NOT_FOUND_RESPONSE
 	end
 
-	if request.path:match("^/vendor/") then
-		local relative_path = request.path:gsub("^/vendor/", "", 1)
-		local asset = serve_static_asset(vendor_root .. "/" .. relative_path)
-		if asset then
-			write_http_response(asset)
-		else
-			write_http_response({
-				status = 404,
-				headers = {
-					["Content-Type"] = "text/plain; charset=utf-8",
-					["Content-Length"] = "9",
-					["Connection"] = "close",
-				},
-				body = "Not found",
-			})
-		end
-		return
-	end
-
-	local mount_kind = request.path:match("^/(payload)/") or request.path:match("^/(preview)/")
+	local mount_kind = path:match("^/(payload)/") or path:match("^/(preview)/")
 	local payload_id, inner_path
 	if mount_kind then
-		payload_id, inner_path = split_mount_route(request.path, mount_kind)
+		payload_id, inner_path = split_mount_route(path, mount_kind)
 	end
 
+	-- Reject path traversal
 	if payload_id and inner_path and has_dotdot_segment(inner_path) then
-		write_http_response({
-			status = 404,
-			headers = {
-				["Content-Type"] = "text/plain; charset=utf-8",
-				["Content-Length"] = "9",
-				["Connection"] = "close",
-			},
-			body = "Not found",
-		})
-		return
+		return NOT_FOUND_RESPONSE
 	end
 
+	-- Static asset inside payload (has extension, not .fuwa)
 	if payload_id and inner_path and inner_path ~= "/" and inner_path:match("%.[^/]+$") and not inner_path:match("%.fuwa$") then
 		local asset = nil
 		if mount_kind == "preview" then
@@ -1109,51 +1094,39 @@ function M.run()
 		if asset == nil then
 			asset = serve_static_asset(payloads_root .. "/" .. payload_id .. inner_path)
 		end
-		if asset then
-			write_http_response(asset)
-		else
-			write_http_response({
-				status = 404,
-				headers = {
-					["Content-Type"] = "text/plain; charset=utf-8",
-					["Content-Length"] = "9",
-					["Connection"] = "close",
-				},
-				body = "Not found",
-			})
-		end
-		return
+		return asset or NOT_FOUND_RESPONSE
 	end
 
-	if request.path == "/__dev/reload" then
-		handle_reload_request()
-		return
+	-- SSE reload — streaming, caller must handle externally
+	if path == "/__dev/reload" then
+		return nil
 	end
 
-	local draft_discard_id = request.path:match("^/draft/([^/]+)/discard$")
-	if draft_discard_id and request.method == "POST" then
-		write_http_response(M.build_draft_discard_response(draft_discard_id, request.body))
-		return
+	-- Draft discard
+	local draft_discard_id = path:match("^/draft/([^/]+)/discard$")
+	if draft_discard_id and method == "POST" then
+		return M.build_draft_discard_response(draft_discard_id, body)
 	end
 
-	local draft_write_id = request.path:match("^/draft/([^/]+)$")
-	if draft_write_id and request.method == "POST" then
-		write_http_response(M.build_draft_write_response(draft_write_id, request.body))
-		return
+	-- Draft write
+	local draft_write_id = path:match("^/draft/([^/]+)$")
+	if draft_write_id and method == "POST" then
+		return M.build_draft_write_response(draft_write_id, body)
 	end
 
-	local bundle_route, bundle_query = request.path:match("^([^?]+)%??(.*)$")
+	-- Browser runtime bundle
+	local bundle_route, bundle_query = path:match("^([^?]+)%??(.*)$")
 	local bundle_payload_id = tostring(bundle_route or ""):match("^/runtime/([^/]+)/bundle%.json$")
-	if bundle_payload_id and request.method == "GET" then
-		write_http_response(M.build_bundle_response(bundle_payload_id, {
+	if bundle_payload_id and method == "GET" then
+		return M.build_bundle_response(bundle_payload_id, {
 			draft = tostring(bundle_query or ""):match("draft=1") ~= nil,
-		}))
-		return
+		})
 	end
 
-	if request.path == "/runtime/tenant.html" and request.method == "GET" then
+	-- Tenant runtime bootstrap HTML
+	if path == "/runtime/tenant.html" and method == "GET" then
 		local tenant_html = browser_runtime.bootstrap.build_runtime_srcdoc()
-		write_http_response({
+		return {
 			status = 200,
 			headers = {
 				["Content-Type"] = "text/html; charset=utf-8",
@@ -1162,35 +1135,18 @@ function M.run()
 				["Connection"] = "close",
 			},
 			body = tenant_html,
-		})
-		return
+		}
 	end
 
-	local response
+	-- Payload/preview rendering
 	if mount_kind then
 		if payload_id == nil then
-			write_http_response({
-				status = 404,
-				headers = {
-					["Content-Type"] = "text/plain; charset=utf-8",
-					["Content-Length"] = "9",
-					["Connection"] = "close",
-				},
-				body = "Not found",
-			})
-			return
+			return NOT_FOUND_RESPONSE
 		end
 
-		if request.path:match("^/" .. mount_kind .. "/[^/]+$") and request.method == "GET" then
-			write_http_response({
-				status = 302,
-				headers = {
-					["Location"] = request.path .. "/",
-					["Connection"] = "close",
-				},
-				body = "",
-			})
-			return
+		-- Redirect /payload/id → /payload/id/
+		if path:match("^/" .. mount_kind .. "/[^/]+$") and method == "GET" then
+			return redirect_response(path .. "/")
 		end
 
 		local opts = {
@@ -1200,17 +1156,14 @@ function M.run()
 			opts.overlay_root = drafts_root .. "/" .. payload_id
 		end
 
-		response = M.build_response(
+		local response = M.build_response(
 			payloads_root .. "/" .. payload_id,
-			request.method,
+			method,
 			inner_path,
-			request.body,
+			body,
 			opts
 		)
 
-		-- Payload markup hardcodes absolute /payload/<id>/ routes. Inside a
-		-- draft preview those must stay on the draft surface, otherwise htmx
-		-- interactions would run published code against a draft document.
 		if mount_kind == "preview"
 			and response.body
 			and tostring((response.headers or {})["Content-Type"] or ""):match("text/html") then
@@ -1218,13 +1171,38 @@ function M.run()
 			response.body = response.body:gsub("/payload/" .. pattern_id .. "/", "/preview/" .. payload_id .. "/")
 			response.headers["Content-Length"] = tostring(#response.body)
 		end
-	else
-		response = M.build_response(shell_root, request.method, request.path, request.body, {
-			allow_host = true,
-		})
+
+		return response
 	end
 
-	write_http_response(response)
+	-- Shell (host dashboard) — catch-all
+	return M.build_response(shell_root, method, path, body, {
+		allow_host = true,
+	})
+end
+
+-- root directory exposed for OpenResty handler use
+M.ROOT_DIR = root_dir
+
+function M.run()
+	io.stdout:setvbuf("no")
+	ensure_path(reload_token_path, "")
+
+	local request = read_request()
+	if not request then
+		return
+	end
+
+	-- SSE reload handled directly in CGI mode (streaming)
+	if request.path == "/__dev/reload" then
+		handle_reload_request()
+		return
+	end
+
+	local response = M.route_request(request.method, request.path, request.body)
+	if response then
+		write_http_response(response)
+	end
 end
 
 function M.db_helper_main(state_file, command_file)
