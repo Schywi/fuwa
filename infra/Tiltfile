@@ -7,7 +7,7 @@
 # The repo is bind-mounted into /app and nginx runs with `lua_code_cache off`,
 # so Lua edits are picked up live without extra Tilt-side file watching.
 
-docker_compose('./docker-compose.yml')
+docker_compose('./docker-compose.yml', project_name='fuwa-ui-redesign')
 
 # Register the compose service with Tilt. Docker Compose publishes the service
 # on `${FUWA_HTTP_PORT:-8080}`, so we do not add Tilt-managed port forwards here.
