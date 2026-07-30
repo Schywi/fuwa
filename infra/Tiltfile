@@ -7,7 +7,7 @@
 
 docker_compose('./docker-compose.yml', project_name='fuwa-ui-redesign')
 
-dc_resource('openresty', port_forwards='8080')
+dc_resource('openresty')
 
 local_resource(
   'repo-watch',
