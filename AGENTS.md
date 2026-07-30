@@ -163,8 +163,8 @@ For more details, see README.md and docs/QUICKSTART.md.
 - Work is NOT complete until code changes are committed locally
 - NEVER stop before committing code - that leaves work stranded in the worktree
 - NEVER leave repo work untracked or uncommitted at session end. If you created it
-  or changed it and it belongs to the repo, you must either commit it in this
-  session or explicitly remove it before finishing.
+  or changed it and it belongs to the repo, you must commit it in this session
+  before finishing.
 - ALWAYS stage local repo changes with `git add` as part of the default completion flow
 - ALWAYS create the local commit yourself once tests pass
 - ALWAYS write atomic local commits. Each commit must represent one coherent,
