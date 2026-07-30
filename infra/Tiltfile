@@ -1,14 +1,21 @@
-# Tiltfile — minimal, working Docker Compose workflow for the OpenResty dev server.
-# Start with:
-#   tilt up --file infra/Tiltfile
-# Or via:
-#   ./dev.sh
+# Tiltfile — dev workflow for fuwa OpenResty dev server.
+# Start with:  tilt up --file infra/Tiltfile
+# Or via:      ./dev.sh
 #
-# The repo is bind-mounted into /app and nginx runs with `lua_code_cache off`,
-# so Lua edits are picked up live without extra Tilt-side file watching.
+# The repo is bind-mounted into /app. OpenResty owns the actual browser reload
+# signal, but Tilt still watches the whole worktree so file edits show up in the UI.
 
 docker_compose('./docker-compose.yml', project_name='fuwa-ui-redesign')
 
-# Register the compose service with Tilt. Docker Compose publishes the service
-# on `${FUWA_HTTP_PORT:-8080}`, so we do not add Tilt-managed port forwards here.
-dc_resource('openresty')
+dc_resource('openresty', port_forwards='8080')
+
+local_resource(
+  'repo-watch',
+  cmd='true',
+  trigger_mode=TRIGGER_MODE_AUTO,
+  auto_init=False,
+  labels=['dev'],
+)
+watch_file('../*', 'repo-watch')
+watch_file('../.*', 'repo-watch')
+watch_file('../**/*', 'repo-watch')

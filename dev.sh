@@ -10,7 +10,7 @@ set +a
 
 export FUWA_HTTP_PORT="${FUWA_HTTP_PORT:-8080}"
 
-# Ensure .fuwa-dev directory exists (for state, reload token, SQLite)
 mkdir -p .fuwa-dev
 
-exec tilt up --cwd "$(dirname "$0")" --file infra/Tiltfile "$@"
+tilt down --file infra/Tiltfile 2>/dev/null || true
+exec tilt up --file infra/Tiltfile "$@"

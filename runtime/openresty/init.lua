@@ -2,53 +2,25 @@
 -- OpenResty worker initialization — runs once per worker via init_worker_by_lua_file.
 -- Sets up the file watcher timer. Trace sink is set per-request in handler.lua.
 
--- File watcher: poll payloads/current/ and touch .fuwa-dev/reload-token
-local WATCH_DIR = "/app/payloads/current"
+local cjson = require("cjson")
+local repo_watcher = require("runtime.openresty.file_watcher")
+
+-- File watcher: poll the full worktree and touch .fuwa-dev/reload-token.
+local WATCH_ROOT = "/app"
 local RELOAD_TOKEN = "/app/.fuwa-dev/reload-token"
 
 local function file_watcher(premature)
 	if premature then return end
 
 	local ok, err = pcall(function()
-		local mtimes = {}
-		local function collect(path)
-			local f = io.open(path, "rb")
-			if f then
-				mtimes[path] = f:seek("end")
-				f:close()
-			end
-		end
-
-		local p = io.popen('find "' .. WATCH_DIR .. '" -type f 2>/dev/null')
-		if p then
-			for line in p:lines() do
-				collect(line)
-			end
-			p:close()
-		end
-
+		local signatures = repo_watcher.collect_signatures(WATCH_ROOT)
 		local shm = ngx.shared.traces
 		if not shm then return end
 
-		local key = "file_watcher_mtimes"
+		local key = "file_watcher_signatures"
 		local old_json = shm:get(key) or "{}"
-		local old = require("cjson").decode(old_json)
-		local changed = false
-
-		for path, sig in pairs(mtimes) do
-			if old[path] ~= sig then
-				changed = true
-				break
-			end
-		end
-		if not changed then
-			for path, _ in pairs(old) do
-				if mtimes[path] == nil then
-					changed = true
-					break
-				end
-			end
-		end
+		local old = cjson.decode(old_json)
+		local changed = repo_watcher.has_changes(old, signatures)
 
 		if changed then
 			local f = io.open(RELOAD_TOKEN, "w")
@@ -56,7 +28,7 @@ local function file_watcher(premature)
 				f:write(tostring(os.time()))
 				f:close()
 			end
-			shm:set(key, require("cjson").encode(mtimes))
+			shm:set(key, cjson.encode(signatures))
 		end
 	end)
 
