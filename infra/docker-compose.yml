@@ -1,17 +1,22 @@
-name: fuwa-ui-redesign
-
 services:
   openresty:
     build:
       context: ..
       dockerfile: infra/Dockerfile.openresty
     ports:
-      - "${FUWA_HTTP_PORT:-8080}:8080"
+      - "${PORT}:${PORT}"
     volumes:
-      # Mount entire repo so lua_code_cache off picks up live edits
       - ..:/app
-      # Docker socket for container log streaming
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       - FUWA_DB_PATH=/app/.fuwa-dev/sqlite-local.db
+      - PORT=${PORT}
     working_dir: /app
+
+  busybox-alpha:
+    image: busybox:latest
+    command: sh -c "while true; do echo '[alpha] request processed'; sleep 2; done"
+
+  busybox-beta:
+    image: busybox:latest
+    command: sh -c "while true; do echo '[beta] ERROR connection refused'; sleep 3; done"

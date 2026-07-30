@@ -1,0 +1,5 @@
+module Home
+
+action index(req) do
+  render "views/fragments/main", doctype: "<!DOCTYPE html>"
+end

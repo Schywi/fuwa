@@ -1,0 +1,7 @@
+<div class="phone-frame">
+  <iframe
+    src="/p/current/app"
+    sandbox="allow-scripts allow-forms allow-same-origin"
+    title="App Preview"
+  ></iframe>
+</div>

@@ -1,0 +1,31 @@
+&unsafe doctype
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fuwa Preview</title>
+  <style>
+    :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
+    header { border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
+    header .logo { font-weight: 700; font-size: 16px; color: var(--accent); }
+    header .badge { font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 12px; padding: 2px 10px; }
+    main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }
+    footer { border-top: 1px solid var(--border); padding: 12px 24px; text-align: center; font-size: 12px; color: var(--muted); }
+    footer a { color: var(--accent); text-decoration: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <span class="logo">Fuwa</span>
+    <span class="badge">Preview</span>
+  </header>
+  <main>
+    <include src="views/fragments/main.fuwa" />
+  </main>
+  <footer>
+    Built with <a href="https://fuwa.dev" target="_blank">Fuwa</a>
+  </footer>
+</body>
+</html>
