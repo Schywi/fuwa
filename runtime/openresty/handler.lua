@@ -14,7 +14,7 @@ end
 -- Set trace sink for OpenResty — writes to shared dict instead of stderr.
 -- Must be set after fuwa-dev.lua loads (it sets its own sink for CGI mode,
 -- guarded by `if not ngx`).
-require("runtime.openresty.trace_sink").install()
+require("runtime.openresty.tracing.sink").install()
 
 -- SSE reload handler (long-poll with non-blocking sleeps)
 local function handle_reload_sse()
