@@ -2,6 +2,8 @@
 -- Wraps deployed payload HTML in a minimal standalone document.
 -- The marketing page loads this in an iframe — no shell chrome, just the app.
 
+local M = {}
+
 local function build_bridge_script(mount_path)
 	return [[
 <script>
@@ -24,7 +26,7 @@ local function build_bridge_script(mount_path)
 ]]
 end
 
-function wrap_html(html, mount_path)
+function M.wrap_html(html, mount_path)
 	-- If already a full HTML document, inject bridge script into <head>
 	if html:match("<html") or html:lower():match("<!doctype") then
 		local bridge = build_bridge_script(mount_path)
@@ -49,3 +51,5 @@ function wrap_html(html, mount_path)
 		"</html>",
 	}, "\n")
 end
+
+return M
