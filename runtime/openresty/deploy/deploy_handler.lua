@@ -1,5 +1,5 @@
 -- runtime/openresty/deploy/deploy_handler.lua
--- POST /__dev/deploy — receive files, compile, store, return preview URL.
+-- /__dev/deploy — one-click GET deploy for the shell, JSON POST for API usage.
 
 local cjson = require("cjson")
 local store = require("runtime.openresty.deploy.store")
@@ -8,22 +8,12 @@ local package_web = require("runtime.stdlib.compiler.package_web")
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local trace = require("runtime.trace")
 
-if ngx.req.get_method() ~= "POST" then
-	ngx.status = 405
-	ngx.header.content_type = "application/json"
-	ngx.say(cjson.encode({ok = false, error = "method not allowed"}))
-	return
-end
-
-ngx.req.read_body()
-local body = ngx.req.get_body_data()
-local content_type = ngx.req.get_headers()["content-type"] or ""
-local is_form = content_type:find("application/x-www-form-urlencoded")
-
+local method = ngx.req.get_method()
 local slug, entry, files
+local is_shell_deploy = method == "GET"
 
-if is_form then
-	-- Deploy button: auto-generate SEO-friendly word-phrase slug, read draft overlay
+if is_shell_deploy then
+	-- One-click deploy: auto-generate SEO-friendly slug from the current draft overlay.
 	local words = {"alpha","amber","aqua","aurora","blaze","breeze","cascade","celestial","cobalt","cosmic",
 		"crimson","crystal","dawn","delta","echo","ember","ethereal","falcon","frost","gamma",
 		"glacier","haven","horizon","iris","jade","jasper","lagoon","lunar","mirage","mist",
@@ -31,16 +21,23 @@ if is_form then
 		"raven","reef","rift","sage","sapphire","shadow","silver","solar","spark","stellar",
 		"storm","summit","terra","tide","titan","velvet","vertex","violet","vortex","zephyr"}
 	local function pick() return words[math.random(#words)] end
-	local args = ngx.req.get_post_args()
-	local payload_id = args.payload_id or "current"
 	slug = pick() .. "-" .. pick() .. "-" .. pick()
 	entry = "main.lua"
 	local root_dir = fuwa_dev.ROOT_DIR or "/app"
-	local payload_root = root_dir .. "/payloads/" .. payload_id
-	local overlay_root = root_dir .. "/.fuwa-dev/drafts/" .. payload_id
+	local payload_root = root_dir .. "/payloads/current"
+	local overlay_root = root_dir .. "/.fuwa-dev/drafts/current"
 	files = fuwa_dev.collect_payload_files(payload_root, overlay_root)
 else
+	if method ~= "POST" then
+		ngx.status = 405
+		ngx.header.content_type = "application/json"
+		ngx.say(cjson.encode({ok = false, error = "method not allowed"}))
+		return
+	end
+
 	-- JSON API — receive files in body
+	ngx.req.read_body()
+	local body = ngx.req.get_body_data()
 	if not body then
 		ngx.status = 400
 		ngx.header.content_type = "application/json"
@@ -76,7 +73,14 @@ if type(entry) ~= "string" or entry == "" then
 	return
 end
 
-if type(files) ~= "table" or not files[entry] then
+if type(files) ~= "table" then
+	ngx.status = 400
+	ngx.header.content_type = "application/json"
+	ngx.say(cjson.encode({ok = false, error = "missing files"}))
+	return
+end
+
+if not is_shell_deploy and not files[entry] then
 	ngx.status = 400
 	ngx.header.content_type = "application/json"
 	ngx.say(cjson.encode({ok = false, error = "entry file not found in files"}))
@@ -143,8 +147,9 @@ return trace.span("deploy", {
 
 	deploy_span:set("status", "ok")
 
-	if is_form then
-		ngx.header["HX-Redirect"] = "/p/" .. slug
+	if is_shell_deploy then
+		ngx.status = 302
+		ngx.header["Location"] = "/p/" .. slug .. "/"
 		return
 	end
 

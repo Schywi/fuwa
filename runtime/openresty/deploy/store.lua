@@ -1,10 +1,11 @@
 -- runtime/openresty/deploy/store.lua
--- Simple file-based deployment store. Each deployment is a JSON file under
--- .fuwa-dev/deployments/{slug}.json containing pre-compiled Lua files.
+-- Simple file-based deployment store. Each deployment is a JSON file under a
+-- worker-writable temp directory inside the container.
 
 local cjson = require("cjson")
+local M = {}
 
-local ROOT = ".fuwa-dev/deployments"
+local ROOT = os.getenv("FUWA_DEPLOY_ROOT") or "/tmp/fuwa-deployments"
 
 local function ensure_dir()
 	os.execute("mkdir -p " .. ROOT)
@@ -14,7 +15,7 @@ local function path_for(slug)
 	return ROOT .. "/" .. slug .. ".json"
 end
 
-function save(slug, entry, compiled_files, session_id)
+function M.save(slug, entry, compiled_files, session_id)
 	ensure_dir()
 	local record = {
 		entry = entry,
@@ -27,7 +28,7 @@ function save(slug, entry, compiled_files, session_id)
 	f:close()
 end
 
-function load(slug)
+function M.load(slug)
 	local f = io.open(path_for(slug), "r")
 	if not f then
 		return nil
@@ -41,7 +42,7 @@ function load(slug)
 	return record
 end
 
-function list_by_session(session_id)
+function M.list_by_session(session_id)
 	ensure_dir()
 	local results = {}
 	local p = io.popen("ls " .. ROOT .. "/*.json 2>/dev/null")
@@ -62,3 +63,5 @@ function list_by_session(session_id)
 	end
 	return results
 end
+
+return M

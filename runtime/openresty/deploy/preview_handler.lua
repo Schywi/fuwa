@@ -120,6 +120,7 @@ if subpath == "/" or subpath == "" or subpath == nil then
 		slug = slug,
 		kind = "landing",
 	}, function(span)
+		local mount_path = "/p/" .. slug
 		local response = fuwa_dev.build_response(
 			"payloads/preview-landing",
 			method,
@@ -137,7 +138,8 @@ if subpath == "/" or subpath == "" or subpath == nil then
 			end
 		end
 		if response.body then
-			ngx.print(response.body)
+			local rebased = response.body:gsub('src="/p/current/app"', 'src="' .. mount_path .. '/app"', 1)
+			ngx.print(rebased)
 		end
 	end)
 end

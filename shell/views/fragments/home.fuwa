@@ -18,7 +18,7 @@
       <header class="ide-island ide-header">
         <div class="owner-sub typewriter-line"></div>
         <button class="grafana-trigger" @click="toggleArch()">architecture ↗</button>
-        <button class="grafana-trigger" style="margin-left:4px" hx-post="/__dev/deploy" hx-vals='{"payload_id":"&dashboard.active.id"}' hx-target="body" hx-swap="none">Deploy</button>
+        <a class="grafana-trigger" href="/__dev/deploy" style="margin-left:4px">Deploy</a>
       </header>
 
       <include src="views/fragments/workspace.fuwa" />
