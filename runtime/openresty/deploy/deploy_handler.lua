@@ -1,62 +1,52 @@
 -- runtime/openresty/deploy/deploy_handler.lua
--- /__dev/deploy — one-click GET deploy for the shell, JSON POST for API usage.
+-- /__dev/deploy — compile and persist a browser-owned snapshot sent as JSON.
 
 local cjson = require("cjson")
 local store = require("runtime.openresty.deploy.store")
-local fuwa_dev = require("runtime.fuwa-dev")
 local package_web = require("runtime.stdlib.compiler.package_web")
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local trace = require("runtime.trace")
 
 local method = ngx.req.get_method()
 local slug, entry, files
-local is_shell_deploy = method == "GET"
 
-if is_shell_deploy then
-	-- One-click deploy: auto-generate SEO-friendly slug from the current draft overlay.
-	local words = {"alpha","amber","aqua","aurora","blaze","breeze","cascade","celestial","cobalt","cosmic",
-		"crimson","crystal","dawn","delta","echo","ember","ethereal","falcon","frost","gamma",
-		"glacier","haven","horizon","iris","jade","jasper","lagoon","lunar","mirage","mist",
-		"nebula","nova","onyx","opal","orbit","phoenix","prism","pulse","quartz","raptor",
-		"raven","reef","rift","sage","sapphire","shadow","silver","solar","spark","stellar",
-		"storm","summit","terra","tide","titan","velvet","vertex","violet","vortex","zephyr"}
-	local function pick() return words[math.random(#words)] end
-	slug = pick() .. "-" .. pick() .. "-" .. pick()
-	entry = "main.lua"
-	local root_dir = fuwa_dev.ROOT_DIR or "/app"
-	local payload_root = root_dir .. "/payloads/current"
-	local overlay_root = root_dir .. "/.fuwa-dev/drafts/current"
-	files = fuwa_dev.collect_payload_files(payload_root, overlay_root)
-else
-	if method ~= "POST" then
-		ngx.status = 405
-		ngx.header.content_type = "application/json"
-		ngx.say(cjson.encode({ok = false, error = "method not allowed"}))
-		return
-	end
-
-	-- JSON API — receive files in body
-	ngx.req.read_body()
-	local body = ngx.req.get_body_data()
-	if not body then
-		ngx.status = 400
-		ngx.header.content_type = "application/json"
-		ngx.say(cjson.encode({ok = false, error = "empty body"}))
-		return
-	end
-
-	local ok, payload = pcall(cjson.decode, body)
-	if not ok then
-		ngx.status = 400
-		ngx.header.content_type = "application/json"
-		ngx.say(cjson.encode({ok = false, error = "invalid json"}))
-		return
-	end
-
-	slug = payload.slug
-	entry = payload.entry
-	files = payload.files
+if method ~= "POST" then
+	ngx.status = 405
+	ngx.header.content_type = "application/json"
+	ngx.say(cjson.encode({ok = false, error = "method not allowed"}))
+	return
 end
+
+local words = {"alpha","amber","aqua","aurora","blaze","breeze","cascade","celestial","cobalt","cosmic",
+	"crimson","crystal","dawn","delta","echo","ember","ethereal","falcon","frost","gamma",
+	"glacier","haven","horizon","iris","jade","jasper","lagoon","lunar","mirage","mist",
+	"nebula","nova","onyx","opal","orbit","phoenix","prism","pulse","quartz","raptor",
+	"raven","reef","rift","sage","sapphire","shadow","silver","solar","spark","stellar",
+	"storm","summit","terra","tide","titan","velvet","vertex","violet","vortex","zephyr"}
+local function pick()
+	return words[math.random(#words)]
+end
+
+ngx.req.read_body()
+local body = ngx.req.get_body_data()
+if not body then
+	ngx.status = 400
+	ngx.header.content_type = "application/json"
+	ngx.say(cjson.encode({ok = false, error = "empty body"}))
+	return
+end
+
+local ok, payload = pcall(cjson.decode, body)
+if not ok then
+	ngx.status = 400
+	ngx.header.content_type = "application/json"
+	ngx.say(cjson.encode({ok = false, error = "invalid json"}))
+	return
+end
+
+slug = payload.slug or (pick() .. "-" .. pick() .. "-" .. pick())
+entry = payload.entry
+files = payload.files
 
 -- Validate input
 if type(slug) ~= "string" or slug == "" or not slug:match("^[A-Za-z0-9_%-]+$") then
@@ -80,10 +70,18 @@ if type(files) ~= "table" then
 	return
 end
 
-if not is_shell_deploy and not files[entry] then
+local has_source_file = false
+for name, content in pairs(files) do
+	if type(name) == "string" and type(content) == "string" then
+		has_source_file = true
+		break
+	end
+end
+
+if not has_source_file then
 	ngx.status = 400
 	ngx.header.content_type = "application/json"
-	ngx.say(cjson.encode({ok = false, error = "entry file not found in files"}))
+	ngx.say(cjson.encode({ok = false, error = "missing source files"}))
 	return
 end
 
@@ -117,7 +115,7 @@ return trace.span("deploy", {
 	deploy_span:set("file_count", file_count)
 	deploy_span:set("total_bytes", total_bytes)
 
-	-- Compile .fuwa → .lua
+	-- Compile source files into runnable Lua modules.
 	local compile_start = ngx.now()
 	local build = package_web.build(source_files)
 
@@ -127,6 +125,15 @@ return trace.span("deploy", {
 		ngx.status = 422
 		ngx.header.content_type = "application/json"
 		ngx.say(cjson.encode({ok = false, error = message}))
+		return
+	end
+
+	local deploy_entry = build.entry or entry
+	if type(deploy_entry) ~= "string" or deploy_entry == "" or build.run_files[deploy_entry] == nil then
+		deploy_span:set("status", "missing_entry")
+		ngx.status = 422
+		ngx.header.content_type = "application/json"
+		ngx.say(cjson.encode({ok = false, error = "compiled entry is missing"}))
 		return
 	end
 
@@ -142,22 +149,16 @@ return trace.span("deploy", {
 	end
 	deploy_span:set("compiled_count", compiled_count)
 
-	-- Store to disk
-	store.save(slug, entry, compiled_files, session_id)
+	-- Store the compiled deployment snapshot.
+	store.save(slug, deploy_entry, compiled_files, session_id)
 
 	deploy_span:set("status", "ok")
-
-	if is_shell_deploy then
-		ngx.status = 302
-		ngx.header["Location"] = "/p/" .. slug .. "/"
-		return
-	end
 
 	ngx.header.content_type = "application/json"
 	ngx.say(cjson.encode({
 		ok = true,
 		slug = slug,
-		url = "/p/" .. slug,
+		url = "/p/" .. slug .. "/",
 		compiled_count = compiled_count,
 	}))
 end)

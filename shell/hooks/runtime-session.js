@@ -321,6 +321,17 @@
 			return null;
 		}
 
+		async function exportSnapshot() {
+			await boot();
+			if (!bundle) {
+				await loadBundle();
+			}
+			return {
+				entry: bundle && bundle.entry ? bundle.entry : 'main.lua',
+				files: currentSources() || {}
+			};
+		}
+
 		function setLiveReload(enabled) {
 			live_reload = enabled !== false;
 			if (!live_reload) {
@@ -356,6 +367,7 @@
 			refresh: refresh,
 			updateCode: updateCode,
 			getFile: getFile,
+			exportSnapshot: exportSnapshot,
 			setLiveReload: setLiveReload,
 			handleTenantRequest: handleTenantRequest,
 			dispose: dispose,

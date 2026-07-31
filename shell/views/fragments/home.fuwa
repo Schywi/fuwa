@@ -18,7 +18,7 @@
       <header class="ide-island ide-header">
         <div class="owner-sub typewriter-line"></div>
         <button class="grafana-trigger" @click="toggleArch()">architecture ↗</button>
-        <a class="grafana-trigger" href="/__dev/deploy" style="margin-left:4px">Deploy</a>
+        <button type="button" class="grafana-trigger" data-deploy-trigger style="margin-left:4px">Deploy</button>
       </header>
 
       <include src="views/fragments/workspace.fuwa" />

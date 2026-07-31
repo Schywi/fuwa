@@ -144,6 +144,40 @@
 			});
 		}
 
+		function deploy() {
+			if (!session || typeof session.exportSnapshot !== 'function') {
+				return Promise.reject(new Error('runtime session is not ready'));
+			}
+			return session.exportSnapshot().then(function (snapshot) {
+				return fetch('/__dev/deploy', {
+					method: 'POST',
+					credentials: 'same-origin',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify(snapshot)
+				});
+			}).then(function (response) {
+				return response.json().then(function (payload) {
+					return {
+						ok: response.ok,
+						status: response.status,
+						payload: payload
+					};
+				});
+			}).then(function (result) {
+				if (!result.ok || !result.payload || result.payload.ok !== true || typeof result.payload.url !== 'string') {
+					throw new Error(result.payload && result.payload.error ? result.payload.error : 'deploy failed');
+				}
+				window.location.assign(result.payload.url);
+				return true;
+			}).catch(function (error) {
+				log('runtime:deploy:error', { message: String(error && error.message ? error.message : error) });
+				write_terminal('[runtime] ' + String(error && error.message ? error.message : error) + '\r\n');
+				throw error;
+			});
+		}
+
 		function mount() {
 			if (!stage || !ensureSession()) {
 				log('runtime:mount:blocked');
@@ -190,6 +224,7 @@
 			mount: mount,
 			refresh: refresh,
 			updateCode: updateCode,
+			deploy: deploy,
 			dispose: dispose,
 			get session() {
 				return session;

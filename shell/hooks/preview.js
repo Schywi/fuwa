@@ -162,6 +162,19 @@
 		void updateBrowserCode(detail.path, detail.contents || '');
 	}
 
+	function triggerDeploy() {
+		if (!browser_driver || typeof browser_driver.deploy !== 'function') {
+			log('deploy:mount-first');
+			return mountBrowserDriver().then(function (ok) {
+				if (!ok || !browser_driver || typeof browser_driver.deploy !== 'function') {
+					throw new Error('deploy runtime is not ready');
+				}
+				return browser_driver.deploy();
+			});
+		}
+		return browser_driver.deploy();
+	}
+
 	// File selection must update session state, not rebuild the shell or hit
 	// the server (the /IDE contract: setActiveFile only touches client state).
 	// The session already holds every file's content in memory after boot, so
@@ -230,6 +243,22 @@
 		log('file-switch:client-side', { path: path });
 	}
 
+	function handleDeployClick(event) {
+		const target = event.target instanceof Element ? event.target : null;
+		const button = target ? target.closest('[data-deploy-trigger]') : null;
+		if (!button) {
+			return;
+		}
+
+		event.preventDefault();
+		button.setAttribute('aria-busy', 'true');
+		void triggerDeploy().catch(function () {
+			return false;
+		}).finally(function () {
+			button.removeAttribute('aria-busy');
+		});
+	}
+
 	function handleBeforeSwap(event) {
 		const target = event.detail?.target || event.detail?.elt || event.target || document.body;
 		log('htmx:beforeSwap', {
@@ -263,6 +292,7 @@
 	// Capture phase: run before htmx's own bubble-phase click listener on the
 	// row so a resolved client-side switch can suppress the hx-get entirely.
 	document.addEventListener('click', handleFileRowClick, true);
+	document.addEventListener('click', handleDeployClick, true);
 
 	if (document.readyState === 'loading') {
 		document.addEventListener(
@@ -284,6 +314,7 @@
 		},
 		refresh: refreshBrowserDriver,
 		updateCode: updateBrowserCode,
+		deploy: triggerDeploy,
 		mount: mountBrowserDriver,
 		get browserDriver() {
 			return browser_driver;
