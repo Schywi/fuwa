@@ -44,6 +44,9 @@ IMPORTANT WRITE COMPREENSIVE UNIT tests for changes
   petite-vue state on the node HTMX is about to replace.
 - **Report failures through diagnostics**, never a silent empty result. Fail
   loudly.
+- **Every HTTP/OpenResty route must have tracing enabled.** Do not add or
+  change a route without ensuring it emits trace events into the shared
+  observability pipeline.
 - **One change, one purpose.** Do not reformat or refactor unrelated code in the
   same edit. Do not add dependencies or APIs that are not already here — if you
   need one, stop and ask.
