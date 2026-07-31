@@ -191,7 +191,6 @@ local dev_dir = root_dir .. "/.fuwa-dev"
 local state_path = dev_dir .. "/state.lua"
 local lock_path = state_path .. ".lock"
 local reload_token_path = dev_dir .. "/reload-token"
-local drafts_root = dev_dir .. "/drafts"
 local default_db_path = dev_dir .. "/sqlite-local.db"
 local lua_bin = os.getenv("LUA_BIN") or "lua5.4"
 
@@ -623,116 +622,8 @@ local function make_set_html_capture()
 	end
 end
 
--- Draft overlay: files in overlay_root shadow files in root. Live edits are
--- written to the overlay only; the payload source tree stays untouched until
--- an explicit publish promotes them.
-function M.collect_payload_files(root, overlay_root)
-	local files = collect_find_output(root or payload_root)
-	if overlay_root ~= nil then
-		for relative, contents in pairs(collect_find_output(overlay_root)) do
-			files[relative] = contents
-		end
-	end
-	return files
-end
-
-function M.draft_overlay_dir(payload_id)
-	local safe_id = tostring(payload_id or ""):match("^[A-Za-z0-9_%-]+$")
-	if safe_id == nil then
-		return nil
-	end
-	return drafts_root .. "/" .. safe_id
-end
-
-local function url_decode(value)
-	value = tostring(value or "")
-	value = value:gsub("+", " ")
-	value = value:gsub("%%(%x%x)", function(hex)
-		return string.char(tonumber(hex, 16))
-	end)
-	return value
-end
-
-local function parse_form_body(body)
-	local form = {}
-	for key, value in (tostring(body or "") .. "&"):gmatch("([^=&]+)=([^&]*)&") do
-		form[url_decode(key)] = url_decode(value)
-	end
-	return form
-end
-
-local function validate_draft_path(relative_path)
-	local path = tostring(relative_path or "")
-	if path == "" or #path > 512 then
-		return nil
-	end
-	if path:match("^[A-Za-z0-9_%-./]+$") == nil then
-		return nil
-	end
-	if path:sub(1, 1) == "/" or path:sub(-1) == "/" then
-		return nil
-	end
-	for segment in path:gmatch("[^/]+") do
-		if segment == ".." or segment == "." then
-			return nil
-		end
-	end
-	return path
-end
-
-local function json_response(status, body)
-	return {
-		status = status,
-		headers = {
-			["Content-Type"] = "application/json; charset=utf-8",
-			["Content-Length"] = tostring(#body),
-			["Cache-Control"] = "no-cache",
-			["Connection"] = "close",
-		},
-		body = body,
-	}
-end
-
-function M.build_draft_write_response(payload_id, body)
-	local overlay_dir = M.draft_overlay_dir(payload_id)
-	if overlay_dir == nil then
-		return json_response(404, '{"ok":false,"err":"invalid_payload_id"}')
-	end
-
-	local form = parse_form_body(body)
-	local draft_path = validate_draft_path(form.path)
-	if draft_path == nil then
-		return json_response(400, '{"ok":false,"err":"invalid_path"}')
-	end
-
-	local target = overlay_dir .. "/" .. draft_path
-	os.execute("mkdir -p " .. shell_quote(dirname(target)))
-	write_all(target, form.contents or "")
-
-	local escaped = draft_path:gsub("[\\\"]", "\\%0")
-	return json_response(200, '{"ok":true,"path":"' .. escaped .. '"}')
-end
-
-function M.build_draft_discard_response(payload_id, body)
-	local overlay_dir = M.draft_overlay_dir(payload_id)
-	if overlay_dir == nil then
-		return json_response(404, '{"ok":false,"err":"invalid_payload_id"}')
-	end
-
-	local form = parse_form_body(body)
-	if form.path ~= nil and form.path ~= "" then
-		local draft_path = validate_draft_path(form.path)
-		if draft_path == nil then
-			return json_response(400, '{"ok":false,"err":"invalid_path"}')
-		end
-		os.remove(overlay_dir .. "/" .. draft_path)
-	else
-		-- overlay_dir is derived from a sanitized id under drafts_root, so the
-		-- recursive delete cannot escape the drafts area.
-		os.execute("rm -rf " .. shell_quote(overlay_dir))
-	end
-
-	return json_response(200, '{"ok":true}')
+function M.collect_payload_files(root)
+	return collect_find_output(root or payload_root)
 end
 
 local function collect_stdlib_sources()
@@ -747,7 +638,7 @@ local function collect_stdlib_sources()
 end
 
 -- Dev bundles additionally carry the compiler so the worker can recompile
--- draft edits locally without a server round trip.
+-- in-memory browser edits locally without a server round trip.
 local function collect_compiler_sources(sources)
 	for relative_path, contents in pairs(collect_find_output(root_dir .. "/runtime/stdlib/compiler")) do
 		if relative_path:sub(-4) == ".lua" then
@@ -770,7 +661,6 @@ end
 -- Browser runtime bundle: compiled run files plus the stdlib VFS the
 -- Wasmoon worker needs. Served as JSON at /runtime/<payload_id>/bundle.json.
 function M.build_bundle_response(payload_id, opts)
-	opts = opts or {}
 	local safe_id = tostring(payload_id or ""):match("^[A-Za-z0-9_%-]+$")
 	if safe_id == nil then
 		return {
@@ -784,11 +674,7 @@ function M.build_bundle_response(payload_id, opts)
 		}
 	end
 
-	local overlay_root = nil
-	if opts.draft then
-		overlay_root = drafts_root .. "/" .. safe_id
-	end
-	local source_files = M.collect_payload_files(payloads_root .. "/" .. safe_id, overlay_root)
+	local source_files = M.collect_payload_files(payloads_root .. "/" .. safe_id)
 	local stdlib_sources = collect_stdlib_sources()
 	-- Browser-only mode is the default and recompiles edits in the Wasmoon
 	-- worker VM (the fuwa analog of IDE's in-browser compile). That requires
@@ -825,7 +711,7 @@ function M.build_response(root, method, path, body, opts)
 	}, function(request_span)
 		register_runtime_preloads()
 
-		local source_files = M.collect_payload_files(root or payload_root, opts.overlay_root)
+		local source_files = M.collect_payload_files(root or payload_root)
 		local build = package_web.build(source_files)
 
 		if diagnostics.has_errors(build.diagnostics) then
@@ -1074,7 +960,7 @@ function M.route_request(method, path, body)
 		return serve_static_asset(vendor_root .. "/" .. relative_path) or NOT_FOUND_RESPONSE
 	end
 
-	local mount_kind = path:match("^/(payload)/") or path:match("^/(preview)/")
+	local mount_kind = path:match("^/(payload)/")
 	local payload_id, inner_path
 	if mount_kind then
 		payload_id, inner_path = split_mount_route(path, mount_kind)
@@ -1087,14 +973,7 @@ function M.route_request(method, path, body)
 
 	-- Static asset inside payload (has extension, not .fuwa)
 	if payload_id and inner_path and inner_path ~= "/" and inner_path:match("%.[^/]+$") and not inner_path:match("%.fuwa$") then
-		local asset = nil
-		if mount_kind == "preview" then
-			asset = serve_static_asset(drafts_root .. "/" .. payload_id .. inner_path)
-		end
-		if asset == nil then
-			asset = serve_static_asset(payloads_root .. "/" .. payload_id .. inner_path)
-		end
-		return asset or NOT_FOUND_RESPONSE
+		return serve_static_asset(payloads_root .. "/" .. payload_id .. inner_path) or NOT_FOUND_RESPONSE
 	end
 
 	-- SSE reload — streaming, caller must handle externally
@@ -1102,25 +981,15 @@ function M.route_request(method, path, body)
 		return nil
 	end
 
-	-- Draft discard
-	local draft_discard_id = path:match("^/draft/([^/]+)/discard$")
-	if draft_discard_id and method == "POST" then
-		return M.build_draft_discard_response(draft_discard_id, body)
-	end
-
-	-- Draft write
-	local draft_write_id = path:match("^/draft/([^/]+)$")
-	if draft_write_id and method == "POST" then
-		return M.build_draft_write_response(draft_write_id, body)
+	if path:match("^/draft/") or path:match("^/preview/") then
+		return NOT_FOUND_RESPONSE
 	end
 
 	-- Browser runtime bundle
-	local bundle_route, bundle_query = path:match("^([^?]+)%??(.*)$")
+	local bundle_route = path:match("^([^?]+)")
 	local bundle_payload_id = tostring(bundle_route or ""):match("^/runtime/([^/]+)/bundle%.json$")
 	if bundle_payload_id and method == "GET" then
-		return M.build_bundle_response(bundle_payload_id, {
-			draft = tostring(bundle_query or ""):match("draft=1") ~= nil,
-		})
+		return M.build_bundle_response(bundle_payload_id)
 	end
 
 	-- Tenant runtime bootstrap HTML
@@ -1149,28 +1018,15 @@ function M.route_request(method, path, body)
 			return redirect_response(path .. "/")
 		end
 
-		local opts = {
-			db_provider_name = "sqlite_local",
-		}
-		if mount_kind == "preview" then
-			opts.overlay_root = drafts_root .. "/" .. payload_id
-		end
-
 		local response = M.build_response(
 			payloads_root .. "/" .. payload_id,
 			method,
 			inner_path,
 			body,
-			opts
+			{
+				db_provider_name = "sqlite_local",
+			}
 		)
-
-		if mount_kind == "preview"
-			and response.body
-			and tostring((response.headers or {})["Content-Type"] or ""):match("text/html") then
-			local pattern_id = payload_id:gsub("%-", "%%-")
-			response.body = response.body:gsub("/payload/" .. pattern_id .. "/", "/preview/" .. payload_id .. "/")
-			response.headers["Content-Length"] = tostring(#response.body)
-		end
 
 		return response
 	end

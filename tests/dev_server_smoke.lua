@@ -398,96 +398,32 @@ local function test_browser_runtime_routes()
 	assert_true(wasm_asset:find("Content%-Type: application/wasm") ~= nil, "expected wasm MIME type")
 end
 
-local function test_draft_overlay_routes()
-	local function file_exists(path)
-		local file = io.open(path, "rb")
-		if file then
-			file:close()
-			return true
-		end
-		return false
-	end
+local function test_browser_runtime_no_draft_routes()
+	local draft_write = run_command(
+		"printf 'POST /draft/current HTTP/1.1\\r\\nHost: localhost\\r\\nContent-Length: 0\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(draft_write:find("HTTP/1.1 404 Not Found", 1, true) ~= nil, "expected draft write route to be removed")
 
-	local marker = "draft-marker-" .. tostring(os.time())
-	local draft_dir = ".fuwa-dev/drafts/current"
-	local draft_view_path = draft_dir .. "/views/layout.fuwa"
-	local original_view = read_file("payloads/current/views/layout.fuwa")
-	assert_true(original_view ~= nil, "expected payload layout.fuwa to exist")
-	local draft_view = original_view:gsub("<body>", '<body class="' .. marker .. '">', 1)
-	assert_true(draft_view ~= original_view, "expected layout body tag to accept the draft marker")
+	local draft_discard = run_command(
+		"printf 'POST /draft/current/discard HTTP/1.1\\r\\nHost: localhost\\r\\nContent-Length: 0\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(draft_discard:find("HTTP/1.1 404 Not Found", 1, true) ~= nil, "expected draft discard route to be removed")
 
-	run_command("rm -rf " .. shell_quote(draft_dir) .. " 2>/dev/null; true")
+	local preview_html = run_command(
+		"printf 'GET /preview/current/ HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(preview_html:find("HTTP/1.1 404 Not Found", 1, true) ~= nil, "expected preview overlay route to be removed")
 
-	local ok, err = pcall(function()
-		-- Draft write lands in the overlay, never in the payload tree.
-		local write_response = dev.build_draft_write_response(
-			"current",
-			"path=views/layout.fuwa&contents=" .. encode_form_component(draft_view)
-		)
-		assert_true(write_response.status == 200, "expected draft write to succeed")
-		assert_true(write_response.body:find('"ok":true', 1, true) ~= nil, "expected draft write ok body")
-		assert_true(file_exists(draft_view_path), "expected draft file in the overlay")
-		assert_true(read_file("payloads/current/views/layout.fuwa") == original_view,
-			"expected the payload source tree to stay untouched by draft writes")
+	local plain_bundle = dev.build_bundle_response("current")
+	local query_bundle = dev.build_bundle_response("current", { draft = true })
+	assert_true(plain_bundle.status == 200, "expected plain bundle to build")
+	assert_true(query_bundle.status == 200, "expected draft query bundle to build")
+	assert_true(plain_bundle.body == query_bundle.body, "expected bundle output to ignore draft options")
 
-		-- Sanitizers: bad ids and traversal paths are rejected.
-		assert_true(dev.build_draft_write_response("../etc", "path=x.txt&contents=x").status == 404,
-			"expected invalid draft payload id to 404")
-		assert_true(dev.build_draft_write_response("current", "path=../evil.txt&contents=x").status == 400,
-			"expected draft path traversal to be rejected")
-		assert_true(dev.build_draft_write_response("current", "path=/abs.txt&contents=x").status == 400,
-			"expected absolute draft path to be rejected")
-
-		-- Preview route compiles with the overlay; the published route does not.
-		local preview_html = run_command(
-			"printf 'GET /preview/current/ HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
-		)
-		assert_true(preview_html:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected preview route to respond")
-		assert_true(preview_html:find(marker, 1, true) ~= nil, "expected draft overlay in preview output")
-		assert_true(preview_html:find('hx-post="/preview/current/counter"', 1, true) ~= nil,
-			"expected payload routes rebased onto the preview surface")
-		assert_true(preview_html:find('hx-post="/payload/current/counter"', 1, true) == nil,
-			"expected no published-route interactions inside a draft preview")
-
-		local published_html = run_command(
-			"printf 'GET /payload/current/ HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
-		)
-		assert_true(published_html:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected payload route to respond")
-		assert_true(published_html:find(marker, 1, true) == nil, "expected published route to ignore drafts")
-
-		-- Bundle route: ?draft=1 sees the overlay, the plain bundle does not.
-		local draft_bundle = dev.build_bundle_response("current", { draft = true })
-		assert_true(draft_bundle.status == 200, "expected draft bundle to build")
-		assert_true(draft_bundle.body:find(marker, 1, true) ~= nil, "expected draft overlay in draft bundle")
-
-		local plain_bundle = dev.build_bundle_response("current")
-		assert_true(plain_bundle.status == 200, "expected plain bundle to build")
-		assert_true(plain_bundle.body:find(marker, 1, true) == nil, "expected plain bundle to ignore drafts")
-
-		-- Static traversal is rejected on mount routes.
-		local traversal = run_command(
-			"printf 'GET /payload/current/../../README.md HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
-		)
-		assert_true(traversal:find("HTTP/1.1 404 Not Found", 1, true) ~= nil, "expected static path traversal to 404")
-
-		-- Publishing the file clears its draft copy.
-		local caps = require("runtime.host.capabilities")
-		local host = caps.new({})
-		local publish = host.write_payload_file("current", "views/layout.fuwa", original_view)
-		assert_true(publish.ok == true, "expected publish to succeed")
-		assert_true(not file_exists(draft_view_path), "expected publish to clear the draft copy")
-
-		-- Discard deletes the whole overlay.
-		local rewrite = dev.build_draft_write_response("current", "path=views/layout.fuwa&contents=" .. encode_form_component(draft_view))
-		assert_true(rewrite.status == 200, "expected second draft write to succeed")
-		local discard = dev.build_draft_discard_response("current", "")
-		assert_true(discard.status == 200, "expected draft discard to succeed")
-		assert_true(not file_exists(draft_view_path), "expected discard to remove draft files")
-	end)
-
-	run_command("rm -rf " .. shell_quote(draft_dir) .. " 2>/dev/null; true")
-	write_file("payloads/current/views/layout.fuwa", original_view)
-	assert_true(ok, err)
+	local traversal = run_command(
+		"printf 'GET /payload/current/../../README.md HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(traversal:find("HTTP/1.1 404 Not Found", 1, true) ~= nil, "expected static path traversal to 404")
 end
 
 local function test_db_helper()
@@ -535,7 +471,7 @@ test_current_payload_interaction()
 test_shell_save_route_is_not_exposed()
 test_shell_inspect_fragment()
 test_browser_runtime_routes()
-test_draft_overlay_routes()
+test_browser_runtime_no_draft_routes()
 test_db_helper()
 
 print("dev server smoke checks passed")
