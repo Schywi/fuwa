@@ -1,65 +1,96 @@
 -- runtime/openresty/deploy/store.lua
--- Simple file-based deployment store. Each deployment is a JSON file under a
--- worker-writable temp directory inside the container.
+-- SQLite-backed deployment store for explicit browser snapshot deploys.
 
-local cjson = require("cjson")
+local runtime_db = require("runtime.db")
+
 local M = {}
 
-local ROOT = os.getenv("FUWA_DEPLOY_ROOT") or "/tmp/fuwa-deployments"
+local COLLECTION = "deployments"
+local DEFAULT_DB_PATH = ".fuwa-dev/deployments.sqlite"
 
-local function ensure_dir()
-	os.execute("mkdir -p " .. ROOT)
+local function provider_path()
+	if type(_G.__FUWA_DEPLOY_DB_PATH) == "string" and _G.__FUWA_DEPLOY_DB_PATH ~= "" then
+		return _G.__FUWA_DEPLOY_DB_PATH
+	end
+	return os.getenv("FUWA_DEPLOY_DB_PATH") or DEFAULT_DB_PATH
 end
 
-local function path_for(slug)
-	return ROOT .. "/" .. slug .. ".json"
+local function make_provider()
+	return runtime_db.new("sqlite_local", { path = provider_path() })
 end
 
-function M.save(slug, entry, compiled_files, session_id)
-	ensure_dir()
-	local record = {
+local function provider_response_value(response)
+	if response and response.ok then
+		return response.value
+	end
+	return nil
+end
+
+function M.save(slug, entry, source_files, compiled_files, session_id)
+	local provider = make_provider()
+	local existing = provider:op({
+		op = "find",
+		collection = COLLECTION,
+		id = slug
+	})
+
+	local payload = {
+		id = slug,
+		slug = slug,
 		entry = entry,
-		compiled_files = compiled_files, -- { "main.lua" = "...", ... }
+		source_files = source_files,
+		compiled_files = compiled_files,
 		session_id = session_id,
-		created_at = os.date("!%Y-%m-%dT%H:%M:%SZ"),
+		deployed_at = os.date("!%Y-%m-%dT%H:%M:%SZ"),
 	}
-	local f = assert(io.open(path_for(slug), "w"))
-	f:write(cjson.encode(record))
-	f:close()
+
+	if existing and existing.ok then
+		local updated = provider:op({
+			op = "update",
+			collection = COLLECTION,
+			id = slug,
+			data = payload
+		})
+		assert(updated and updated.ok, "failed to update deployment " .. slug)
+		return updated.value
+	end
+
+	local created = provider:op({
+		op = "create",
+		collection = COLLECTION,
+		data = payload
+	})
+	assert(created and created.ok, "failed to create deployment " .. slug)
+	return created.value
 end
 
 function M.load(slug)
-	local f = io.open(path_for(slug), "r")
-	if not f then
-		return nil
-	end
-	local content = f:read("*a")
-	f:close()
-	local ok, record = pcall(cjson.decode, content)
-	if not ok then
-		return nil
-	end
-	return record
+	local provider = make_provider()
+	local record = provider:op({
+		op = "find",
+		collection = COLLECTION,
+		id = slug
+	})
+	return provider_response_value(record)
 end
 
 function M.list_by_session(session_id)
-	ensure_dir()
+	local provider = make_provider()
+	local response = provider:op({
+		op = "where",
+		collection = COLLECTION,
+		where = { session_id = session_id },
+		order = { field = "updated_at", dir = "desc" },
+		limit = 50
+	})
+	local rows = provider_response_value(response) or {}
 	local results = {}
-	local p = io.popen("ls " .. ROOT .. "/*.json 2>/dev/null")
-	if p then
-		for filename in p:lines() do
-			local f = io.open(filename, "r")
-			if f then
-				local content = f:read("*a")
-				f:close()
-				local ok, record = pcall(cjson.decode, content)
-				if ok and record.session_id == session_id then
-					local slug = filename:match("/([^/]+)%.json$")
-					table.insert(results, {slug = slug, entry = record.entry, created_at = record.created_at})
-				end
-			end
-		end
-		p:close()
+	for index, row in ipairs(rows) do
+		results[index] = {
+			slug = row.slug or row.id,
+			entry = row.entry,
+			created_at = row.deployed_at or row.created_at
+		}
 	end
 	return results
 end

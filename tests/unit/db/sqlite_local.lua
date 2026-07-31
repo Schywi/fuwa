@@ -129,4 +129,20 @@ return function(t)
 			t.truthy(events[6].attrs.ok, "expected db.dispatch ok attr")
 		end)
 	end)
+
+	t.test("sqlite_local preserves strings with JSON escape sequences", function()
+		with_temp_provider(function(provider)
+			local created = provider:op({
+				op = "create",
+				collection = "payloads",
+				data = {
+					id = "payload-1",
+					source = '<style>body::before { content: "\\\\2605"; }</style>\n'
+				}
+			})
+
+			t.truthy(created.ok, "expected escaped string create to succeed")
+			t.eq(created.value.source, '<style>body::before { content: "\\\\2605"; }</style>\n', "expected escaped string round trip")
+		end)
+	end)
 end

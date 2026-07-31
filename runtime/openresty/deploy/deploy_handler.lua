@@ -150,7 +150,7 @@ return trace.span("deploy", {
 	deploy_span:set("compiled_count", compiled_count)
 
 	-- Store the compiled deployment snapshot.
-	store.save(slug, deploy_entry, compiled_files, session_id)
+	store.save(slug, deploy_entry, source_files, compiled_files, session_id)
 
 	deploy_span:set("status", "ok")
 

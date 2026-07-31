@@ -58,7 +58,7 @@ local function encode_json(value)
 		return tostring(value)
 	end
 	if value_type == "string" then
-		return string.format("%q", value):gsub("\\\n", "\\n")
+		return '"' .. escape_json_string(value) .. '"'
 	end
 	if value_type ~= "table" then
 		error("cannot encode type " .. value_type)
