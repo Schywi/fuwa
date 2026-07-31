@@ -11,7 +11,7 @@ from functools import cmp_to_key
 from pathlib import Path
 from typing import Any
 
-TENANT_KEY = "__local__"
+DEFAULT_TENANT_KEY = "__local__"
 DEFAULT_LIMIT = 100
 COLLECTION_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 RESERVED_FIELDS = {"id", "created_at", "updated_at"}
@@ -122,14 +122,14 @@ def row_to_record(row: sqlite3.Row) -> dict[str, Any]:
     }
 
 
-def load_collection_rows(conn: sqlite3.Connection, collection: str) -> list[dict[str, Any]]:
+def load_collection_rows(conn: sqlite3.Connection, tenant_key: str, collection: str) -> list[dict[str, Any]]:
     rows = conn.execute(
         """
         SELECT id, data_json, created_at, updated_at
           FROM tenant_documents
          WHERE tenant_key = ? AND collection = ?
         """,
-        (TENANT_KEY, collection),
+        (tenant_key, collection),
     ).fetchall()
     return [row_to_record(row) for row in rows]
 
@@ -201,7 +201,7 @@ def find_first_row(rows: list[dict[str, Any]], where: Any, order: Any) -> dict[s
     return results[0] if results else None
 
 
-def create_document(conn: sqlite3.Connection, collection: str, data: dict[str, Any]) -> dict[str, Any]:
+def create_document(conn: sqlite3.Connection, tenant_key: str, collection: str, data: dict[str, Any]) -> dict[str, Any]:
     doc_id = data.get("id")
     doc_id = str(doc_id) if doc_id not in (None, "") else str(uuid.uuid4())
     existing = conn.execute(
@@ -210,7 +210,7 @@ def create_document(conn: sqlite3.Connection, collection: str, data: dict[str, A
           FROM tenant_documents
          WHERE tenant_key = ? AND collection = ? AND id = ?
         """,
-        (TENANT_KEY, collection, doc_id),
+        (tenant_key, collection, doc_id),
     ).fetchone()
 
     if existing:
@@ -229,20 +229,20 @@ def create_document(conn: sqlite3.Connection, collection: str, data: dict[str, A
         INSERT INTO tenant_documents (tenant_key, collection, id, data_json, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?)
         """,
-        (TENANT_KEY, collection, doc_id, json.dumps(payload, ensure_ascii=False), created_at, created_at),
+        (tenant_key, collection, doc_id, json.dumps(payload, ensure_ascii=False), created_at, created_at),
     )
     conn.commit()
     return ok(row)
 
 
-def update_document(conn: sqlite3.Connection, collection: str, doc_id: str, data: dict[str, Any]) -> dict[str, Any]:
+def update_document(conn: sqlite3.Connection, tenant_key: str, collection: str, doc_id: str, data: dict[str, Any]) -> dict[str, Any]:
     existing = conn.execute(
         """
         SELECT id, data_json, created_at, updated_at
           FROM tenant_documents
          WHERE tenant_key = ? AND collection = ? AND id = ?
         """,
-        (TENANT_KEY, collection, doc_id),
+        (tenant_key, collection, doc_id),
     ).fetchone()
 
     if not existing:
@@ -259,7 +259,7 @@ def update_document(conn: sqlite3.Connection, collection: str, doc_id: str, data
            SET data_json = ?, updated_at = ?
          WHERE tenant_key = ? AND collection = ? AND id = ?
         """,
-        (json.dumps(next_payload, ensure_ascii=False), updated_at, TENANT_KEY, collection, doc_id),
+        (json.dumps(next_payload, ensure_ascii=False), updated_at, tenant_key, collection, doc_id),
     )
     conn.commit()
     return ok(
@@ -272,14 +272,14 @@ def update_document(conn: sqlite3.Connection, collection: str, doc_id: str, data
     )
 
 
-def delete_document(conn: sqlite3.Connection, collection: str, doc_id: str) -> dict[str, Any]:
+def delete_document(conn: sqlite3.Connection, tenant_key: str, collection: str, doc_id: str) -> dict[str, Any]:
     existing = conn.execute(
         """
         SELECT 1
           FROM tenant_documents
          WHERE tenant_key = ? AND collection = ? AND id = ?
         """,
-        (TENANT_KEY, collection, doc_id),
+        (tenant_key, collection, doc_id),
     ).fetchone()
 
     if not existing:
@@ -290,13 +290,13 @@ def delete_document(conn: sqlite3.Connection, collection: str, doc_id: str) -> d
         DELETE FROM tenant_documents
          WHERE tenant_key = ? AND collection = ? AND id = ?
         """,
-        (TENANT_KEY, collection, doc_id),
+        (tenant_key, collection, doc_id),
     )
     conn.commit()
     return ok(True)
 
 
-def dispatch(command: dict[str, Any], db_path: Path) -> dict[str, Any]:
+def dispatch(command: dict[str, Any], db_path: Path, tenant_key: str) -> dict[str, Any]:
     try:
         collection = sanitize_collection_name(command.get("collection"))
         op = command.get("op")
@@ -304,7 +304,7 @@ def dispatch(command: dict[str, Any], db_path: Path) -> dict[str, Any]:
         conn = ensure_db(db_path)
         try:
             if op == "all":
-                rows = load_collection_rows(conn, collection)
+                rows = load_collection_rows(conn, tenant_key, collection)
                 return ok(filtered_rows(rows, None, command.get("order"), command.get("limit")))
 
             if op == "find":
@@ -318,7 +318,7 @@ def dispatch(command: dict[str, Any], db_path: Path) -> dict[str, Any]:
                       FROM tenant_documents
                      WHERE tenant_key = ? AND collection = ? AND id = ?
                     """,
-                    (TENANT_KEY, collection, doc_id),
+                    (tenant_key, collection, doc_id),
                 ).fetchone()
                 if not row:
                     return err("not_found", f"Document {doc_id} not found in {collection}", {"collection": collection, "id": doc_id})
@@ -328,7 +328,7 @@ def dispatch(command: dict[str, Any], db_path: Path) -> dict[str, Any]:
                 where = command.get("where")
                 if not isinstance(where, dict):
                     return err("invalid_command", "Missing where clause")
-                row = find_first_row(load_collection_rows(conn, collection), where, command.get("order"))
+                row = find_first_row(load_collection_rows(conn, tenant_key, collection), where, command.get("order"))
                 if not row:
                     return err("not_found", f"No document matched {collection}", {"collection": collection, "where": where})
                 return ok(row)
@@ -337,14 +337,14 @@ def dispatch(command: dict[str, Any], db_path: Path) -> dict[str, Any]:
                 where = command.get("where")
                 if not isinstance(where, dict):
                     return err("invalid_command", "Missing where clause")
-                rows = load_collection_rows(conn, collection)
+                rows = load_collection_rows(conn, tenant_key, collection)
                 return ok(filtered_rows(rows, where, command.get("order"), command.get("limit")))
 
             if op == "create":
                 data = command.get("data")
                 if not isinstance(data, dict):
                     return err("invalid_command", "Missing data payload")
-                return create_document(conn, collection, data)
+                return create_document(conn, tenant_key, collection, data)
 
             if op == "update":
                 doc_id = command.get("id")
@@ -352,14 +352,14 @@ def dispatch(command: dict[str, Any], db_path: Path) -> dict[str, Any]:
                 data = command.get("data")
                 if not doc_id or not isinstance(data, dict):
                     return err("invalid_command", "Missing id or data payload")
-                return update_document(conn, collection, doc_id, data)
+                return update_document(conn, tenant_key, collection, doc_id, data)
 
             if op == "delete":
                 doc_id = command.get("id")
                 doc_id = str(doc_id) if doc_id not in (None, "") else ""
                 if not doc_id:
                     return err("invalid_command", "Missing document id")
-                return delete_document(conn, collection, doc_id)
+                return delete_document(conn, tenant_key, collection, doc_id)
 
             return err("invalid_command", f"Unsupported op {op!r}")
         finally:
@@ -369,14 +369,15 @@ def dispatch(command: dict[str, Any], db_path: Path) -> dict[str, Any]:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 3:
+    if len(argv) not in (3, 4):
         print(to_lua(err("invalid_command", "Expected db path and command path")), end="")
         return 0
 
     db_path = Path(argv[1])
     command_path = Path(argv[2])
+    tenant_key = argv[3] if len(argv) == 4 and argv[3] else DEFAULT_TENANT_KEY
     command = json.loads(command_path.read_text())
-    response = dispatch(command, db_path)
+    response = dispatch(command, db_path, tenant_key)
     print(to_lua(response), end="")
     return 0
 

@@ -5,8 +5,9 @@
 local fuwa_dev = require("runtime.fuwa-dev")
 local store = require("runtime.openresty.deploy.store")
 local public_shell = require("runtime.openresty.deploy.public_shell")
+local preview_db_bridge = require("runtime.openresty.preview.db_bridge")
 local request_body = require("runtime.openresty.request_body")
-require("runtime.openresty.trace_sink").install()
+require("runtime.openresty.tracing.sink").install()
 local trace = require("runtime.trace")
 
 local function load_chunk(source, name)
@@ -16,7 +17,7 @@ local function load_chunk(source, name)
 end
 
 -- Run pre-compiled Lua files: inject modules, load entry, call handle_request.
-local function run_compiled(compiled_files, entry, method, path, body)
+local function run_compiled(compiled_files, entry, method, path, body, db_bridge)
 	-- Register stdlib preloads (same as fuwa-dev.lua does)
 	local runtime_preloads = {
 		["runtime.stdlib.db"] = "runtime/stdlib/db.lua",
@@ -58,10 +59,7 @@ local function run_compiled(compiled_files, entry, method, path, body)
 	local captured = { value = nil }
 	_G.__fuwa_is_request = true
 	_G.__fuwa_print = function(...) return ... end
-	_G.__fuwa_db_op = function(command)
-		-- Public previews get a no-op DB bridge — no persistence
-		return { await = function() return nil end }
-	end
+	_G.__fuwa_db_op = db_bridge
 	_G.set_html = function(value)
 		captured.value = value
 	end
@@ -198,7 +196,8 @@ return trace.span("preview", {
 		record.entry,
 		method,
 		request_path,
-		body
+		body,
+		preview_db_bridge.new({ slug = slug })
 	)
 
 	if not html then

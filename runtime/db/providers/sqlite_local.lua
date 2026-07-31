@@ -102,10 +102,12 @@ function M.new(opts)
 	opts = opts or {}
 	local db_path = tostring(opts.path or os.getenv("FUWA_DB_PATH") or ".fuwa-dev/sqlite-local.db")
 	local python_bin = tostring(opts.python_bin or os.getenv("PYTHON_BIN") or "python3")
+	local tenant_key = tostring(opts.tenant_key or "__local__")
 
 	local instance = {
 		__name = "sqlite_local",
 		__path = db_path,
+		__tenant_key = tenant_key,
 	}
 
 	function instance:op(command)
@@ -115,6 +117,7 @@ function M.new(opts)
 			collection = command.collection,
 			op = command.op,
 			path = db_path,
+			tenant_key = tenant_key,
 		}, function(span)
 			if not provider.is_valid_collection_name(command.collection) then
 				local response = provider.err("invalid_command", "Invalid collection name", {
@@ -136,7 +139,8 @@ function M.new(opts)
 				shell_quote(python_bin),
 				shell_quote(helper_path),
 				shell_quote(db_path),
-				shell_quote(command_path)
+				shell_quote(command_path),
+				shell_quote(tenant_key)
 			}, " ")
 
 			local pipe = assert(io.popen(helper_command, "r"))

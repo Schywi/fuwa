@@ -16,6 +16,13 @@ local function with_temp_provider(fn)
 	assert(ok, err)
 end
 
+local function with_temp_db_path(fn)
+	local path = os.tmpname() .. ".sqlite"
+	local ok, err = pcall(fn, path)
+	cleanup_temp_db(path)
+	assert(ok, err)
+end
+
 local function capture_trace(spec, fn)
 	local events = {}
 	trace.configure({
@@ -143,6 +150,53 @@ return function(t)
 
 			t.truthy(created.ok, "expected escaped string create to succeed")
 			t.eq(created.value.source, '<style>body::before { content: "\\\\2605"; }</style>\n', "expected escaped string round trip")
+		end)
+	end)
+
+	t.test("sqlite_local isolates rows by tenant key", function()
+		with_temp_db_path(function(path)
+			local alpha = db.new("sqlite_local", {
+				path = path,
+				tenant_key = "preview:alpha",
+			})
+			local beta = db.new("sqlite_local", {
+				path = path,
+				tenant_key = "preview:beta",
+			})
+
+			local created_alpha = alpha:op({
+				op = "create",
+				collection = "wallets",
+				data = {
+					id = "main",
+					balance = 100,
+				}
+			})
+			t.truthy(created_alpha.ok, "expected alpha row create")
+
+			local created_beta = beta:op({
+				op = "create",
+				collection = "wallets",
+				data = {
+					id = "main",
+					balance = 25,
+				}
+			})
+			t.truthy(created_beta.ok, "expected beta row create")
+
+			local found_alpha = alpha:op({
+				op = "find",
+				collection = "wallets",
+				id = "main",
+			})
+			local found_beta = beta:op({
+				op = "find",
+				collection = "wallets",
+				id = "main",
+			})
+
+			t.eq(found_alpha.value.balance, 100, "expected alpha balance")
+			t.eq(found_beta.value.balance, 25, "expected beta balance")
 		end)
 	end)
 end

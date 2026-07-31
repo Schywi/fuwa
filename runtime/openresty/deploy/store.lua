@@ -2,21 +2,14 @@
 -- SQLite-backed deployment store for explicit browser snapshot deploys.
 
 local runtime_db = require("runtime.db")
+local deploy_db = require("runtime.openresty.deploy.db_config")
 
 local M = {}
 
 local COLLECTION = "deployments"
-local DEFAULT_DB_PATH = ".fuwa-dev/deployments.sqlite"
-
-local function provider_path()
-	if type(_G.__FUWA_DEPLOY_DB_PATH) == "string" and _G.__FUWA_DEPLOY_DB_PATH ~= "" then
-		return _G.__FUWA_DEPLOY_DB_PATH
-	end
-	return os.getenv("FUWA_DEPLOY_DB_PATH") or DEFAULT_DB_PATH
-end
 
 local function make_provider()
-	return runtime_db.new("sqlite_local", { path = provider_path() })
+	return runtime_db.new("sqlite_local", { path = deploy_db.path() })
 end
 
 local function provider_response_value(response)
