@@ -3,6 +3,7 @@
 
 local cjson = require("cjson")
 local store = require("runtime.openresty.deploy.store")
+local request_body = require("runtime.openresty.request_body")
 local package_web = require("runtime.stdlib.compiler.package_web")
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local trace = require("runtime.trace")
@@ -27,12 +28,11 @@ local function pick()
 	return words[math.random(#words)]
 end
 
-ngx.req.read_body()
-local body = ngx.req.get_body_data()
+local body, body_err = request_body.read()
 if not body then
 	ngx.status = 400
 	ngx.header.content_type = "application/json"
-	ngx.say(cjson.encode({ok = false, error = "empty body"}))
+	ngx.say(cjson.encode({ok = false, error = body_err or "empty body"}))
 	return
 end
 
