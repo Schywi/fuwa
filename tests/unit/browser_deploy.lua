@@ -44,6 +44,9 @@ t.test("browser deploy exports the in-memory snapshot and posts json", function(
 	local preview = read_file("shell/hooks/preview.js")
 	local home = read_file("shell/views/fragments/home.fuwa")
 	local handler = read_file("runtime/openresty/deploy/deploy_handler.lua")
+	local preview_handler = read_file("runtime/openresty/deploy/preview_handler.lua")
+	local public_shell = read_file("runtime/openresty/deploy/public_shell.lua")
+	local landing = read_file("payloads/preview-landing/views/fragments/main.fuwa")
 
 	t.contains(session, "async function exportSnapshot()", "expected snapshot export helper")
 	t.contains(session, "files: currentSources() || {}", "expected snapshot to use in-memory sources")
@@ -58,6 +61,10 @@ t.test("browser deploy exports the in-memory snapshot and posts json", function(
 	t.contains(handler, "method ~= \"POST\"", "expected deploy handler to reject non-post methods")
 	t.falsy(handler:find("collect_payload_files", 1, true) ~= nil, "expected deploy handler to avoid server-side payload collection")
 	t.falsy(handler:find("/.fuwa%-dev/drafts/current", 1) ~= nil, "expected deploy handler to avoid draft overlay reads")
+	t.contains(landing, 'src="/p/current/app"', "expected landing source template")
+	t.contains(preview_handler, '/?app=1', "expected preview mount query contract")
+	t.contains(preview_handler, 'request_path = "/"', "expected iframe app root to map to payload root")
+	t.contains(public_shell, "if (url === '/')", "expected root route rebasing")
 end)
 
 if results.failed > 0 then

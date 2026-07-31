@@ -14,24 +14,7 @@ end
 -- Set trace sink for OpenResty — writes to shared dict instead of stderr.
 -- Must be set after fuwa-dev.lua loads (it sets its own sink for CGI mode,
 -- guarded by `if not ngx`).
-local trace = require("runtime.trace")
-local cjson = require("cjson")
-local function openresty_trace_sink(event)
-	if type(event) ~= "table" then return end
-	local shm = ngx.shared.traces
-	if not shm then return end
-	local ok, json = pcall(cjson.encode, event)
-	if not ok then return end
-	local buffer_json = shm:get("buffer")
-	local buffer = cjson.decode(buffer_json or "[]") or {}
-	event._ts = ngx.now()
-	json = cjson.encode(event)
-	table.insert(buffer, json)
-	while #buffer > 200 do table.remove(buffer, 1) end
-	shm:set("buffer", cjson.encode(buffer))
-	shm:incr("trace_counter", 1, 0)
-end
-trace.set_sink(openresty_trace_sink)
+require("runtime.openresty.trace_sink").install()
 
 -- SSE reload handler (long-poll with non-blocking sleeps)
 local function handle_reload_sse()

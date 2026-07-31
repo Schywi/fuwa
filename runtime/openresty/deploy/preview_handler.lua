@@ -5,6 +5,8 @@
 local fuwa_dev = require("runtime.fuwa-dev")
 local store = require("runtime.openresty.deploy.store")
 local public_shell = require("runtime.openresty.deploy.public_shell")
+local request_body = require("runtime.openresty.request_body")
+require("runtime.openresty.trace_sink").install()
 local trace = require("runtime.trace")
 
 local function load_chunk(source, name)
@@ -88,6 +90,7 @@ end
 
 -- Main handler
 local uri = ngx.var.uri
+local query_args = ngx.req.get_uri_args()
 
 -- Parse /p/{slug}/{*path}
 local slug, subpath = uri:match("^/p/([^/]+)(/.*)$")
@@ -103,8 +106,7 @@ if not slug or slug == "" then
 end
 
 local method = ngx.req.get_method()
-ngx.req.read_body()
-local body = ngx.req.get_body_data()
+local body = request_body.read()
 
 -- Load deployment
 local record = store.load(slug)
@@ -114,8 +116,11 @@ if not record then
 	return
 end
 
--- Route: root path → marketing landing page
-if subpath == "/" or subpath == "" or subpath == nil then
+local app_root = type(query_args.app) == "string" and query_args.app == "1"
+
+-- Route: root path → marketing landing page unless the iframe explicitly asks
+-- for the deployed app root.
+if (subpath == "/" or subpath == "" or subpath == nil) and not app_root then
 	return trace.span("preview", {
 		slug = slug,
 		kind = "landing",
@@ -138,7 +143,7 @@ if subpath == "/" or subpath == "" or subpath == nil then
 			end
 		end
 		if response.body then
-			local rebased = response.body:gsub('src="/p/current/app"', 'src="' .. mount_path .. '/app"', 1)
+			local rebased = response.body:gsub('src="/p/current/app"', 'src="' .. mount_path .. '/?app=1"', 1)
 			ngx.print(rebased)
 		end
 	end)
@@ -151,10 +156,14 @@ return trace.span("preview", {
 	kind = "app",
 }, function(span)
 	local mount_path = "/p/" .. slug
+	local request_path = subpath
+	if app_root and (subpath == "/" or subpath == "" or subpath == nil) then
+		request_path = "/"
+	end
 
 	-- Static asset within deployment (has file extension)
-	if subpath ~= "/" and subpath:match("%.[^/]+$") and not subpath:match("%.fuwa$") then
-		local filename = subpath:match("^/(.+)$") or subpath
+	if request_path ~= "/" and request_path:match("%.[^/]+$") and not request_path:match("%.fuwa$") then
+		local filename = request_path:match("^/(.+)$") or request_path
 		local content = record.compiled_files[filename]
 		if not content then
 			span:set("status", 404)
@@ -188,7 +197,7 @@ return trace.span("preview", {
 		record.compiled_files,
 		record.entry,
 		method,
-		subpath,
+		request_path,
 		body
 	)
 
@@ -200,7 +209,7 @@ return trace.span("preview", {
 	end
 
 	-- Wrap in public shell (standalone HTML for iframe)
-	local wrapped = public_shell.wrap_html(html, mount_path)
+	local wrapped = public_shell.wrap_html(html, mount_path, mount_path .. "/?app=1")
 
 	span:set("status", 200)
 	span:set("bytes", #wrapped)

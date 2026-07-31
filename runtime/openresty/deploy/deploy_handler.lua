@@ -4,6 +4,7 @@
 local cjson = require("cjson")
 local store = require("runtime.openresty.deploy.store")
 local request_body = require("runtime.openresty.request_body")
+require("runtime.openresty.trace_sink").install()
 local package_web = require("runtime.stdlib.compiler.package_web")
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local trace = require("runtime.trace")
