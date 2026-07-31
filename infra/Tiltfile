@@ -12,10 +12,8 @@ dc_resource('openresty')
 local_resource(
   'repo-watch',
   cmd='true',
+  deps=['..'],
   trigger_mode=TRIGGER_MODE_AUTO,
   auto_init=False,
   labels=['dev'],
 )
-watch_file('../*', 'repo-watch')
-watch_file('../.*', 'repo-watch')
-watch_file('../**/*', 'repo-watch')
