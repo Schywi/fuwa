@@ -1,3 +1,20 @@
+# OpenResty Notes
+
+This folder now contains a few different OpenResty notes:
+
+- [preview-runtime-and-domains.md](/mnt/DATA/development/projects/repos/fuwa/.worktrees/fuwa-ui-redesign/docs/openresty/preview-runtime-and-domains.md)
+  - what `/p/<slug>` actually runs
+  - whether preview is Wasmoon or server-side
+  - how multi-domain VPS wiring should work
+- [infra-overbuild-vs-bash.md](/mnt/DATA/development/projects/repos/fuwa/.worktrees/fuwa-ui-redesign/docs/openresty/infra-overbuild-vs-bash.md)
+  - whether the infra side was overbuilt
+  - when bash is enough
+  - when declarative infra is justified
+- [multitenant.md](/mnt/DATA/development/projects/repos/fuwa/.worktrees/fuwa-ui-redesign/docs/openresty/multitenant.md)
+  - earlier notes about browser vs server runtime boundaries and preview tenancy
+- [deploy/](/mnt/DATA/development/projects/repos/fuwa/.worktrees/fuwa-ui-redesign/docs/openresty/deploy/)
+  - deploy-specific notes and plans
+
 # OpenResty SSR and SEO Routing
 
 This note documents the next step after replacing the Python dev server with
