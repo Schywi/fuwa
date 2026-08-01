@@ -1,7 +1,75 @@
-<div class="phone-frame">
-  <iframe
-    src="/p/current/app"
-    sandbox="allow-scripts allow-forms allow-same-origin"
-    title="App Preview"
-  ></iframe>
-</div>
+<section class="hero">
+  <div class="hero-phone">
+    <div class="phone-device">
+      <div class="phone-bezel">
+        <div class="phone-island"></div>
+        <div class="phone-screen">
+          <iframe
+            src="/p/current/app"
+            sandbox="allow-scripts allow-forms allow-same-origin"
+            title="App Preview"
+          ></iframe>
+        </div>
+      </div>
+      <div class="phone-shadow"></div>
+    </div>
+  </div>
+
+  <div class="hero-copy">
+    <span class="hero-badge">Public Preview</span>
+    <h1 class="hero-headline">This app was built with Fuwa.</h1>
+    <p class="hero-subhead">
+      Every pixel, every route, every database query — authored in
+      <code>.fuwa</code> files, compiled to Lua, and running entirely
+      in your browser. No servers. No build pipelines. Just source code
+      and a browser tab.
+    </p>
+    <a class="hero-cta" href="https://fuwa.dev" target="_blank">
+      Try Fuwa
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 4L10 8L6 12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </a>
+  </div>
+</section>
+
+<section class="pipeline">
+  <h2 class="pipeline-headline">How it works</h2>
+  <div class="pipeline-steps">
+    <div class="pipeline-step">
+      <div class="pipeline-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="2" y="4" width="24" height="20" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M10 11L14 15L18 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="pipeline-label">.fuwa source</span>
+      <span class="pipeline-desc">Write your app in <code>.fuwa</code> — pages, models, views, all in one language</span>
+    </div>
+    <div class="pipeline-arrow">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L14 7M19 12L14 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipeline-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><path d="M8 6H20C21.1 6 22 6.9 22 8V20C22 21.1 21.1 22 20 22H8C6.9 22 6 21.1 6 20V8C6 6.9 6.9 6 8 6Z" stroke="currentColor" stroke-width="1.5"/><path d="M10 14L12.5 16.5L18 11" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </div>
+      <span class="pipeline-label">Lua compiled</span>
+      <span class="pipeline-desc">The compiler turns <code>.fuwa</code> into Lua modules — no build step, instant</span>
+    </div>
+    <div class="pipeline-arrow">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L14 7M19 12L14 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipeline-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><circle cx="14" cy="14" r="9" stroke="currentColor" stroke-width="1.5"/><path d="M14 10V14L17 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>
+      </div>
+      <span class="pipeline-label">Web Worker</span>
+      <span class="pipeline-desc">Wasmoon runs your Lua inside a Web Worker with SQLite-WASM persistence</span>
+    </div>
+    <div class="pipeline-arrow">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M5 12H19M19 12L14 7M19 12L14 17" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="pipeline-step">
+      <div class="pipeline-icon">
+        <svg width="28" height="28" viewBox="0 0 28 28" fill="none"><rect x="6" y="3" width="16" height="22" rx="3" stroke="currentColor" stroke-width="1.5"/><path d="M14 20V20.01" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <span class="pipeline-label">Phone Preview</span>
+      <span class="pipeline-desc">Rendered into a sandboxed iframe — your app, live, in a phone frame</span>
+    </div>
+  </div>
+</section>

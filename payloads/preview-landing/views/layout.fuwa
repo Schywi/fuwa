@@ -5,27 +5,376 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fuwa Preview</title>
   <style>
-    :root { --bg: #0d1117; --surface: #161b22; --border: #30363d; --text: #c9d1d9; --muted: #8b949e; --accent: #58a6ff; }
-    * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, sans-serif; min-height: 100vh; display: flex; flex-direction: column; }
-    header { border-bottom: 1px solid var(--border); padding: 12px 24px; display: flex; align-items: center; justify-content: space-between; }
-    header .logo { font-weight: 700; font-size: 16px; color: var(--accent); }
-    header .badge { font-size: 12px; color: var(--muted); border: 1px solid var(--border); border-radius: 12px; padding: 2px 10px; }
-    main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 32px 16px; }
-    footer { border-top: 1px solid var(--border); padding: 12px 24px; text-align: center; font-size: 12px; color: var(--muted); }
-    footer a { color: var(--accent); text-decoration: none; }
+    /* ── Palette ────────────────────────────────────────────── */
+    :root {
+      --bg:          #050608;
+      --surface:     #0d0d11;
+      --card:        #13151b;
+      --border:      rgba(255, 255, 255, 0.06);
+      --ink:         #f5f5f4;
+      --muted:       #a1a1aa;
+      --faint:       #71717a;
+      --accent:      #c084fc;
+      --accent-soft: rgba(192, 132, 252, 0.12);
+      --accent-strong: #b48cff;
+      --success:     #7ecfb3;
+    }
+
+    /* ── Reset ──────────────────────────────────────────────── */
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { -webkit-font-smoothing: antialiased; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+      line-height: 1.6;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ─────────────────────────────────────────────── */
+    .preview-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 28px;
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .preview-header-logo {
+      font-weight: 700;
+      font-size: 16px;
+      color: var(--accent);
+      letter-spacing: 0.02em;
+    }
+    .preview-header-badge {
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      padding: 3px 12px;
+    }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    .preview-footer {
+      border-top: 1px solid var(--border);
+      padding: 14px 28px;
+      text-align: center;
+      font-size: 12px;
+      color: var(--faint);
+      flex-shrink: 0;
+    }
+    .preview-footer a {
+      color: var(--accent);
+      text-decoration: none;
+      font-weight: 600;
+    }
+    .preview-footer a:hover { color: var(--accent-strong); }
+
+    /* ── Main container ─────────────────────────────────────── */
+    .preview-main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ════════════════════════════════════════════════════════════
+       HERO
+       ════════════════════════════════════════════════════════════ */
+    .hero {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 72px;
+      padding: 48px 40px;
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    /* ── Phone device ───────────────────────────────────────── */
+    .hero-phone {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .phone-device {
+      position: relative;
+      width: 338px;
+      height: 688px;
+    }
+    .phone-shadow {
+      position: absolute;
+      inset: -14px;
+      border-radius: 56px;
+      background: transparent;
+      box-shadow:
+        0 0 0 1px rgba(255, 255, 255, 0.025),
+        0 16px 42px rgba(0, 0, 0, 0.34),
+        0 40px 120px rgba(0, 0, 0, 0.55);
+      pointer-events: none;
+    }
+    .phone-bezel {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      background:
+        radial-gradient(circle at top right, rgba(255, 255, 255, 0.06), transparent 26%),
+        linear-gradient(155deg, #242431 0%, #13141b 38%, #090a0f 100%);
+      border-radius: 46px;
+      border: 1.5px solid rgba(255, 255, 255, 0.09);
+      padding: 10px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.06),
+        inset 0 -1px 0 rgba(255, 255, 255, 0.02);
+      overflow: hidden;
+    }
+    .phone-island {
+      position: absolute;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 92px;
+      height: 24px;
+      background:
+        radial-gradient(circle at 72px 50%, rgba(255, 255, 255, 0.14) 0 3px, transparent 4px),
+        linear-gradient(180deg, #17181f 0%, #0b0c11 100%);
+      border-radius: 999px;
+      box-shadow:
+        inset 0 1px 0 rgba(255, 255, 255, 0.05),
+        0 2px 8px rgba(0, 0, 0, 0.35);
+      z-index: 2;
+    }
+    .phone-screen {
+      width: 100%;
+      height: 100%;
+      background: #000;
+      border-radius: 36px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.015);
+    }
+    .phone-screen iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      display: block;
+    }
+
+    /* ── Hero copy ──────────────────────────────────────────── */
+    .hero-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      max-width: 460px;
+    }
+    .hero-badge {
+      display: inline-flex;
+      align-self: flex-start;
+      padding: 4px 14px;
+      font-size: 12px;
+      font-weight: 650;
+      color: var(--accent-strong);
+      background: var(--accent-soft);
+      border-radius: 999px;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+    }
+    .hero-headline {
+      font-size: 36px;
+      font-weight: 700;
+      line-height: 1.15;
+      color: var(--ink);
+      letter-spacing: -0.02em;
+    }
+    .hero-headline span {
+      color: var(--accent);
+    }
+    .hero-subhead {
+      font-size: 16px;
+      line-height: 1.7;
+      color: var(--muted);
+    }
+    .hero-subhead code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.92em;
+      color: var(--accent-strong);
+      background: rgba(192, 132, 252, 0.08);
+      padding: 2px 6px;
+      border-radius: 4px;
+    }
+    .hero-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--faint);
+    }
+    .hero-slug {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 13px;
+      color: var(--success);
+    }
+    .hero-sep { color: var(--border); }
+    .hero-timestamp {
+      color: var(--faint);
+    }
+    .hero-cta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      align-self: flex-start;
+      padding: 12px 24px;
+      margin-top: 8px;
+      font-size: 15px;
+      font-weight: 650;
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+      border: none;
+      border-radius: 999px;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 0 4px 20px rgba(192, 132, 252, 0.25);
+      transition: transform 0.16s ease, box-shadow 0.16s ease;
+    }
+    .hero-cta:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 8px 32px rgba(192, 132, 252, 0.35);
+    }
+
+    /* ════════════════════════════════════════════════════════════
+       PIPELINE
+       ════════════════════════════════════════════════════════════ */
+    .pipeline {
+      padding: 64px 40px 72px;
+      max-width: 1100px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .pipeline-headline {
+      text-align: center;
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--ink);
+      margin-bottom: 40px;
+      letter-spacing: -0.01em;
+    }
+    .pipeline-steps {
+      display: flex;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 0;
+      flex-wrap: wrap;
+    }
+    .pipeline-step {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      gap: 8px;
+      width: 180px;
+    }
+    .pipeline-arrow {
+      display: flex;
+      align-items: flex-start;
+      padding-top: 28px;
+      color: var(--faint);
+      flex-shrink: 0;
+    }
+    .pipeline-icon {
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 16px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      color: var(--accent);
+    }
+    .pipeline-label {
+      font-size: 14px;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .pipeline-desc {
+      font-size: 12px;
+      color: var(--faint);
+      line-height: 1.5;
+    }
+    .pipeline-desc code {
+      font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+      font-size: 0.9em;
+      color: var(--accent-strong);
+      background: rgba(192, 132, 252, 0.08);
+      padding: 1px 5px;
+      border-radius: 3px;
+    }
+
+    /* ════════════════════════════════════════════════════════════
+       RESPONSIVE
+       ════════════════════════════════════════════════════════════ */
+    @media (max-width: 860px) {
+      .hero {
+        flex-direction: column;
+        gap: 40px;
+        padding: 36px 24px;
+      }
+      .hero-copy {
+        max-width: 100%;
+        text-align: center;
+      }
+      .hero-badge { align-self: center; }
+      .hero-meta { justify-content: center; }
+      .hero-cta { align-self: center; }
+      .hero-headline { font-size: 28px; }
+      .phone-device {
+        width: 282px;
+        height: 574px;
+      }
+      .phone-bezel { border-radius: 40px; padding: 9px; }
+      .phone-screen { border-radius: 30px; }
+      .phone-shadow { border-radius: 48px; }
+      .phone-island {
+        top: 14px;
+        width: 82px;
+        height: 22px;
+      }
+    }
+
+    @media (max-width: 600px) {
+      .pipeline-steps {
+        flex-direction: column;
+        align-items: center;
+        gap: 28px;
+      }
+      .pipeline-arrow {
+        transform: rotate(90deg);
+        padding-top: 0;
+      }
+      .pipeline {
+        padding: 48px 20px 56px;
+      }
+    }
   </style>
 </head>
 <body>
-  <header>
-    <span class="logo">Fuwa</span>
-    <span class="badge">Preview</span>
+  <header class="preview-header">
+    <span class="preview-header-logo">Fuwa</span>
+    <span class="preview-header-badge">Preview</span>
   </header>
-  <main>
+
+  <main class="preview-main">
     <include src="views/fragments/main.fuwa" />
   </main>
-  <footer>
-    Built with <a href="https://fuwa.dev" target="_blank">Fuwa</a>
+
+  <footer class="preview-footer">
+    Built with <a href="https://fuwa.dev" target="_blank">Fuwa</a> — the in-browser full-stack platform
   </footer>
 </body>
 </html>
