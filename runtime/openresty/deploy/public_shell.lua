@@ -31,7 +31,7 @@ local function build_bridge_script(mount_path, root_path)
 end
 
 function M.wrap_html(html, mount_path, root_path)
-	root_path = root_path or (mount_path .. "/?app=1")
+	root_path = root_path or (mount_path .. "/app")
 	-- If already a full HTML document, inject bridge script into <head>
 	if html:match("<html") or html:lower():match("<!doctype") then
 		local bridge = build_bridge_script(mount_path, root_path)

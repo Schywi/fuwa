@@ -88,7 +88,6 @@ end
 
 -- Main handler
 local uri = ngx.var.uri
-local query_args = ngx.req.get_uri_args()
 
 -- Parse /p/{slug}/{*path}
 local slug, subpath = uri:match("^/p/([^/]+)(/.*)$")
@@ -114,11 +113,8 @@ if not record then
 	return
 end
 
-local app_root = type(query_args.app) == "string" and query_args.app == "1"
-
--- Route: root path → marketing landing page unless the iframe explicitly asks
--- for the deployed app root.
-if (subpath == "/" or subpath == "" or subpath == nil) and not app_root then
+-- Route: root path → marketing landing page.
+if subpath == "/" or subpath == "" or subpath == nil then
 	return trace.span("preview", {
 		slug = slug,
 		kind = "landing",
@@ -141,7 +137,7 @@ if (subpath == "/" or subpath == "" or subpath == nil) and not app_root then
 			end
 		end
 		if response.body then
-			local rebased = response.body:gsub('src="/p/current/app"', 'src="' .. mount_path .. '/?app=1"', 1)
+			local rebased = response.body:gsub('src="/p/current/app"', 'src="' .. mount_path .. '/app"', 1)
 			ngx.print(rebased)
 		end
 	end)
@@ -155,7 +151,7 @@ return trace.span("preview", {
 }, function(span)
 	local mount_path = "/p/" .. slug
 	local request_path = subpath
-	if app_root and (subpath == "/" or subpath == "" or subpath == nil) then
+	if subpath == "/app" or subpath == "/app/" then
 		request_path = "/"
 	end
 
@@ -208,7 +204,7 @@ return trace.span("preview", {
 	end
 
 	-- Wrap in public shell (standalone HTML for iframe)
-	local wrapped = public_shell.wrap_html(html, mount_path, mount_path .. "/?app=1")
+	local wrapped = public_shell.wrap_html(html, mount_path, mount_path .. "/app")
 
 	span:set("status", 200)
 	span:set("bytes", #wrapped)

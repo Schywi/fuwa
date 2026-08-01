@@ -62,8 +62,9 @@ t.test("browser deploy exports the in-memory snapshot and posts json", function(
 	t.falsy(handler:find("collect_payload_files", 1, true) ~= nil, "expected deploy handler to avoid server-side payload collection")
 	t.falsy(handler:find("/.fuwa%-dev/drafts/current", 1) ~= nil, "expected deploy handler to avoid draft overlay reads")
 	t.contains(landing, 'src="/p/current/app"', "expected landing source template")
-	t.contains(preview_handler, '/?app=1', "expected preview mount query contract")
-	t.contains(preview_handler, 'request_path = "/"', "expected iframe app root to map to payload root")
+	t.falsy(preview_handler:find('/?app=1', 1, true) ~= nil, "expected no preview mount query hack")
+	t.contains(preview_handler, 'subpath == "/app"', "expected iframe app route contract")
+	t.contains(preview_handler, 'mount_path .. "/app"', "expected app root rebasing")
 	t.contains(public_shell, "if (url === '/')", "expected root route rebasing")
 end)
 
