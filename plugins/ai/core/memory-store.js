@@ -1,12 +1,19 @@
 (function () {
 	'use strict';
 
-	var STORAGE_KEY = 'fuwa_ai_memory_entries_v1';
+	var LEGACY_STORAGE_KEY = 'fuwa_ai_memory_entries_v1';
+	var MIGRATION_KEY = 'fuwa_ai_memory_sqlite_migrated_v1';
 	var COLLECTION_NAME = '__ai_memory_entries__';
+	var DB_FILENAME = ':localStorage:';
+	var SQLITE_MODULE_URL = '/vendor/sqlite-wasm/index.mjs';
+	var SQLITE_WASM_URL = '/vendor/sqlite-wasm/sqlite3.wasm';
 	var MAX_ENTRIES = 120;
 	var MAX_BODY_CHARS = 4000;
 	var MAX_TITLE_CHARS = 160;
-	var fallback_entries = [];
+	var db_promise = null;
+	var sqlite3_promise = null;
+	var db_backend_label = 'sqlite-kvvfs';
+	var cached_recent_entries = [];
 
 	function now_ms() {
 		return Date.now();
@@ -112,21 +119,89 @@
 		return trim_entries(entries);
 	}
 
-	function read_local_entries() {
+	function read_legacy_entries() {
 		try {
-			return safe_parse_entries(localStorage.getItem(STORAGE_KEY) || '[]');
+			return safe_parse_entries(localStorage.getItem(LEGACY_STORAGE_KEY) || '[]');
 		} catch (_err) {
-			return trim_entries(fallback_entries);
+			return [];
 		}
 	}
 
-	function write_local_entries(entries) {
-		var bounded = trim_entries(entries);
-		fallback_entries = bounded.slice();
+	async function load_sqlite3() {
+		if (!sqlite3_promise) {
+			sqlite3_promise = import(SQLITE_MODULE_URL)
+				.then(function (module) {
+					return (module.default || module)({
+						locateFile: function () {
+							return SQLITE_WASM_URL;
+						},
+					});
+				});
+		}
+		return sqlite3_promise;
+	}
+
+	function ensure_schema(db) {
+		db.exec([
+			'CREATE TABLE IF NOT EXISTS ai_memory_entries (',
+			'  entry_id TEXT PRIMARY KEY,',
+			'  kind TEXT NOT NULL,',
+			'  scope TEXT NOT NULL,',
+			'  role TEXT,',
+			'  source_path TEXT,',
+			'  source_hash TEXT,',
+			'  selection_start INTEGER,',
+			'  selection_end INTEGER,',
+			'  title TEXT,',
+			'  body TEXT NOT NULL,',
+			'  created_at INTEGER NOT NULL,',
+			'  last_used_at INTEGER NOT NULL,',
+			'  use_count INTEGER NOT NULL DEFAULT 0',
+			');',
+			'CREATE INDEX IF NOT EXISTS idx_ai_memory_recent ON ai_memory_entries(scope, created_at DESC);',
+			'CREATE INDEX IF NOT EXISTS idx_ai_memory_kind ON ai_memory_entries(kind, created_at DESC);',
+			'CREATE INDEX IF NOT EXISTS idx_ai_memory_role ON ai_memory_entries(role, created_at DESC);',
+		].join('\n'));
+	}
+
+	function open_database(sqlite3) {
 		try {
-			localStorage.setItem(STORAGE_KEY, JSON.stringify(bounded));
+			return new sqlite3.oo1.DB(DB_FILENAME, 'ct');
+		} catch (_err) {
+			db_backend_label = 'sqlite-memory';
+			return new sqlite3.oo1.DB(':memory:', 'ct');
+		}
+	}
+
+	function migrate_legacy_entries(db) {
+		if (localStorage.getItem(MIGRATION_KEY) === 'done') {
+			return;
+		}
+
+		var legacy = read_legacy_entries();
+		if (legacy.length > 0) {
+			for (var i = 0; i < legacy.length; i++) {
+				insert_or_replace(db, legacy[i]);
+			}
+			prune_entries(db);
+		}
+
+		try {
+			localStorage.setItem(MIGRATION_KEY, 'done');
+			localStorage.removeItem(LEGACY_STORAGE_KEY);
 		} catch (_err) {}
-		return bounded;
+	}
+
+	async function get_db() {
+		if (!db_promise) {
+			db_promise = load_sqlite3().then(function (sqlite3) {
+				var db = open_database(sqlite3);
+				ensure_schema(db);
+				migrate_legacy_entries(db);
+				return db;
+			});
+		}
+		return db_promise;
 	}
 
 	function long_bracket(text) {
@@ -183,52 +258,189 @@
 		return true;
 	}
 
-	function apply_filters(entries, options) {
+	function insert_or_replace(db, entry) {
+		db.exec({
+			sql: [
+				'INSERT OR REPLACE INTO ai_memory_entries (',
+				'  entry_id, kind, scope, role, source_path, source_hash,',
+				'  selection_start, selection_end, title, body,',
+				'  created_at, last_used_at, use_count',
+				') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
+			].join(' '),
+			bind: [
+				entry.entry_id,
+				entry.kind,
+				entry.scope,
+				entry.role,
+				entry.source_path,
+				entry.source_hash,
+				entry.selection_start,
+				entry.selection_end,
+				entry.title,
+				entry.body,
+				entry.created_at,
+				entry.last_used_at,
+				entry.use_count,
+			],
+		});
+	}
+
+	function prune_entries(db) {
+		db.exec({
+			sql: [
+				'DELETE FROM ai_memory_entries',
+				'WHERE entry_id IN (',
+				'  SELECT entry_id FROM ai_memory_entries',
+				'  ORDER BY created_at DESC, entry_id DESC',
+				'  LIMIT -1 OFFSET ?',
+				')'
+			].join(' '),
+			bind: [MAX_ENTRIES],
+		});
+	}
+
+	function row_to_entry(row) {
+		return normalize_entry({
+			entry_id: row.entry_id,
+			kind: row.kind,
+			scope: row.scope,
+			role: row.role,
+			source_path: row.source_path,
+			source_hash: row.source_hash,
+			selection_start: row.selection_start,
+			selection_end: row.selection_end,
+			title: row.title,
+			body: row.body,
+			created_at: row.created_at,
+			last_used_at: row.last_used_at,
+			use_count: row.use_count,
+		});
+	}
+
+	function remember_entries(entries) {
+		cached_recent_entries = trim_entries(entries || []);
+		return cached_recent_entries.slice();
+	}
+
+	function select_entries(db, options) {
 		options = options || {};
-		var list = sort_recent(entries);
+		var clauses = [];
+		var bind = [];
 
 		if (options.kind) {
-			list = list.filter(function (entry) {
-				return entry.kind === options.kind;
-			});
+			clauses.push('kind = ?');
+			bind.push(options.kind);
 		}
-
 		if (options.scope) {
-			list = list.filter(function (entry) {
-				return entry.scope === options.scope;
-			});
+			clauses.push('scope = ?');
+			bind.push(options.scope);
+		}
+		if (options.role) {
+			clauses.push('role = ?');
+			bind.push(options.role);
 		}
 
-		if (options.role) {
-			list = list.filter(function (entry) {
-				return entry.role === options.role;
-			});
+		var sql = [
+			'SELECT entry_id, kind, scope, role, source_path, source_hash,',
+			'selection_start, selection_end, title, body,',
+			'created_at, last_used_at, use_count',
+			'FROM ai_memory_entries'
+		].join(' ');
+
+		if (clauses.length > 0) {
+			sql += ' WHERE ' + clauses.join(' AND ');
 		}
+
+		sql += ' ORDER BY created_at DESC, entry_id DESC';
 
 		var limit = as_int(options.limit);
 		if (limit != null && limit > 0) {
-			list = list.slice(0, limit);
+			sql += ' LIMIT ?';
+			bind.push(limit);
 		}
 
-		return list;
+		return db.selectObjects(sql, bind).map(row_to_entry);
+	}
+
+	function tokenize(query) {
+		return String(query || '')
+			.toLowerCase()
+			.match(/[a-z0-9_./-]+/g) || [];
+	}
+
+	function select_relevant_entries(db, query, options) {
+		options = options || {};
+		var terms = tokenize(query).slice(0, 6);
+		if (terms.length === 0) {
+			return select_entries(db, options);
+		}
+
+		var clauses = [];
+		var bind = [];
+		var score_parts = [];
+
+		if (options.scope) {
+			clauses.push('scope = ?');
+			bind.push(options.scope);
+		}
+		if (options.kind) {
+			clauses.push('kind = ?');
+			bind.push(options.kind);
+		}
+
+		for (var i = 0; i < terms.length; i++) {
+			var like = '%' + terms[i] + '%';
+			score_parts.push('(CASE WHEN lower(body) LIKE ? THEN 2 ELSE 0 END)');
+			bind.push(like);
+			score_parts.push('(CASE WHEN lower(coalesce(title, \'\')) LIKE ? THEN 2 ELSE 0 END)');
+			bind.push(like);
+			score_parts.push('(CASE WHEN lower(coalesce(source_path, \'\')) LIKE ? THEN 1 ELSE 0 END)');
+			bind.push(like);
+		}
+
+		var sql = [
+			'SELECT entry_id, kind, scope, role, source_path, source_hash,',
+			'selection_start, selection_end, title, body,',
+			'created_at, last_used_at, use_count,',
+			score_parts.join(' + ') + ' AS score',
+			'FROM ai_memory_entries'
+		].join(' ');
+
+		if (clauses.length > 0) {
+			sql += ' WHERE ' + clauses.join(' AND ');
+		}
+
+		sql += ' ORDER BY score DESC, created_at DESC, entry_id DESC';
+
+		var limit = as_int(options.limit);
+		if (limit != null && limit > 0) {
+			sql += ' LIMIT ?';
+			bind.push(limit);
+		}
+
+		return db.selectObjects(sql, bind)
+			.filter(function (row) { return Number(row.score || 0) > 0; })
+			.map(row_to_entry);
 	}
 
 	async function save(entry) {
 		var normalized = normalize_entry(entry);
-		var entries = read_local_entries();
-		entries.unshift(normalized);
-		write_local_entries(entries);
+		var db = await get_db();
+		insert_or_replace(db, normalized);
+		prune_entries(db);
+		remember_entries(select_entries(db, { limit: MAX_ENTRIES }));
 
 		try {
 			await mirror_runtime_entry(normalized);
-			return Object.assign({ backend: 'localStorage+runtime' }, normalized);
+			return Object.assign({ backend: db_backend_label + '+runtime' }, normalized);
 		} catch (_err) {
-			return Object.assign({ backend: 'localStorage' }, normalized);
+			return Object.assign({ backend: db_backend_label }, normalized);
 		}
 	}
 
 	async function list(options) {
-		return apply_filters(read_local_entries(), options);
+		var db = await get_db();
+		return remember_entries(select_entries(db, options));
 	}
 
 	async function find_recent(options) {
@@ -236,12 +448,70 @@
 		return list(options);
 	}
 
+	async function find_relevant(query, options) {
+		var db = await get_db();
+		options = Object.assign({ limit: 4 }, options || {});
+		return remember_entries(select_relevant_entries(db, query, options));
+	}
+
+	function find_relevant_sync(query, options) {
+		options = options || {};
+		var scope = options.scope;
+		var kind = options.kind;
+		var role = options.role;
+		var limit = as_int(options.limit) || 4;
+		var terms = tokenize(query).slice(0, 6);
+		var rows = cached_recent_entries.slice();
+
+		if (scope) {
+			rows = rows.filter(function (entry) { return entry.scope === scope; });
+		}
+		if (kind) {
+			rows = rows.filter(function (entry) { return entry.kind === kind; });
+		}
+		if (role) {
+			rows = rows.filter(function (entry) { return entry.role === role; });
+		}
+
+		if (terms.length === 0) {
+			return rows.slice(0, limit);
+		}
+
+		rows = rows.map(function (entry) {
+			var text = [
+				entry.title || '',
+				entry.body || '',
+				entry.source_path || ''
+			].join(' ').toLowerCase();
+			var score = 0;
+			for (var i = 0; i < terms.length; i++) {
+				if (text.indexOf(terms[i]) >= 0) score += 1;
+			}
+			return { entry: entry, score: score };
+		}).filter(function (entry) {
+			return entry.score > 0;
+		}).sort(function (left, right) {
+			if (right.score !== left.score) return right.score - left.score;
+			return right.entry.created_at - left.entry.created_at;
+		}).map(function (entry) {
+			return entry.entry;
+		});
+
+		return rows.slice(0, limit);
+	}
+
 	window.FuwaAIMemoryStore = {
-		storageKey: STORAGE_KEY,
+		legacyStorageKey: LEGACY_STORAGE_KEY,
+		migrationKey: MIGRATION_KEY,
+		dbFilename: DB_FILENAME,
 		collection: COLLECTION_NAME,
 		maxEntries: MAX_ENTRIES,
+		backendLabel: function () { return db_backend_label; },
+		ensureDb: get_db,
 		save: save,
 		list: list,
 		findRecent: find_recent,
+		findRelevant: find_relevant,
+		findRelevantSync: find_relevant_sync,
 	};
 })();

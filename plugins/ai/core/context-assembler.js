@@ -79,6 +79,7 @@
 		var tools = window.FuwaAITools || {};
 		var path = extractFilePath(question);
 		var sources = tools.sources;
+		var memory = window.FuwaAIMemoryStore;
 
 		if (sources && typeof sources.collectSelection === 'function') {
 			pushItems(items, sources.collectSelection({ max_chars: MAX_SELECTED_CHARS }));
@@ -95,6 +96,9 @@
 		} else if (sources && path && typeof sources.collectExcerpt === 'function') {
 			pushItems(items, sources.collectExcerpt(path, 1, MAX_EXCERPT_LINES));
 		}
+		if (memory && typeof memory.findRelevant === 'function') {
+			pushMemoryItems(items, question, memory, 3);
+		}
 
 		return items;
 	}
@@ -105,6 +109,7 @@
 		var terminal = tools.terminal;
 		var traces = tools.traces;
 		var sources = tools.sources;
+		var memory = window.FuwaAIMemoryStore;
 		var path = extractFilePath(question);
 
 		if (terminal && typeof terminal.collectFormatted === 'function') {
@@ -123,6 +128,9 @@
 				max_chars: MAX_SELECTED_CHARS
 			}));
 		}
+		if (memory && typeof memory.findRelevant === 'function') {
+			pushMemoryItems(items, question, memory, 3);
+		}
 
 		return items;
 	}
@@ -137,6 +145,23 @@
 		return items.map(function (collection) {
 			return collection.type + ':' + collection.items.length;
 		}).join(', ');
+	}
+
+	function pushMemoryItems(items, question, memory, limit) {
+		// Bounded assembler stays synchronous today. It uses the most recently
+		// materialized relevant entries when available and tolerates backends
+		// that only expose async retrieval.
+		if (typeof memory.findRelevantSync !== 'function') return;
+		var entries = memory.findRelevantSync(question, {
+			scope: 'ai_panel',
+			limit: limit || 3
+		});
+		if (!entries || entries.length === 0) return;
+		items.push({
+			type: 'memory_entry',
+			source: 'memory',
+			items: entries
+		});
 	}
 
 	function formatPrompt(task, question, items, classification) {
@@ -201,6 +226,13 @@
 		}
 		if (type === 'trace_summary') {
 			lines.push(item.method + ' ' + item.path + ' -> ' + item.status + ' in ' + item.duration_ms + 'ms');
+			return;
+		}
+		if (type === 'memory_entry') {
+			lines.push('kind: ' + item.kind + ' role: ' + (item.role || 'n/a'));
+			if (item.title) lines.push('title: ' + item.title);
+			lines.push('body:');
+			lines.push(item.body);
 			return;
 		}
 		lines.push(JSON.stringify(item));

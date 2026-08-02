@@ -59,7 +59,7 @@
 			setState({
 				memory_recent: recent,
 				memory_recent_count: recent.length,
-				memory_backend: 'localStorage',
+				memory_backend: memory.backendLabel ? memory.backendLabel() : 'sqlite-kvvfs',
 				memory_error: null,
 			});
 		} catch (err) {

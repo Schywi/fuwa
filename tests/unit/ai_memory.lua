@@ -42,17 +42,22 @@ t.test("memory store exposes bounded local persistence plus runtime mirror seam"
 
 	t.contains(memory_store, "window.FuwaAIMemoryStore", "expected exported memory store")
 	t.contains(memory_store, "fuwa_ai_memory_entries_v1", "expected durable local storage key")
+	t.contains(memory_store, "sqlite-kvvfs", "expected sqlite-backed browser storage backend")
+	t.contains(memory_store, "new sqlite3.oo1.DB(DB_FILENAME, 'ct')", "expected sqlite oo1 database open")
+	t.contains(memory_store, "CREATE TABLE IF NOT EXISTS ai_memory_entries", "expected sqlite schema")
 	t.contains(memory_store, "__ai_memory_entries__", "expected runtime collection name")
 	t.contains(memory_store, "MAX_ENTRIES = 120", "expected bounded memory cap")
 	t.contains(memory_store, "findRecent", "expected recent-memory API")
+	t.contains(memory_store, "findRelevant", "expected relevant-memory query API")
 	t.contains(memory_store, "window.FuwaAI.exec", "expected runtime mirror through existing AI bridge")
-	t.contains(memory_store, "localStorage+runtime", "expected runtime mirror backend label")
+	t.contains(memory_store, "db_backend_label + '+runtime'", "expected runtime mirror backend label")
 end)
 
 t.test("state tracks memory summary fields separately from provider compatibility state", function()
 	local state = read_file("plugins/ai/state.js")
 
 	t.contains(state, "memory_backend", "expected memory backend state")
+	t.contains(state, "sqlite-kvvfs", "expected sqlite-backed default label")
 	t.contains(state, "memory_recent_count", "expected bounded recent-memory count")
 	t.contains(state, "memory_error", "expected memory error channel")
 end)
