@@ -236,6 +236,13 @@ local function test_raw_asset_requests()
 	assert_true(ai_manifest:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected AI manifest route to respond")
 	assert_true(ai_manifest:find('"id":"model2vec-potion-base-8m"', 1, true) ~= nil, "expected retrieval model in AI manifest")
 	assert_true(ai_manifest:find('"id":"smollm2-135m-instruct-q4"', 1, true) ~= nil, "expected generation model in AI manifest")
+	assert_true(ai_manifest:find('"available":false', 1, true) ~= nil, "expected AI manifest to report missing local model artifacts")
+
+	local ai_model_artifact = run_command(
+		"printf 'GET /ai/models/model2vec-potion-base-8m/model.onnx HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(ai_model_artifact:find("HTTP/1.1 404 Not Found", 1, true) ~= nil, "expected missing AI model artifact to return 404 instead of HTML fallback")
+	assert_true(ai_model_artifact:find("Not found", 1, true) ~= nil, "expected missing AI model artifact body")
 
 		local tenant_runtime_js = run_command(
 			"printf 'GET /shell/hooks/tenant-runtime.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"

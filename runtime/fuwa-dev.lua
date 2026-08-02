@@ -967,6 +967,15 @@ function M.route_request(method, path, body)
 		return serve_static_asset(plugins_root .. "/" .. relative_path) or NOT_FOUND_RESPONSE
 	end
 
+	-- Static assets: AI model artifacts
+	if path:match("^/ai/models/") then
+		local artifact_path = require("runtime.openresty.ai.models").resolve_artifact_path(path)
+		if not artifact_path then
+			return NOT_FOUND_RESPONSE
+		end
+		return serve_static_asset(artifact_path) or NOT_FOUND_RESPONSE
+	end
+
 	local mount_kind = path:match("^/(payload)/")
 	local payload_id, inner_path
 	if mount_kind then
