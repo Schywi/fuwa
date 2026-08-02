@@ -80,6 +80,10 @@ local function test_http_request()
 	assert_true(output:find('&quot;@codemirror/state&quot;', 1, true) == nil, "expected unescaped codemirror import map")
 	assert_true(output:find('.shell-widget-shell[data-widget-state="mounted"]', 1, true) ~= nil, "expected literal CSS selectors")
 	assert_true(output:find('data-select', 1, true) ~= nil, "expected shell select control")
+	assert_true(output:find('/plugins/ai/state.js', 1, true) ~= nil, "expected AI state module asset")
+	assert_true(output:find('/plugins/ai/core/provider-compat.js', 1, true) ~= nil, "expected AI provider compatibility asset")
+	assert_true(output:find('/plugins/ai/panel.js', 1, true) ~= nil, "expected AI panel asset")
+	assert_true(output:find('/plugins/ai/chat.js', 1, true) == nil, "expected old AI chat monolith to be detached from the shell")
 	assert_true(output:find('hx-post="/save/current"', 1, true) == nil, "expected no shell save button")
 	assert_true(output:find('hx-target="#ide-workspace"', 1, true) ~= nil, "expected workspace fragment target")
 	assert_true(output:find("EventSource('/__dev/reload')", 1, true) == nil, "expected no full-page reload script in the shell host page")
@@ -206,6 +210,18 @@ local function test_raw_asset_requests()
 	assert_true(runtime_worker_js:find('/vendor/sqlite-wasm/index.mjs', 1, true) ~= nil, "expected sqlite-wasm module import")
 	assert_true(runtime_worker_js:find('/vendor/sqlite-wasm/sqlite3.wasm', 1, true) ~= nil, "expected sqlite-wasm wasm asset")
 	assert_true(runtime_worker_js:find("sqljs", 1, true) == nil, "expected no sql.js backend")
+
+	local ai_panel_js = run_command(
+		"printf 'GET /plugins/ai/panel.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(ai_panel_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected AI panel asset to respond")
+	assert_true(ai_panel_js:find("window.FuwaShellAI", 1, true) ~= nil, "expected AI shell mount contract")
+
+	local ai_compat_js = run_command(
+		"printf 'GET /plugins/ai/core/provider-compat.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(ai_compat_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected AI compatibility adapter to respond")
+	assert_true(ai_compat_js:find("window.FuwaAIProviderCompat", 1, true) ~= nil, "expected provider compatibility export")
 
 		local tenant_runtime_js = run_command(
 			"printf 'GET /shell/hooks/tenant-runtime.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"

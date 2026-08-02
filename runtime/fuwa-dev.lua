@@ -214,6 +214,7 @@ local runtime_preloads = {
 
 local shell_root = root_dir .. "/shell"
 local vendor_root = root_dir .. "/vendor"
+local plugins_root = root_dir .. "/plugins"
 
 os.execute("mkdir -p " .. shell_quote(dev_dir))
 ensure_path(state_path, "return {}\n")
@@ -958,6 +959,12 @@ function M.route_request(method, path, body)
 	if path:match("^/vendor/") then
 		local relative_path = path:gsub("^/vendor/", "", 1)
 		return serve_static_asset(vendor_root .. "/" .. relative_path) or NOT_FOUND_RESPONSE
+	end
+
+	-- Static assets: plugins
+	if path:match("^/plugins/") then
+		local relative_path = path:gsub("^/plugins/", "", 1)
+		return serve_static_asset(plugins_root .. "/" .. relative_path) or NOT_FOUND_RESPONSE
 	end
 
 	local mount_kind = path:match("^/(payload)/")

@@ -9,9 +9,6 @@
 	var MAX_ROUNDS = 3;
 	var MAX_TOKENS_PER_TURN = 3000;
 
-	var PLANNER_URL = 'https://api.deepseek.com/chat/completions';
-	var PLANNER_MODEL = 'deepseek-v4-flash';
-
 	var LOG_PREFIX = '[shell:ai-orch]';
 
 	function log(msg, detail) {
@@ -74,10 +71,6 @@
 	}
 
 	// ── tool execution ───────────────────────────────────────────────
-
-	function getApiKey() {
-		return window.FuwaShellAI && window.FuwaShellAI.getApiKey ? window.FuwaShellAI.getApiKey() : '';
-	}
 
 	function executeTool(name, args) {
 		var tools = window.FuwaAITools;
@@ -209,45 +202,21 @@
 			'- Be concise (2-5 sentences)',
 			'- If confidence < 0.7, set needs_more: true',
 			'- Never hallucinate file paths or line numbers',
-		].join('\n');
+	].join('\n');
 	}
 
 	async function callModel(system_prompt, user_question) {
-		var key = getApiKey();
-		if (!key) throw new Error('API key not configured');
+		if (!(window.FuwaAIProviderCompat && window.FuwaAIProviderCompat.callJsonModel)) {
+			throw new Error('Provider compatibility layer not loaded');
+		}
 
-		var response = await fetch(PLANNER_URL, {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-				'Authorization': 'Bearer ' + key,
-			},
-			body: JSON.stringify({
-				model: PLANNER_MODEL,
-				messages: [
-					{ role: 'system', content: system_prompt },
-					{ role: 'user', content: user_question },
-				],
-				temperature: 0.1,
-				max_tokens: 1024,
-				response_format: { type: 'json_object' },
-			}),
+		return window.FuwaAIProviderCompat.callJsonModel([
+			{ role: 'system', content: system_prompt },
+			{ role: 'user', content: user_question },
+		], {
+			temperature: 0.1,
+			max_tokens: 1024,
 		});
-
-		if (!response.ok) {
-			var err = await response.text().catch(function () { return 'Unknown'; });
-			throw new Error('API error ' + response.status + ': ' + err);
-		}
-
-		var data = await response.json();
-		var content = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content;
-		if (!content) throw new Error('Empty response from model');
-
-		try {
-			return JSON.parse(content);
-		} catch (e) {
-			throw new Error('Failed to parse model JSON: ' + content.slice(0, 200));
-		}
 	}
 
 	// ── main loop ──────────────────────────────────────────────────────

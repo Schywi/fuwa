@@ -33,6 +33,9 @@
     <script defer src="/shell/hooks/cursor.js"></script>
     <script defer src="/shell/hooks/tmux.js"></script>
     <script defer src="/plugins/ai/worker-bridge.js"></script>
+    <script defer src="/plugins/ai/state.js"></script>
+    <script defer src="/plugins/ai/commands.js"></script>
+    <script defer src="/plugins/ai/core/provider-compat.js"></script>
     <script defer src="/plugins/ai/tools/index.js"></script>
     <script defer src="/plugins/ai/tools/traces.js"></script>
     <script defer src="/plugins/ai/tools/terminal.js"></script>
@@ -41,7 +44,8 @@
     <script defer src="/plugins/ai/tools/classifier.js"></script>
     <script defer src="/plugins/ai/tools/orchestrator.js"></script>
     <script defer src="/plugins/ai/tools/agent.js"></script>
-    <script defer src="/plugins/ai/chat.js"></script>
+    <script defer src="/plugins/ai/core/task-router.js"></script>
+    <script defer src="/plugins/ai/panel.js"></script>
     <style>
       :root {
         color-scheme: dark;
