@@ -15,7 +15,7 @@ import { appendEvents } from './observability.js';
 	// Matches /IDE's RuntimeSession debounce (src/engine/RuntimeSession.ts).
 	const LIVE_RELOAD_DEBOUNCE_MS = 650;
 
-	function create(options) {
+	export function create(options) {
 		const worker_url = options.workerUrl;
 		const bundle_url = options.bundleUrl;
 		const on_terminal = options.onTerminal || function () {};

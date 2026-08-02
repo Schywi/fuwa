@@ -1,3 +1,5 @@
+import { create as createRuntimeSession } from './runtime-session.js';
+
 (function () {
 	'use strict';
 
@@ -5,7 +7,7 @@
 	// tenant iframe (/runtime/tenant.html), and the host<->tenant command
 	// relay (__fuwaTenant ping/ready/request/stream, ordered command queue).
 
-	function create(context) {
+	export function create(context) {
 		const stage = context.stage;
 		const write_terminal = context.writeTerminal || function () {};
 		const on_status = context.onStatus || function () {};
@@ -104,10 +106,10 @@
 		}
 
 		function ensureSession() {
-			if (session || !window.FuwaRuntimeSession || !stage) {
+			if (session || !stage) {
 				return session;
 			}
-			session = window.FuwaRuntimeSession.create({
+			session = createRuntimeSession({
 				workerUrl: stage.getAttribute('data-runtime-worker-url'),
 				bundleUrl: stage.getAttribute('data-bundle-url'),
 				onTerminal: write_terminal,

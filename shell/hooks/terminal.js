@@ -1,3 +1,5 @@
+import { log as observabilityLog } from './observability.js';
+
 (function () {
 	'use strict';
 
@@ -40,11 +42,11 @@
 	function log(step, detail) {
 		if (detail === undefined) {
 			console.info(LOG_PREFIX + ' ' + step);
-			window.FuwaObservability && window.FuwaObservability.log('shell:terminal', step);
+			observabilityLog('shell:terminal', step);
 			return;
 		}
 		console.info(LOG_PREFIX + ' ' + step, detail);
-		window.FuwaObservability && window.FuwaObservability.log('shell:terminal', step, detail);
+		observabilityLog('shell:terminal', step, detail);
 	}
 
 	function describeRoot(root) {

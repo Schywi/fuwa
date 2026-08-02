@@ -1,4 +1,5 @@
 import { log as observabilityLog } from './observability.js';
+import { create as createPreviewBrowserDriver } from './preview-browser.js';
 
 (function () {
 	'use strict';
@@ -58,13 +59,13 @@ import { log as observabilityLog } from './observability.js';
 
 	function createBrowserDriver() {
 		const stage = previewStage();
-		if (!stage || !window.FuwaPreviewBrowserDriver) {
+		if (!stage) {
 			log('runtime:create:blocked');
 			return null;
 		}
 
 		clearLegacyPreviewFrame(stage);
-		return window.FuwaPreviewBrowserDriver.create({
+		return createPreviewBrowserDriver({
 			stage: stage,
 			writeTerminal: writeTerminal,
 			log: log,

@@ -73,6 +73,9 @@ assert_true(editor_js:find("dropCursor()", 1, true) ~= nil, "shell should show t
 assert_true(editor_js:find("buildLuaHighlights", 1, true) ~= nil, "shell should syntax-highlight Lua locally")
 assert_true(editor_js:find("cm-lua-keyword", 1, true) ~= nil, "shell should style Lua keywords")
 assert_true(editor_js:find("cm-lua-string", 1, true) ~= nil, "shell should style Lua strings")
+assert_true(editor_js:find("import { log as observabilityLog } from './observability.js';", 1, true) ~= nil, "editor should import observability logging")
+assert_true(editor_js:find("observabilityLog('shell:editor'", 1, true) ~= nil, "editor should use the imported observability logger")
+assert_true(editor_js:find("window.FuwaObservability", 1, true) == nil, "editor should not reach into the observability global directly")
 assert_true(observability_js:find("ROOT_SELECTOR = '[data-obs-root]'", 1, true) ~= nil, "observability should mount against the obs root selector")
 assert_true(observability_js:find("export const ROOT_SELECTOR", 1, true) ~= nil, "observability should expose an ESM root selector")
 assert_true(observability_js:find("export function mount", 1, true) ~= nil, "observability should expose an ESM mount helper")
@@ -102,9 +105,24 @@ assert_true(cursor_js:find("window.FuwaShellCursor", 1, true) ~= nil, "cursor sh
 assert_true(preview_js:find("import { log as observabilityLog } from './observability.js';", 1, true) ~= nil, "preview should import observability logging")
 assert_true(preview_js:find("observabilityLog('shell:preview'", 1, true) ~= nil, "preview should use the imported observability logger")
 assert_true(preview_js:find("window.FuwaObservability", 1, true) == nil, "preview should not reach into the observability global directly")
+assert_true(preview_js:find("import { create as createPreviewBrowserDriver } from './preview-browser.js';", 1, true) ~= nil, "preview should import the browser driver factory")
+assert_true(preview_js:find("return createPreviewBrowserDriver({", 1, true) ~= nil, "preview should build the browser driver through the imported factory")
+assert_true(preview_js:find("window.FuwaPreviewBrowserDriver", 1, true) == nil, "preview should not read the preview-driver global directly")
 assert_true(runtime_session_js:find("import { appendEvents } from './observability.js';", 1, true) ~= nil, "runtime session should import the observability event sink")
 assert_true(runtime_session_js:find("appendEvents(message.events);", 1, true) ~= nil, "runtime session should forward worker traces through the imported sink")
 assert_true(runtime_session_js:find("window.FuwaShellObservability", 1, true) == nil, "runtime session should not read the observability global directly")
+assert_true(runtime_session_js:find("export function create(options)", 1, true) ~= nil, "runtime session should expose an ESM create factory")
+
+local terminal_js = files["hooks/terminal.js"]
+assert_true(terminal_js:find("import { log as observabilityLog } from './observability.js';", 1, true) ~= nil, "terminal should import observability logging")
+assert_true(terminal_js:find("observabilityLog('shell:terminal'", 1, true) ~= nil, "terminal should use the imported observability logger")
+assert_true(terminal_js:find("window.FuwaObservability", 1, true) == nil, "terminal should not reach into the observability global directly")
+
+local preview_browser_js = files["hooks/preview-browser.js"]
+assert_true(preview_browser_js:find("import { create as createRuntimeSession } from './runtime-session.js';", 1, true) ~= nil, "preview browser driver should import the runtime session factory")
+assert_true(preview_browser_js:find("session = createRuntimeSession({", 1, true) ~= nil, "preview browser driver should build the runtime session through the imported factory")
+assert_true(preview_browser_js:find("window.FuwaRuntimeSession", 1, true) == nil, "preview browser driver should not read the runtime-session global directly")
+assert_true(preview_browser_js:find("export function create(context)", 1, true) ~= nil, "preview browser driver should expose an ESM create factory")
 
 assert_true(observability_js:find("expandedTraceId", 1, true) ~= nil, "observability should support per-row expand/collapse")
 assert_true(observability_js:find(".stageSummary", 1, true) ~= nil, "observability should render request-centric summaries")
