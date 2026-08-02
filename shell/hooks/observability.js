@@ -1,277 +1,308 @@
-(function () {
-	'use strict';
+'use strict';
 
-	const ROOT_SELECTOR = '[data-obs-root]';
-	const MAX_EVENTS = 200;
-	let app = null;
-	let liveSource = null;
-	let state = null;
-	let rawEvents = [];
+export const ROOT_SELECTOR = '[data-obs-root]';
+const MAX_EVENTS = 200;
+let app = null;
+let liveSource = null;
+let state = null;
+let rawEvents = [];
 
-	function createState() {
-		return {
-			requests: [],
-			expandedTraceId: '',
-			streamLabel: 'connecting',
-			toggleExpand: function (req) {
-				this.expandedTraceId = this.expandedTraceId === req.traceId ? '' : req.traceId;
-			},
-			statusTone: function (req) {
-				return req && (req.failed || req.status >= 400) ? 'error' : 'ok';
-			}
-		};
-	}
-
-	function formatMs(v) {
-		return typeof v === 'number' && !isNaN(v) ? Math.round(v) + 'ms' : '--';
-	}
-
-	function summarizeAttrs(attrs, keys) {
-		var parts = [];
-		for (var i = 0; i < keys.length; i++) {
-			var k = keys[i];
-			if (attrs[k] != null) parts.push(k + '=' + String(attrs[k]));
+function createState() {
+	return {
+		requests: [],
+		expandedTraceId: '',
+		streamLabel: 'connecting',
+		toggleExpand: function (req) {
+			this.expandedTraceId = this.expandedTraceId === req.traceId ? '' : req.traceId;
+		},
+		statusTone: function (req) {
+			return req && (req.failed || req.status >= 400) ? 'error' : 'ok';
 		}
-		return parts.join(' ');
+	};
+}
+
+function formatMs(value) {
+	return typeof value === 'number' && !isNaN(value) ? Math.round(value) + 'ms' : '--';
+}
+
+function summarizeAttrs(attrs, keys) {
+	const parts = [];
+	for (let i = 0; i < keys.length; i++) {
+		const key = keys[i];
+		if (attrs[key] != null) parts.push(key + '=' + String(attrs[key]));
 	}
+	return parts.join(' ');
+}
 
-	function formatEventLine(event) {
-		// Returns {label, tone} — label is the display string, tone is
-		// optional 'error' for highlighting failed/error events.
-		var attrs = event.attrs || {};
-		var label, tone;
-		if (event.kind === 'span_start') {
-			label = '\u25b6 ' + event.name + ' ' + summarizeAttrs(attrs, ['method', 'path', 'files', 'bytes']);
-		} else if (event.kind === 'span_log') {
-			var msg = String(event.message || 'event');
-			var fields = event.fields || {};
-			label = '\u00b7 ' + msg + ' ' + summarizeAttrs(fields, Object.keys(fields));
-			if (fields.error || fields.failed) tone = 'error';
-		} else if (event.kind === 'span_end') {
-			label = '\u25c0 ' + event.name + ' ' + formatMs(event.duration_ms) + ' ' + summarizeAttrs(attrs, Object.keys(attrs));
-			if (event.failed) tone = 'error';
-			if (event.error) label += ' error=' + String(event.error);
-		} else if (event.kind === 'request') {
-			label = '\u25c0 request ' + String(event.method || '--') + ' ' + String(event.path || '--') + ' status=' + String(event.status || '--') + ' ' + formatMs(event.duration_ms);
-			if (event.failed) tone = 'error';
-			if (event.error) label += ' error=' + String(event.error);
-		} else {
-			label = JSON.stringify(event);
-		}
-		return { label: label, tone: tone };
+function formatEventLine(event) {
+	const attrs = event.attrs || {};
+	let label;
+	let tone;
+	if (event.kind === 'span_start') {
+		label = '\u25b6 ' + event.name + ' ' + summarizeAttrs(attrs, ['method', 'path', 'files', 'bytes']);
+	} else if (event.kind === 'span_log') {
+		const msg = String(event.message || 'event');
+		const fields = event.fields || {};
+		label = '\u00b7 ' + msg + ' ' + summarizeAttrs(fields, Object.keys(fields));
+		if (fields.error || fields.failed) tone = 'error';
+	} else if (event.kind === 'span_end') {
+		label = '\u25c0 ' + event.name + ' ' + formatMs(event.duration_ms) + ' ' + summarizeAttrs(attrs, Object.keys(attrs));
+		if (event.failed) tone = 'error';
+		if (event.error) label += ' error=' + String(event.error);
+	} else if (event.kind === 'request') {
+		label = '\u25c0 request ' + String(event.method || '--') + ' ' + String(event.path || '--') + ' status=' + String(event.status || '--') + ' ' + formatMs(event.duration_ms);
+		if (event.failed) tone = 'error';
+		if (event.error) label += ' error=' + String(event.error);
+	} else {
+		label = JSON.stringify(event);
 	}
+	return { label: label, tone: tone };
+}
 
-	function rebuildRequests() {
-		if (!state) return;
-		var byTrace = {};
-		for (var i = 0; i < rawEvents.length; i++) {
-			var ev = rawEvents[i];
-			var tid = ev.trace_id;
-			if (!tid) continue;
+function rebuildRequests() {
+	if (!state) return;
+	const byTrace = {};
+	for (let i = 0; i < rawEvents.length; i++) {
+		const event = rawEvents[i];
+		const traceId = event.trace_id;
+		if (!traceId) continue;
 
-			var req = byTrace[tid];
-			if (!req) {
-				req = { traceId: tid, method: '--', path: '--', status: 0, statusLabel: '--',
-					durationMs: null, durationLabel: '--', stageSummary: '', failed: false,
-					stages: [], logs: [], finalized: false, maxTs: 0 };
-				byTrace[tid] = req;
-			}
-			// Track the latest _ts for sorting (fallback to 0 for old events without _ts).
-			var ts = typeof ev._ts === 'number' ? ev._ts : 0;
-			if (ts > req.maxTs) req.maxTs = ts;
-
-			if (req.logs.length < 32) {
-				var fl = formatEventLine(ev);
-				req.logs.push({ kind: ev.kind, label: fl.label, ts: ts, tone: fl.tone || null });
-			}
-
-			if (ev.kind === 'span_start' && ev.name === 'request') {
-				var a = ev.attrs || {};
-				req.method = String(a.method || req.method || '--');
-				req.path = String(a.path || req.path || '--');
-			}
-			if (ev.kind === 'span_end') {
-				var sa = ev.attrs || {};
-				req.stages.push({ name: ev.name, duration: formatMs(ev.duration_ms),
-					detail: summarizeAttrs(sa, Object.keys(sa)) });
-			}
-			if (ev.kind === 'request') {
-				req.finalized = true;
-				req.method = String(ev.method || req.method || '--');
-				req.path = String(ev.path || req.path || '--');
-				req.status = Number(ev.status || 0);
-				req.statusLabel = String(ev.status || '--');
-				req.durationMs = ev.duration_ms;
-				req.durationLabel = formatMs(ev.duration_ms);
-				req.failed = !!ev.failed;
-				if (ev.error) req.errorMessage = String(ev.error);
-			}
+		let req = byTrace[traceId];
+		if (!req) {
+			req = {
+				traceId: traceId,
+				method: '--',
+				path: '--',
+				status: 0,
+				statusLabel: '--',
+				durationMs: null,
+				durationLabel: '--',
+				stageSummary: '',
+				failed: false,
+				stages: [],
+				logs: [],
+				finalized: false,
+				maxTs: 0
+			};
+			byTrace[traceId] = req;
 		}
 
-		var requests = [];
-		for (var k in byTrace) {
-			if (!Object.prototype.hasOwnProperty.call(byTrace, k)) continue;
-			var r = byTrace[k];
-			// Virtual log traces (from FuwaObservability.log) have no
-			// request event — surface them as LOG entries.
-			if (!r.finalized) {
-				if (r.logs.length === 0) continue;
-				// Use the first log's kind as a hint — span_log with a
-				// non-request name means this is a virtual log group.
-				var firstKind = r.logs[0].kind;
-				if (firstKind !== 'span_log') continue;
-				r.method = 'LOG';
-				r.path = r.logs[0].label.split(' ')[0] || r.traceId.replace('log_', '');
-				r.statusLabel = r.logs.length + ' entries';
-				r.durationLabel = '--';
-				r.stageSummary = 'centralized log bus';
-				r.finalized = true;
-			}
-			if (!r.finalized) continue;  // skip after LOG conversion if still not ok
-			var parts = [];
-			for (var s = 0; s < r.stages.length; s++) {
-				parts.push(r.stages[s].name + ' ' + r.stages[s].duration);
-			}
-			r.stageSummary = parts.length > 0 ? parts.join(' \u00b7 ') : 'request complete';
-			requests.push(r);
+		const ts = typeof event._ts === 'number' ? event._ts : 0;
+		if (ts > req.maxTs) req.maxTs = ts;
+
+		if (req.logs.length < 32) {
+			const formatted = formatEventLine(event);
+			req.logs.push({ kind: event.kind, label: formatted.label, ts: ts, tone: formatted.tone || null });
 		}
-		requests.sort(function (a, b) { return b.maxTs - a.maxTs; });
-		if (requests.length > 50) requests = requests.slice(0, 50);
 
-		var prevExpanded = state.expandedTraceId;
-		state.requests = requests;
-		state.streamLabel = requests.length + 'r';
-		state.expandedTraceId = '';
-		for (var j = 0; j < requests.length; j++) {
-			if (requests[j].traceId === prevExpanded) {
-				state.expandedTraceId = prevExpanded;
-				break;
-			}
+		if (event.kind === 'span_start' && event.name === 'request') {
+			const attrs = event.attrs || {};
+			req.method = String(attrs.method || req.method || '--');
+			req.path = String(attrs.path || req.path || '--');
 		}
-	}
-
-	function appendEvent(event) {
-		rawEvents.push(event);
-		if (rawEvents.length > MAX_EVENTS) rawEvents = rawEvents.slice(-MAX_EVENTS);
-		rebuildRequests();
-	}
-
-	function closeLiveStream() {
-		if (liveSource) { liveSource.close(); liveSource = null; }
-	}
-
-	function connectLiveStream() {
-		closeLiveStream();
-		if (typeof EventSource !== 'function') { state.streamLabel = 'ssc n/a'; return; }
-		liveSource = new EventSource('/__dev/traces/live');
-		state.streamLabel = 'connecting';
-		liveSource.addEventListener('ready', function () { state.streamLabel = 'live'; });
-		liveSource.addEventListener('trace', function (e) {
-			state.streamLabel = 'live';
-			try { appendEvent(JSON.parse(e.data)); } catch (_) { state.streamLabel = 'parse err'; }
-		});
-		liveSource.onerror = function () { state.streamLabel = 'reconnecting'; };
-	}
-
-	function mount(root) {
-		if (!(root instanceof Element) || root.hidden) return;
-		if (!state) state = createState();
-		closeLiveStream();
-		root.removeAttribute('v-pre');
-		if (app) { app.unmount(); app = null; }
-		if (!(window.PetiteVue && window.PetiteVue.createApp)) {
-			setTimeout(function () { mount(root); }, 200);
-			return;
-		}
-		app = window.PetiteVue.createApp(state);
-		state = window.PetiteVue.reactive(state);
-		app.mount(root);
-		root.setAttribute('data-widget-state', 'mounted');
-
-		// Seed with snapshot, then connect live
-		fetch('/__dev/traces').then(function (r) { return r.json(); }).then(function (data) {
-			if (data && Array.isArray(data.traces)) {
-				rawEvents = data.traces.slice(-MAX_EVENTS);
-				rebuildRequests();
-			}
-		}).catch(function () {}).finally(function () { connectLiveStream(); });
-	}
-
-	function unmount(root) {
-		closeLiveStream();
-		if (app) { app.unmount(); app = null; }
-		if (root instanceof Element) root.removeAttribute('data-widget-state');
-	}
-
-	function refresh(scope) {
-		var roots = scope ? scope.querySelectorAll(ROOT_SELECTOR) : document.querySelectorAll(ROOT_SELECTOR);
-		for (var i = 0; i < roots.length; i++) {
-			if (!roots[i].hidden) mount(roots[i]);
-		}
-	}
-
-	// Centralized log bus: every JS hook feeds through this instead of raw
-	// console.  Mirrors the LOG_PREFIX pattern (e.g. 'shell:workspace') so
-	// logs are grouped by source in the observability panel as virtual
-	// traces.  The original console behaviour is preserved.
-	window.FuwaObservability = {
-		log: function (source, message, fields) {
-			console.debug('[' + source + '] ' + message, fields || '');
-			// Treat each source as a virtual trace so all logs from one
-			// component collapse into a single expandable row.
-			var tid = 'log_' + source.replace(/[^a-zA-Z0-9_]/g, '_');
-			appendEvent({
-				kind: 'span_log',
-				name: source,
-				trace_id: tid,
-				message: message,
-				fields: fields || {},
-				_ts: Date.now() / 1000
+		if (event.kind === 'span_end') {
+			const attrs = event.attrs || {};
+			req.stages.push({
+				name: event.name,
+				duration: formatMs(event.duration_ms),
+				detail: summarizeAttrs(attrs, Object.keys(attrs))
 			});
 		}
-	};
-
-	window.FuwaShellObservability = {
-		mount: mount, unmount: unmount, refresh: refresh, selector: ROOT_SELECTOR,
-		appendEvents: function (events) {
-			if (!Array.isArray(events)) return;
-			console.debug('[obs] appendEvents', events.length, 'events');
-			for (var i = 0; i < events.length; i++) {
-				try {
-					appendEvent(JSON.parse(events[i]));
-				} catch (e) {
-					console.debug('[obs] appendEvents parse error', e);
-				}
-			}
-			// Also POST to the server ring buffer so Wasmoon traces survive
-			// page refreshes and appear in /__dev/traces snapshots.
-			try {
-				fetch('/__dev/traces', {
-					method: 'POST',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ events: events.map(function (s) { return JSON.parse(s); }) })
-				}).catch(function () {});
-			} catch (_) {}
+		if (event.kind === 'request') {
+			req.finalized = true;
+			req.method = String(event.method || req.method || '--');
+			req.path = String(event.path || req.path || '--');
+			req.status = Number(event.status || 0);
+			req.statusLabel = String(event.status || '--');
+			req.durationMs = event.duration_ms;
+			req.durationLabel = formatMs(event.duration_ms);
+			req.failed = !!event.failed;
+			if (event.error) req.errorMessage = String(event.error);
 		}
-	};
-
-	document.addEventListener('htmx:beforeSwap', function (e) {
-		var s = e.detail && e.detail.target;
-		var roots = (s && s.querySelectorAll) ? s.querySelectorAll(ROOT_SELECTOR) : [];
-		for (var i = 0; i < roots.length; i++) unmount(roots[i]);
-	});
-	document.addEventListener('htmx:afterSwap', function (e) {
-		var s = e.detail && e.detail.target;
-		// Only remount obs roots that are inside the swapped target.
-		// Obs roots outside (e.g. in shell-content) self-boot and persist.
-		if (!(s && s.querySelectorAll)) return;
-		var roots = s.querySelectorAll(ROOT_SELECTOR);
-		for (var i = 0; i < roots.length; i++) { if (!roots[i].hidden) mount(roots[i]); }
-	});
-
-	if (document.readyState === 'loading') {
-		document.addEventListener('DOMContentLoaded', function () { refresh(); }, { once: true });
-	} else {
-		refresh();
 	}
-})();
+
+	let requests = [];
+	for (const key in byTrace) {
+		if (!Object.prototype.hasOwnProperty.call(byTrace, key)) continue;
+		const request = byTrace[key];
+		if (!request.finalized) {
+			if (request.logs.length === 0) continue;
+			const firstKind = request.logs[0].kind;
+			if (firstKind !== 'span_log') continue;
+			request.method = 'LOG';
+			request.path = request.logs[0].label.split(' ')[0] || request.traceId.replace('log_', '');
+			request.statusLabel = request.logs.length + ' entries';
+			request.durationLabel = '--';
+			request.stageSummary = 'centralized log bus';
+			request.finalized = true;
+		}
+		if (!request.finalized) continue;
+		const parts = [];
+		for (let i = 0; i < request.stages.length; i++) {
+			parts.push(request.stages[i].name + ' ' + request.stages[i].duration);
+		}
+		request.stageSummary = parts.length > 0 ? parts.join(' \u00b7 ') : 'request complete';
+		requests.push(request);
+	}
+	requests.sort(function (a, b) { return b.maxTs - a.maxTs; });
+	if (requests.length > 50) requests = requests.slice(0, 50);
+
+	const prevExpanded = state.expandedTraceId;
+	state.requests = requests;
+	state.streamLabel = requests.length + 'r';
+	state.expandedTraceId = '';
+	for (let i = 0; i < requests.length; i++) {
+		if (requests[i].traceId === prevExpanded) {
+			state.expandedTraceId = prevExpanded;
+			break;
+		}
+	}
+}
+
+function appendEvent(event) {
+	rawEvents.push(event);
+	if (rawEvents.length > MAX_EVENTS) rawEvents = rawEvents.slice(-MAX_EVENTS);
+	rebuildRequests();
+}
+
+function closeLiveStream() {
+	if (liveSource) {
+		liveSource.close();
+		liveSource = null;
+	}
+}
+
+function connectLiveStream() {
+	closeLiveStream();
+	if (typeof EventSource !== 'function') {
+		state.streamLabel = 'ssc n/a';
+		return;
+	}
+	liveSource = new EventSource('/__dev/traces/live');
+	state.streamLabel = 'connecting';
+	liveSource.addEventListener('ready', function () {
+		state.streamLabel = 'live';
+	});
+	liveSource.addEventListener('trace', function (event) {
+		state.streamLabel = 'live';
+		try {
+			appendEvent(JSON.parse(event.data));
+		} catch (_) {
+			state.streamLabel = 'parse err';
+		}
+	});
+	liveSource.onerror = function () {
+		state.streamLabel = 'reconnecting';
+	};
+}
+
+export function mount(root) {
+	if (!(root instanceof Element) || root.hidden) return;
+	if (!state) state = createState();
+	closeLiveStream();
+	root.removeAttribute('v-pre');
+	if (app) {
+		app.unmount();
+		app = null;
+	}
+	if (!(window.PetiteVue && window.PetiteVue.createApp)) {
+		setTimeout(function () { mount(root); }, 200);
+		return;
+	}
+	app = window.PetiteVue.createApp(state);
+	state = window.PetiteVue.reactive(state);
+	app.mount(root);
+	root.setAttribute('data-widget-state', 'mounted');
+
+	fetch('/__dev/traces').then(function (response) {
+		return response.json();
+	}).then(function (data) {
+		if (data && Array.isArray(data.traces)) {
+			rawEvents = data.traces.slice(-MAX_EVENTS);
+			rebuildRequests();
+		}
+	}).catch(function () {}).finally(function () {
+		connectLiveStream();
+	});
+}
+
+export function unmount(root) {
+	closeLiveStream();
+	if (app) {
+		app.unmount();
+		app = null;
+	}
+	if (root instanceof Element) root.removeAttribute('data-widget-state');
+}
+
+export function refresh(scope) {
+	const roots = scope ? scope.querySelectorAll(ROOT_SELECTOR) : document.querySelectorAll(ROOT_SELECTOR);
+	for (let i = 0; i < roots.length; i++) {
+		if (!roots[i].hidden) mount(roots[i]);
+	}
+}
+
+export function appendEvents(events) {
+	if (!Array.isArray(events)) return;
+	console.debug('[obs] appendEvents', events.length, 'events');
+	for (let i = 0; i < events.length; i++) {
+		try {
+			appendEvent(JSON.parse(events[i]));
+		} catch (error) {
+			console.debug('[obs] appendEvents parse error', error);
+		}
+	}
+	try {
+		fetch('/__dev/traces', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ events: events.map(function (value) { return JSON.parse(value); }) })
+		}).catch(function () {});
+	} catch (_) {}
+}
+
+export function log(source, message, fields) {
+	console.debug('[' + source + '] ' + message, fields || '');
+	const traceId = 'log_' + source.replace(/[^a-zA-Z0-9_]/g, '_');
+	appendEvent({
+		kind: 'span_log',
+		name: source,
+		trace_id: traceId,
+		message: message,
+		fields: fields || {},
+		_ts: Date.now() / 1000
+	});
+}
+
+window.FuwaObservability = {
+	log: log
+};
+
+window.FuwaShellObservability = {
+	mount: mount,
+	unmount: unmount,
+	refresh: refresh,
+	selector: ROOT_SELECTOR,
+	appendEvents: appendEvents
+};
+
+document.addEventListener('htmx:beforeSwap', function (event) {
+	const scope = event.detail && event.detail.target;
+	const roots = (scope && scope.querySelectorAll) ? scope.querySelectorAll(ROOT_SELECTOR) : [];
+	for (let i = 0; i < roots.length; i++) unmount(roots[i]);
+});
+
+document.addEventListener('htmx:afterSwap', function (event) {
+	const scope = event.detail && event.detail.target;
+	if (!(scope && scope.querySelectorAll)) return;
+	const roots = scope.querySelectorAll(ROOT_SELECTOR);
+	for (let i = 0; i < roots.length; i++) {
+		if (!roots[i].hidden) mount(roots[i]);
+	}
+});
+
+if (document.readyState === 'loading') {
+	document.addEventListener('DOMContentLoaded', function () { refresh(); }, { once: true });
+} else {
+	refresh();
+}

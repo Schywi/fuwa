@@ -1,188 +1,177 @@
-(function () {
-	'use strict';
+'use strict';
 
-	var terminals = {};
-	var eventSource = null;
-	var mounted = false;
-	var filterErrorsOnly = false;
+let terminals = {};
+let eventSource = null;
+let mounted = false;
+let filterErrorsOnly = false;
 
-	function log(step, detail) {
-		if (detail === undefined) {
-			console.info('[shell:tmux] ' + step);
-			return;
-		}
-		console.info('[shell:tmux] ' + step, detail);
+function log(step, detail) {
+	if (detail === undefined) {
+		console.info('[shell:tmux] ' + step);
+		return;
+	}
+	console.info('[shell:tmux] ' + step, detail);
+}
+
+function setSlotStatus(slot, status) {
+	slot.setAttribute('data-tmux-status', status);
+}
+
+function connectMux(containersByName) {
+	if (typeof EventSource !== 'function') {
+		Object.values(containersByName).forEach(function (t) {
+			t.term.writeln('\x1b[1;31mSSE not supported\x1b[0m');
+			setSlotStatus(t.slot, 'error');
+		});
+		return;
 	}
 
-	function setSlotStatus(slot, status) {
-		slot.setAttribute('data-tmux-status', status);
+	const names = Object.keys(containersByName);
+	const params = names.map(function (name) {
+		return 'name=' + encodeURIComponent(name);
+	});
+	if (filterErrorsOnly) {
+		params.push('errors_only=1');
 	}
+	const url = '/__dev/containers/live?' + params.join('&');
 
-	function isErrorLine(line) {
-		var lower = line.toLowerCase();
-		return lower.indexOf('error') !== -1
-			|| lower.indexOf('warn') !== -1
-			|| lower.indexOf('fail') !== -1
-			|| lower.indexOf('fatal') !== -1
-			|| lower.indexOf('panic') !== -1
-			|| lower.indexOf('exception') !== -1
-			|| lower.indexOf('traceback') !== -1;
-	}
+	eventSource = new EventSource(url);
 
-	function connectMux(containersByName) {
-		if (typeof EventSource !== 'function') {
-			Object.values(containersByName).forEach(function (t) {
-				t.term.writeln('\x1b[1;31mSSE not supported\x1b[0m');
-				setSlotStatus(t.slot, 'error');
-			});
-			return;
-		}
-
-		var names = Object.keys(containersByName);
-		var params = names.map(function (n) {
-			return 'name=' + encodeURIComponent(n);
-		});
-		if (filterErrorsOnly) {
-			params.push('errors_only=1');
-		}
-		var url = '/__dev/containers/live?' + params.join('&');
-
-		eventSource = new EventSource(url);
-
-		eventSource.addEventListener('ready', function (e) {
-			log('stream ready');
-		});
-
-		eventSource.addEventListener('status', function (e) {
-			try {
-				var msg = JSON.parse(e.data);
-				var name = msg.container;
-				if (!name || !containersByName[name]) return;
-				var t = containersByName[name];
-				var status = msg.status || '';
-				if (status === 'connecting') {
-					setSlotStatus(t.slot, 'connecting');
-					t.term.writeln('\x1b[1;33mconnecting...\x1b[0m');
-				} else if (status === 'connected') {
-					setSlotStatus(t.slot, 'connected');
-					t.term.writeln('\x1b[1;32mconnected\x1b[0m');
-				} else if (status === 'closed' || status === 'done') {
-					setSlotStatus(t.slot, 'disconnected');
-				}
-			} catch (_) {}
-		});
-
-		eventSource.addEventListener('log', function (e) {
-			try {
-				var msg = JSON.parse(e.data);
-				var name = msg.container;
-				if (!name || !containersByName[name]) return;
-				var line = msg.line || '';
-				containersByName[name].term.writeln(line);
-			} catch (_) {}
-		});
-
-		eventSource.addEventListener('error', function (e) {
-			try {
-				var msg = JSON.parse(e.data);
-				var name = msg.container;
-				if (!name || !containersByName[name]) return;
-				var t = containersByName[name];
-				setSlotStatus(t.slot, 'error');
-				t.term.writeln('\x1b[1;31m' + (msg.message || 'error') + '\x1b[0m');
-			} catch (_) {}
-		});
-
-		eventSource.onerror = function () {
-			Object.values(containersByName).forEach(function (t) {
-				setSlotStatus(t.slot, 'disconnected');
-			});
-		};
-	}
-
-	function mountAll() {
-		if (mounted) return;
-		var slots = document.querySelectorAll('[data-tmux-root]');
-		if (slots.length === 0) return;
-
-		import('/vendor/xterm/xterm-6.0.0.mjs').then(function (mod) {
-			var Terminal = mod.Terminal;
-			var containersByName = {};
-
-			for (var i = 0; i < slots.length; i++) {
-				var slot = slots[i];
-				var label = slot.getAttribute('data-tmux-label') || 'term';
-				var container = slot.getAttribute('data-tmux-container') || label;
-				slot.textContent = '';
-
-				var term = new Terminal({
-					fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
-					fontSize: 9,
-					lineHeight: 1.2,
-					cursorBlink: true,
-					convertEol: true,
-					theme: {
-						background: '#09090b',
-						foreground: '#c0caf5',
-						cursor: '#b48cff'
-					}
-				});
-
-				term.open(slot);
-				containersByName[container] = { term: term, label: label, slot: slot };
-			}
-
-			terminals = containersByName;
-			mounted = true;
-
-			connectMux(containersByName);
-			log('mounted ' + Object.keys(containersByName).length + ' terminals');
-		}).catch(function (err) {
-			console.error('[shell:tmux] failed to load xterm', err);
-		});
-	}
-
-	function unmountAll() {
-		if (eventSource) {
-			try { eventSource.close(); } catch (e) {}
-			eventSource = null;
-		}
-		Object.values(terminals).forEach(function (t) {
-			try { t.term.dispose(); } catch (e) {}
-		});
-		terminals = {};
-		mounted = false;
-		filterErrorsOnly = false;
-		log('unmounted');
-	}
-
-	function toggleFilter() {
-		filterErrorsOnly = !filterErrorsOnly;
-		var btn = document.querySelector('[data-tmux-filter-btn]');
-		if (btn) {
-			btn.textContent = filterErrorsOnly ? 'Errors only ✓' : 'Errors only';
-			btn.setAttribute('data-active', filterErrorsOnly ? 'true' : 'false');
-		}
-		if (!mounted) return;
-		if (eventSource) {
-			try { eventSource.close(); } catch (e) {}
-			eventSource = null;
-		}
-		Object.values(terminals).forEach(function (t) {
-			t.term.clear();
-			setSlotStatus(t.slot, 'connecting');
-		});
-		connectMux(terminals);
-	}
-
-	document.addEventListener('click', function (e) {
-		var btn = e.target.closest('[data-tmux-filter-btn]');
-		if (btn) { toggleFilter(); }
+	eventSource.addEventListener('ready', function () {
+		log('stream ready');
 	});
 
-	window.FuwaShellTmux = {
-		mountAll: mountAll,
-		unmountAll: unmountAll,
-		toggleFilter: toggleFilter
+	eventSource.addEventListener('status', function (event) {
+		try {
+			const msg = JSON.parse(event.data);
+			const name = msg.container;
+			if (!name || !containersByName[name]) return;
+			const terminal = containersByName[name];
+			const status = msg.status || '';
+			if (status === 'connecting') {
+				setSlotStatus(terminal.slot, 'connecting');
+				terminal.term.writeln('\x1b[1;33mconnecting...\x1b[0m');
+			} else if (status === 'connected') {
+				setSlotStatus(terminal.slot, 'connected');
+				terminal.term.writeln('\x1b[1;32mconnected\x1b[0m');
+			} else if (status === 'closed' || status === 'done') {
+				setSlotStatus(terminal.slot, 'disconnected');
+			}
+		} catch (_) {}
+	});
+
+	eventSource.addEventListener('log', function (event) {
+		try {
+			const msg = JSON.parse(event.data);
+			const name = msg.container;
+			if (!name || !containersByName[name]) return;
+			const line = msg.line || '';
+			containersByName[name].term.writeln(line);
+		} catch (_) {}
+	});
+
+	eventSource.addEventListener('error', function (event) {
+		try {
+			const msg = JSON.parse(event.data);
+			const name = msg.container;
+			if (!name || !containersByName[name]) return;
+			const terminal = containersByName[name];
+			setSlotStatus(terminal.slot, 'error');
+			terminal.term.writeln('\x1b[1;31m' + (msg.message || 'error') + '\x1b[0m');
+		} catch (_) {}
+	});
+
+	eventSource.onerror = function () {
+		Object.values(containersByName).forEach(function (terminal) {
+			setSlotStatus(terminal.slot, 'disconnected');
+		});
 	};
-})();
+}
+
+export function mountAll() {
+	if (mounted) return;
+	const slots = document.querySelectorAll('[data-tmux-root]');
+	if (slots.length === 0) return;
+
+	import('/vendor/xterm/xterm-6.0.0.mjs').then(function (mod) {
+		const Terminal = mod.Terminal;
+		const containersByName = {};
+
+		for (let i = 0; i < slots.length; i++) {
+			const slot = slots[i];
+			const label = slot.getAttribute('data-tmux-label') || 'term';
+			const container = slot.getAttribute('data-tmux-container') || label;
+			slot.textContent = '';
+
+			const term = new Terminal({
+				fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+				fontSize: 9,
+				lineHeight: 1.2,
+				cursorBlink: true,
+				convertEol: true,
+				theme: {
+					background: '#09090b',
+					foreground: '#c0caf5',
+					cursor: '#b48cff'
+				}
+			});
+
+			term.open(slot);
+			containersByName[container] = { term: term, label: label, slot: slot };
+		}
+
+		terminals = containersByName;
+		mounted = true;
+
+		connectMux(containersByName);
+		log('mounted ' + Object.keys(containersByName).length + ' terminals');
+	}).catch(function (error) {
+		console.error('[shell:tmux] failed to load xterm', error);
+	});
+}
+
+export function unmountAll() {
+	if (eventSource) {
+		try { eventSource.close(); } catch (error) {}
+		eventSource = null;
+	}
+	Object.values(terminals).forEach(function (terminal) {
+		try { terminal.term.dispose(); } catch (error) {}
+	});
+	terminals = {};
+	mounted = false;
+	filterErrorsOnly = false;
+	log('unmounted');
+}
+
+export function toggleFilter() {
+	filterErrorsOnly = !filterErrorsOnly;
+	const button = document.querySelector('[data-tmux-filter-btn]');
+	if (button) {
+		button.textContent = filterErrorsOnly ? 'Errors only ✓' : 'Errors only';
+		button.setAttribute('data-active', filterErrorsOnly ? 'true' : 'false');
+	}
+	if (!mounted) return;
+	if (eventSource) {
+		try { eventSource.close(); } catch (error) {}
+		eventSource = null;
+	}
+	Object.values(terminals).forEach(function (terminal) {
+		terminal.term.clear();
+		setSlotStatus(terminal.slot, 'connecting');
+	});
+	connectMux(terminals);
+}
+
+document.addEventListener('click', function (event) {
+	const button = event.target.closest('[data-tmux-filter-btn]');
+	if (button) {
+		toggleFilter();
+	}
+});
+
+window.FuwaShellTmux = {
+	mountAll: mountAll,
+	unmountAll: unmountAll,
+	toggleFilter: toggleFilter
+};
