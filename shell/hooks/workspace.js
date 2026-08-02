@@ -1,6 +1,10 @@
 import { mountAll as mountTmuxPanels } from './tmux.js';
 import { loadMermaid as loadMermaidDiagram } from './motion.js';
 
+let create_state_impl = null;
+let initialize_impl = null;
+let workspace_state_impl = null;
+
 (function () {
 	'use strict';
 
@@ -504,12 +508,9 @@ import { loadMermaid as loadMermaidDiagram } from './motion.js';
 	}
 
 	workspace_state = createState();
-
-	window.FuwaShellWorkspace = {
-		createState,
-		state: workspace_state,
-		initialize
-	};
+	create_state_impl = createState;
+	initialize_impl = initialize;
+	workspace_state_impl = workspace_state;
 
 	if (document.readyState === 'loading') {
 		document.addEventListener(
@@ -542,8 +543,21 @@ import { loadMermaid as loadMermaidDiagram } from './motion.js';
 	});
 })();
 
+export function createState() {
+	return create_state_impl ? create_state_impl() : null;
+}
+
 export function closePopover(name) {
-	if (workspace_state && typeof workspace_state.closePopover === 'function') {
-		workspace_state.closePopover(name);
+	if (workspace_state_impl && typeof workspace_state_impl.closePopover === 'function') {
+		workspace_state_impl.closePopover(name);
 	}
+}
+
+export function initialize(scope) {
+	if (!initialize_impl) return;
+	initialize_impl(scope);
+}
+
+export function state() {
+	return workspace_state_impl;
 }

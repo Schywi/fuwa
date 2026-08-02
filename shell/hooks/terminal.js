@@ -1,6 +1,11 @@
 import { log as observabilityLog } from './observability.js';
 
 let write_impl = null;
+let mount_impl = null;
+let refresh_impl = null;
+let clear_impl = null;
+let dispose_impl = null;
+let selector_impl = null;
 
 (function () {
 	'use strict';
@@ -200,6 +205,11 @@ let write_impl = null;
 	}
 
 	write_impl = write;
+	mount_impl = mount;
+	refresh_impl = refresh;
+	clear_impl = clear;
+	dispose_impl = dispose;
+	selector_impl = ROOT_SELECTOR;
 
 	function clear(session_id) {
 		const session = sessions.get(session_id);
@@ -260,15 +270,6 @@ let write_impl = null;
 		refresh(scope);
 	}
 
-	window.FuwaShellTerminal = {
-		mount,
-		refresh,
-		write,
-		clear,
-		dispose,
-		selector: ROOT_SELECTOR
-	};
-
 	if (document.readyState === 'loading') {
 		document.addEventListener(
 			'DOMContentLoaded',
@@ -290,4 +291,28 @@ let write_impl = null;
 export function write(sessionId, text) {
 	if (!write_impl) return;
 	write_impl(sessionId, text);
+}
+
+export function mount(root) {
+	if (!mount_impl) return Promise.resolve(false);
+	return mount_impl(root);
+}
+
+export function refresh(scope) {
+	if (!refresh_impl) return;
+	refresh_impl(scope);
+}
+
+export function clear(sessionId) {
+	if (!clear_impl) return;
+	clear_impl(sessionId);
+}
+
+export function dispose(sessionId) {
+	if (!dispose_impl) return;
+	dispose_impl(sessionId);
+}
+
+export function selector() {
+	return selector_impl;
 }

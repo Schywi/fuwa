@@ -80,6 +80,7 @@ assert_true(editor_js:find("cm-lua-string", 1, true) ~= nil, "shell should style
 assert_true(editor_js:find("import { log as observabilityLog } from './observability.js';", 1, true) ~= nil, "editor should import observability logging")
 assert_true(editor_js:find("observabilityLog('shell:editor'", 1, true) ~= nil, "editor should use the imported observability logger")
 assert_true(editor_js:find("window.FuwaObservability", 1, true) == nil, "editor should not reach into the observability global directly")
+assert_true(editor_js:find("window.FuwaShellEditor", 1, true) == nil, "editor module should not assign the compatibility global directly")
 assert_true(observability_js:find("ROOT_SELECTOR = '[data-obs-root]'", 1, true) ~= nil, "observability should mount against the obs root selector")
 assert_true(observability_js:find("export const ROOT_SELECTOR", 1, true) ~= nil, "observability should expose an ESM root selector")
 assert_true(observability_js:find("export function mount", 1, true) ~= nil, "observability should expose an ESM mount helper")
@@ -129,12 +130,14 @@ assert_true(runtime_session_js:find("import { appendEvents } from './observabili
 assert_true(runtime_session_js:find("appendEvents(message.events);", 1, true) ~= nil, "runtime session should forward worker traces through the imported sink")
 assert_true(runtime_session_js:find("window.FuwaShellObservability", 1, true) == nil, "runtime session should not read the observability global directly")
 assert_true(runtime_session_js:find("export function create(options)", 1, true) ~= nil, "runtime session should expose an ESM create factory")
+assert_true(runtime_session_js:find("window.FuwaRuntimeSession", 1, true) == nil, "runtime session module should not assign the compatibility global directly")
 
 local terminal_js = files["hooks/terminal.js"]
 assert_true(terminal_js:find("import { log as observabilityLog } from './observability.js';", 1, true) ~= nil, "terminal should import observability logging")
 assert_true(terminal_js:find("observabilityLog('shell:terminal'", 1, true) ~= nil, "terminal should use the imported observability logger")
 assert_true(terminal_js:find("window.FuwaObservability", 1, true) == nil, "terminal should not reach into the observability global directly")
 assert_true(terminal_js:find("export function write(sessionId, text)", 1, true) ~= nil, "terminal should expose an ESM write helper")
+assert_true(terminal_js:find("window.FuwaShellTerminal", 1, true) == nil, "terminal module should not assign the compatibility global directly")
 
 local preview_browser_js = files["hooks/preview-browser.js"]
 assert_true(preview_browser_js:find("import { create as createRuntimeSession } from './runtime-session.js';", 1, true) ~= nil, "preview browser driver should import the runtime session factory")
@@ -146,10 +149,17 @@ assert_true(editor_js:find("export function getPendingEdits()", 1, true) ~= nil,
 assert_true(editor_js:find("export function switchFile(root, filePath, contents)", 1, true) ~= nil, "editor should expose an ESM switchFile helper")
 assert_true(workspace_js:find("export function closePopover(name)", 1, true) ~= nil, "workspace should expose an ESM closePopover helper")
 assert_true(motion_js:find("export function loadMermaid()", 1, true) ~= nil, "motion should expose an ESM loadMermaid helper")
+assert_true(workspace_js:find("window.FuwaShellWorkspace", 1, true) == nil, "workspace module should not assign the compatibility global directly")
+assert_true(motion_js:find("window.FuwaShellMotion", 1, true) == nil, "motion module should not assign the compatibility global directly")
 assert_true(browser_index_js:find("window.FuwaShellCursor = {", 1, true) ~= nil, "browser entrypoint should keep the cursor compatibility global")
 assert_true(browser_index_js:find("window.FuwaShellTmux = {", 1, true) ~= nil, "browser entrypoint should keep the tmux compatibility global")
 assert_true(browser_index_js:find("window.FuwaRuntimeSession = {", 1, true) ~= nil, "browser entrypoint should keep the runtime session compatibility global")
 assert_true(browser_index_js:find("window.FuwaPreviewBrowserDriver = {", 1, true) ~= nil, "browser entrypoint should keep the preview-browser compatibility global")
+assert_true(browser_index_js:find("window.FuwaShellEditor = {", 1, true) ~= nil, "browser entrypoint should keep the editor compatibility global")
+assert_true(browser_index_js:find("window.FuwaShellTerminal = {", 1, true) ~= nil, "browser entrypoint should keep the terminal compatibility global")
+assert_true(browser_index_js:find("window.FuwaShellWorkspace = {", 1, true) ~= nil, "browser entrypoint should keep the workspace compatibility global")
+assert_true(browser_index_js:find("window.FuwaShellMotion = {", 1, true) ~= nil, "browser entrypoint should keep the motion compatibility global")
+assert_true(browser_index_js:find("window.FuwaShellPreview = {", 1, true) ~= nil, "browser entrypoint should keep the preview compatibility global")
 
 assert_true(observability_js:find("expandedTraceId", 1, true) ~= nil, "observability should support per-row expand/collapse")
 assert_true(observability_js:find(".stageSummary", 1, true) ~= nil, "observability should render request-centric summaries")

@@ -2,6 +2,10 @@ import { log as observabilityLog } from './observability.js';
 
 let pending_edits_impl = null;
 let switch_file_impl = null;
+let mount_impl = null;
+let unmount_impl = null;
+let refresh_impl = null;
+let selector_impl = null;
 
 (function () {
 	'use strict';
@@ -571,15 +575,10 @@ let switch_file_impl = null;
 
 	pending_edits_impl = pending_edits;
 	switch_file_impl = switchFile;
-
-	window.FuwaShellEditor = {
-		mount,
-		unmount,
-		refresh,
-		switchFile,
-		pendingEdits: pending_edits,
-		selector: ROOT_SELECTOR
-	};
+	mount_impl = mount;
+	unmount_impl = unmount;
+	refresh_impl = refresh;
+	selector_impl = ROOT_SELECTOR;
 
 	if (document.readyState === 'loading') {
 		document.addEventListener(
@@ -603,7 +602,26 @@ export function getPendingEdits() {
 	return pending_edits_impl;
 }
 
+export function mount(root) {
+	if (!mount_impl) return Promise.resolve(false);
+	return mount_impl(root);
+}
+
+export function unmount(root) {
+	if (!unmount_impl) return;
+	unmount_impl(root);
+}
+
+export function refresh(scope) {
+	if (!refresh_impl) return;
+	refresh_impl(scope);
+}
+
 export function switchFile(root, filePath, contents) {
 	if (!switch_file_impl) return;
 	switch_file_impl(root, filePath, contents);
+}
+
+export function selector() {
+	return selector_impl;
 }

@@ -4,6 +4,12 @@ import { getPendingEdits, switchFile as switchEditorFile } from './editor.js';
 import { write as writeTerminalOutput } from './terminal.js';
 import { closePopover as closeWorkspacePopover } from './workspace.js';
 
+let refresh_preview_impl = null;
+let update_code_impl = null;
+let deploy_impl = null;
+let mount_preview_impl = null;
+let browser_driver_impl = null;
+
 (function () {
 	'use strict';
 
@@ -310,16 +316,39 @@ import { closePopover as closeWorkspacePopover } from './workspace.js';
 		void mountBrowserDriver();
 	}
 
-	window.FuwaShellPreview = {
-		mode: function () {
-			return 'browser';
-		},
-		refresh: refreshBrowserDriver,
-		updateCode: updateBrowserCode,
-		deploy: triggerDeploy,
-		mount: mountBrowserDriver,
-		get browserDriver() {
-			return browser_driver;
-		}
+	refresh_preview_impl = refreshBrowserDriver;
+	update_code_impl = updateBrowserCode;
+	deploy_impl = triggerDeploy;
+	mount_preview_impl = mountBrowserDriver;
+	browser_driver_impl = function () {
+		return browser_driver;
 	};
 })();
+
+export function mode() {
+	return 'browser';
+}
+
+export function refresh() {
+	if (!refresh_preview_impl) return Promise.resolve(false);
+	return refresh_preview_impl();
+}
+
+export function updateCode(path, contents) {
+	if (!update_code_impl) return Promise.resolve(false);
+	return update_code_impl(path, contents);
+}
+
+export function deploy() {
+	if (!deploy_impl) return Promise.resolve(false);
+	return deploy_impl();
+}
+
+export function mount() {
+	if (!mount_preview_impl) return Promise.resolve(false);
+	return mount_preview_impl();
+}
+
+export function browserDriver() {
+	return browser_driver_impl ? browser_driver_impl() : null;
+}

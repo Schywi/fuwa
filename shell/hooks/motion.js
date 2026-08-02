@@ -1,7 +1,22 @@
 let load_mermaid_impl = null;
+let develop_preview_impl = null;
+let run_loader_impl = null;
+let start_typewriter_impl = null;
 
 export function loadMermaid() {
 	return load_mermaid_impl ? load_mermaid_impl() : undefined;
+}
+
+export function developPreview(stage) {
+	return develop_preview_impl ? develop_preview_impl(stage) : undefined;
+}
+
+export function runLoader() {
+	return run_loader_impl ? run_loader_impl() : undefined;
+}
+
+export function startTypewriter() {
+	return start_typewriter_impl ? start_typewriter_impl() : undefined;
 }
 
 (function () {
@@ -571,6 +586,9 @@ export function loadMermaid() {
 	}
 
 	load_mermaid_impl = loadMermaid;
+	develop_preview_impl = developPreview;
+	run_loader_impl = runLoader;
+	start_typewriter_impl = startTypewriter;
 
 	function renderArchDiagram(tab) {
 		var el = document.querySelector('[data-arch-diagram]');
@@ -696,10 +714,4 @@ export function loadMermaid() {
 		}
 	});
 
-	window.FuwaShellMotion = {
-		developPreview: developPreview,
-		loadMermaid: loadMermaid,
-		runLoader: runLoader,
-		startTypewriter: startTypewriter
-	};
 })();
