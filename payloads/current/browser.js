@@ -43,9 +43,6 @@
 
 	function boot() {
 		document.documentElement.dataset.fuwaBrowser = 'current';
-		window.FuwaCurrent = {
-			payload: 'current'
-		};
 
 		if (!dependenciesReady()) {
 			if (!retry_timer) {

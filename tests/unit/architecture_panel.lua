@@ -32,12 +32,11 @@ end
 
 t.test("motion hook ships detailed frontend backend and infra mermaids", function()
 	local motion = read_file("shell/hooks/motion.js")
-	local browser_index = read_file("shell/hooks/browser/index.js")
 
 	t.contains(motion, "joinDiagram", "expected readable multi-line mermaid source builder")
 	t.contains(motion, "activeArchTabName", "expected active-tab rerender helper")
 	t.contains(motion, "export function loadMermaid()", "expected module export for the architecture loader")
-	t.contains(browser_index, "window.FuwaShellMotion = {", "expected browser entrypoint motion compatibility bridge")
+t.contains(read_file("shell/views/fragments/home.fuwa"), 'v-scope="workspace"', "expected shell root to use a local petite-vue scope binding")
 	t.contains(motion, "mermaidLoadPromise", "expected explicit mermaid loading lifecycle")
 	t.contains(motion, "ensureMermaidRuntime", "expected promise-driven mermaid loader")
 	t.contains(motion, "window.mermaid.parse(def)", "expected parse-before-render validation")

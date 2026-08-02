@@ -473,7 +473,7 @@ let workspace_state_impl = null;
 				if (mounted_app) {
 					mounted_app.unmount();
 				}
-				mounted_app = window.PetiteVue.createApp({ scope: workspace_state }).mount(target);
+				mounted_app = window.PetiteVue.createApp({ workspace: workspace_state }).mount(target);
 				rememberMounted(target);
 				log('mount:complete', describeScope(target));
 			} catch (error) {
