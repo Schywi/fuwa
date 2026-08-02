@@ -1,20 +1,17 @@
 <div class="fg-receipt">
   <div class="fg-receipt-head">🧾 レシート Receipt</div>
   <div class="fg-receipt-list">
-    <div class="fg-receipt-row" v-for="row in receiptRows" :key="row.id">
-      <span class="fg-receipt-icon">{{ row.icon }}</span>
-      <span class="fg-receipt-name">{{ row.name }}</span>
-      <span class="fg-receipt-qty">×{{ row.qty }}</span>
+    <div class="fg-receipt-row" f-for="row in receipt_rows" data-item-id="&row.id">
+      <span class="fg-receipt-icon">&row.icon</span>
+      <span class="fg-receipt-name">&row.name</span>
+      <span class="fg-receipt-qty">×&row.qty</span>
       <span class="fg-receipt-dots"></span>
-      <span class="fg-receipt-price">-¥{{ row.lineTotal }}</span>
+      <span class="fg-receipt-price">-¥&row.line_total</span>
     </div>
   </div>
   <div class="fg-receipt-total">
     <span class="fg-receipt-total-label">合計 Total</span>
     <span class="fg-receipt-dots"></span>
-    <span class="fg-receipt-total-val">{{ totalText }}</span>
-  </div>
-  <div class="fg-seed" data-ref="seed" hidden>
-    <i f-for="r in receipt" data-id="&r.item"></i>
+    <span class="fg-receipt-total-val">&total_text</span>
   </div>
 </div>

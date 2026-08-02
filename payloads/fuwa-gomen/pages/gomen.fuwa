@@ -1,92 +1,46 @@
 module Gomen
 
-import
-  Wallet "models/wallet"
-  Mood "models/mood"
-  Ledger "models/ledger"
-end
-
 action index(req) do
-  w = Wallet.find_by({ key = "main" })
-  w = w or Wallet.create({ key = "main", balance = 1000, spent = 0 })?
-
-  m = Mood.find_by({ key = "main" })
-  m = m or Mood.create({ key = "main", pokes = 0 })?
-
-  receipt = Ledger.all()
-
-  render "gomen", doctype: "<!DOCTYPE html>", title: "Fuwa Gomen", balance: w.balance, spent: w.spent, pokes: m.pokes, receipt: receipt
+  local state = require("pages.gomen_state")
+  return render("gomen", state.page())
 end
 
 action poke(req) do
-  m = Mood.find_by({ key = "main" })
-  m = m or Mood.create({ key = "main", pokes = 0 })?
-  m = Mood.update(m.id, { key = "main", pokes = m.pokes + 1 })?
-  redirect "/"
+  local state = require("pages.gomen_state")
+  return render("gomen", state.poke())
 end
 
 action cooldown(req) do
-  m = Mood.find_by({ key = "main" })
-  m = m or Mood.create({ key = "main", pokes = 0 })?
-  if m.pokes <= 0 -> redirect "/"
-  m = Mood.update(m.id, { key = "main", pokes = m.pokes - 1 })?
-  redirect "/"
+  local state = require("pages.gomen_state")
+  return render("gomen", state.cooldown())
 end
 
 action buy_onigiri(req) do
-  w = Wallet.find_by({ key = "main" })
-  w = w or Wallet.create({ key = "main", balance = 1000, spent = 0 })?
-  if w.balance < 50 -> redirect "/"
-  w = Wallet.update(w.id, { key = "main", balance = w.balance - 50, spent = w.spent + 50 })?
-  Ledger.create({ item = "onigiri", price = 50 })
-  redirect "/"
+  local state = require("pages.gomen_state")
+  return render("gomen", state.buy("onigiri"))
 end
 
 action buy_ramen(req) do
-  w = Wallet.find_by({ key = "main" })
-  w = w or Wallet.create({ key = "main", balance = 1000, spent = 0 })?
-  if w.balance < 120 -> redirect "/"
-  w = Wallet.update(w.id, { key = "main", balance = w.balance - 120, spent = w.spent + 120 })?
-  Ledger.create({ item = "ramen", price = 120 })
-  redirect "/"
+  local state = require("pages.gomen_state")
+  return render("gomen", state.buy("ramen"))
 end
 
 action buy_takoyaki(req) do
-  w = Wallet.find_by({ key = "main" })
-  w = w or Wallet.create({ key = "main", balance = 1000, spent = 0 })?
-  if w.balance < 200 -> redirect "/"
-  w = Wallet.update(w.id, { key = "main", balance = w.balance - 200, spent = w.spent + 200 })?
-  Ledger.create({ item = "takoyaki", price = 200 })
-  redirect "/"
+  local state = require("pages.gomen_state")
+  return render("gomen", state.buy("takoyaki"))
 end
 
 action buy_sushi(req) do
-  w = Wallet.find_by({ key = "main" })
-  w = w or Wallet.create({ key = "main", balance = 1000, spent = 0 })?
-  if w.balance < 300 -> redirect "/"
-  w = Wallet.update(w.id, { key = "main", balance = w.balance - 300, spent = w.spent + 300 })?
-  Ledger.create({ item = "sushi", price = 300 })
-  redirect "/"
+  local state = require("pages.gomen_state")
+  return render("gomen", state.buy("sushi"))
 end
 
 action calm(req) do
-  m = Mood.find_by({ key = "main" })
-  m = m or Mood.create({ key = "main", pokes = 0 })?
-  m = Mood.update(m.id, { key = "main", pokes = 0 })?
-  redirect "/"
+  local state = require("pages.gomen_state")
+  return render("gomen", state.calm())
 end
 
 action reset(req) do
-  w = Wallet.find_by({ key = "main" })
-  w = w or Wallet.create({ key = "main", balance = 1000, spent = 0 })?
-  w = Wallet.update(w.id, { key = "main", balance = 1000, spent = 0 })?
-
-  m = Mood.find_by({ key = "main" })
-  m = m or Mood.create({ key = "main", pokes = 0 })?
-  m = Mood.update(m.id, { key = "main", pokes = 0 })?
-
-  rows = Ledger.all()
-  for _, r in ipairs(rows) do Ledger.delete(r.id) end
-
-  redirect "/"
+  local state = require("pages.gomen_state")
+  return render("gomen", state.reset())
 end

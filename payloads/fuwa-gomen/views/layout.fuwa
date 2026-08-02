@@ -6,7 +6,8 @@
     <meta name="htmx-config" content='{"historyEnabled":false,"selfRequestsOnly":false,"allowScriptTags":false}' />
     <title>&title</title>
     <script src="/vendor/htmx/htmx-1.9.12.min.js"></script>
-    <script src="/vendor/petite-vue/petite-vue-0.4.1.iife.js"></script>
+    <script defer src="/vendor/gsap/gsap-3.15.0.min.js"></script>
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@500;700;800;900&amp;family=Nunito:wght@600;700;800;900&amp;display=swap" />
     <style>
       [v-cloak] {
         display: none;

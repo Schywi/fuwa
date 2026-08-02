@@ -23,24 +23,25 @@ local function response_for(provider, path)
 end
 
 local function assert_scope_state(t, body, balance, spent, pokes)
-	local b, s, p = body:match('FuwaGomen%.createScope%(%{ balance: (%d+), spent: (%d+), pokes: (%d+) %}%)')
+	local b, s, p = body:match('data%-balance="(%d+)"[^>]-data%-spent="(%d+)"[^>]-data%-pokes="(%d+)"')
 	t.eq(tonumber(b), balance, "expected balance")
 	t.eq(tonumber(s), spent, "expected spent")
 	t.eq(tonumber(p), pokes, "expected pokes")
 end
 
 local function count_item_rows(body, item)
-	local _, count = body:gsub('data%-id="' .. item .. '"', "")
+	local _, count = body:gsub('data%-item%-id="' .. item .. '"', "")
 	return count
 end
 
 local function assert_base_markup(t, body)
 	t.truthy(body:find('id="gomen"', 1, true) ~= nil, "expected gomen root")
 	t.truthy(body:find('script defer src="browser.js"', 1, true) ~= nil, "expected browser asset")
-	t.truthy(body:find('/vendor/petite-vue/petite-vue-0.4.1.iife.js', 1, true) ~= nil, "expected petite-vue")
 	t.truthy(body:find('/vendor/htmx/htmx-1.9.12.min.js', 1, true) ~= nil, "expected htmx")
-	t.truthy(body:find('v-scope="FuwaGomen.createScope({ balance: ', 1, true) ~= nil, "expected reactive scope")
-	t.truthy(body:find('data%-ref="seed"') ~= nil, "expected declarative receipt seed")
+	t.truthy(body:find('/vendor/gsap/gsap-3.15.0.min.js', 1, true) ~= nil, "expected gsap")
+	t.truthy(body:find('hx%-get="/buy/onigiri"', 1) ~= nil, "expected htmx buy action")
+	t.truthy(body:find('hx%-select="#gomen"', 1) ~= nil, "expected focused gomen swap")
+	t.truthy(body:find('data%-ref="seed"') == nil, "expected no declarative receipt seed")
 	t.truthy(body:find('<html>', 1, true) ~= nil, "expected full document layout")
 	t.truthy(body:find("background: #fff8ef;", 1, true) ~= nil, "expected full-bleed tenant background")
 	t.truthy(body:find('class="gomen-shell"', 1, true) == nil, "expected no centered shell wrapper")

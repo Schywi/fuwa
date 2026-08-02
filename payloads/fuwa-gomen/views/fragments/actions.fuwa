@@ -1,5 +1,5 @@
 <div class="fg-actions">
-  <button type="button" class="fg-btn" @click="poke()">Poke (≖ᴗ≖✿)</button>
-  <button type="button" class="fg-btn" @click="pet()">Pet ( ˶˘ ³˘)</button>
-  <button type="button" class="fg-btn" @click="askPapa()">Papa (-人-)</button>
+  <button type="button" class="fg-btn" data-action="poke" hx-get="/poke" hx-target="#gomen" hx-select="#gomen" hx-swap="outerHTML">Poke (≖ᴗ≖✿)</button>
+  <button type="button" class="fg-btn" data-action="calm" hx-get="/calm" hx-target="#gomen" hx-select="#gomen" hx-swap="outerHTML">Pet ( ˶˘ ³˘)</button>
+  <button type="button" class="fg-btn" data-action="reset" hx-get="/reset" hx-target="#gomen" hx-select="#gomen" hx-swap="outerHTML">Papa (-人-)</button>
 </div>

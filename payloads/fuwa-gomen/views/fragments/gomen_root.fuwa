@@ -1,0 +1,37 @@
+<div
+  id="gomen"
+  class="fg-root"
+  data-mood="&mood_key"
+  data-balance="&balance"
+  data-spent="&spent"
+  data-pokes="&pokes"
+  data-total="&total"
+  hx-get="/cooldown"
+  hx-trigger="every 4s"
+  hx-target="#gomen"
+  hx-select="#gomen"
+  hx-swap="outerHTML"
+>
+  <div class="fg-bar">
+    <div class="fg-fill is-low" f-if="bar_is_low" style="width: &bar_percent%"></div>
+    <div class="fg-fill" f-if="not bar_is_low" style="width: &bar_percent%"></div>
+    <span class="fg-bar-text">¥&balance · spent ¥&spent</span>
+  </div>
+
+  <div class="fg-bubble">
+    <b class="fg-bubble-jp">&mood_jp</b>
+    <span class="fg-bubble-en">&mood_en</span>
+  </div>
+
+  <div class="fg-kao" data-ref="mouth">&face</div>
+  <div class="fg-name">ママ</div>
+
+  <div class="fg-papa" f-if="papa_visible">
+    <span class="fg-papa-kao">( ；▽； )</span>
+    <span>Papa-money all gone…</span>
+  </div>
+
+  <include src="views/fragments/shelf.fuwa" />
+  <include src="views/fragments/receipt.fuwa" />
+  <include src="views/fragments/actions.fuwa" />
+</div>

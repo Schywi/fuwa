@@ -65,6 +65,7 @@ t.test("fuwa-gomen rendered document keeps the full-bleed contract", function()
 	t.contains(response.body, 'id="gomen"', "expected gomen root")
 	t.contains(response.body, "background: #fff8ef;", "expected rendered full-bleed background")
 	t.contains(response.body, 'class="phone-screen"', "expected phone-screen container")
+	t.contains(response.body, 'hx-trigger="every 4s"', "expected server-owned cooldown loop")
 	t.falsy(response.body:find('class="gomen%-shell"', 1, false) ~= nil, "expected no centered wrapper in output")
 end)
 
