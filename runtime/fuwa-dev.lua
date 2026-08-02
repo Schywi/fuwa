@@ -999,6 +999,11 @@ function M.route_request(method, path, body)
 		return M.build_bundle_response(bundle_payload_id)
 	end
 
+	local ai_manifest = require("runtime.openresty.ai.manifest").route_request(method, bundle_route or path)
+	if ai_manifest then
+		return ai_manifest
+	end
+
 	-- Tenant runtime bootstrap HTML
 	if path == "/runtime/tenant.html" and method == "GET" then
 		local tenant_html = browser_runtime.bootstrap.build_runtime_srcdoc()

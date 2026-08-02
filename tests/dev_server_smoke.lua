@@ -223,6 +223,13 @@ local function test_raw_asset_requests()
 	assert_true(ai_compat_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected AI compatibility adapter to respond")
 	assert_true(ai_compat_js:find("window.FuwaAIProviderCompat", 1, true) ~= nil, "expected provider compatibility export")
 
+	local ai_manifest = run_command(
+		"printf 'GET /ai/manifest.json HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(ai_manifest:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected AI manifest route to respond")
+	assert_true(ai_manifest:find('"id":"model2vec-potion-base-8m"', 1, true) ~= nil, "expected retrieval model in AI manifest")
+	assert_true(ai_manifest:find('"id":"smollm2-135m-instruct-q4"', 1, true) ~= nil, "expected generation model in AI manifest")
+
 		local tenant_runtime_js = run_command(
 			"printf 'GET /shell/hooks/tenant-runtime.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
 		)
