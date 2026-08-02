@@ -44,7 +44,10 @@ t.test("memory store exposes bounded local persistence plus runtime mirror seam"
 
 	t.contains(embedder, "window.FuwaAIEmbedder", "expected exported embedder seam")
 	t.contains(embedder, "cosineSimilarity", "expected cosine similarity helper")
-	t.contains(embedder, "model-manager-scaffold", "expected manifest-backed embedding scaffold")
+	t.contains(embedder, "describeState", "expected embedder runtime status seam")
+	t.contains(embedder, "hash-embed-fallback", "expected explicit embedding fallback backend")
+	t.contains(embedder, "local-model-runtime", "expected explicit local runtime backend label")
+	t.contains(embedder, "diagnostic", "expected embedder runtime diagnostic field")
 	t.contains(memory_store, "window.FuwaAIMemoryStore", "expected exported memory store")
 	t.contains(memory_store, "fuwa_ai_memory_entries_v1", "expected durable local storage key")
 	t.contains(memory_store, "sqlite-kvvfs", "expected sqlite-backed browser storage backend")
@@ -68,6 +71,9 @@ t.test("state tracks memory summary fields separately from provider compatibilit
 	t.contains(state, "sqlite-kvvfs", "expected sqlite-backed default label")
 	t.contains(state, "memory_recent_count", "expected bounded recent-memory count")
 	t.contains(state, "memory_error", "expected memory error channel")
+	t.contains(state, "embedder_backend", "expected embedder backend state")
+	t.contains(state, "embedder_model", "expected embedder model state")
+	t.contains(state, "embedder_error", "expected embedder error channel")
 end)
 
 t.test("panel persists turns through the memory store without switching default task routing", function()
@@ -78,6 +84,8 @@ t.test("panel persists turns through the memory store without switching default 
 	t.contains(panel, "rememberTurn('assistant', result.answer, 'turn')", "expected assistant answers to persist")
 	t.contains(panel, "rememberTurn('assistant', error_text, 'diagnostic')", "expected error turns to persist as diagnostics")
 	t.contains(panel, "memory_recent_count", "expected summary to include recent memory count")
+	t.contains(panel, "refreshEmbedderState", "expected panel to refresh embedder runtime state")
+	t.contains(panel, "embedder_backend", "expected panel to publish embedder backend")
 	t.contains(panel, "router.runTextTask", "expected existing task router path to remain intact")
 end)
 

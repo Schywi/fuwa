@@ -26,16 +26,25 @@
 		var tools = window.FuwaAITools;
 		var store = aiState();
 		var memory_count = 0;
+		var embedder_backend = '';
 		if (store && store.create) {
-			memory_count = Number(store.create().memory_recent_count) || 0;
+			var snapshot = store.create();
+			memory_count = Number(snapshot.memory_recent_count) || 0;
+			embedder_backend = snapshot.embedder_backend || '';
 		}
 		if (!tools || !tools.list) {
-			return memory_count > 0 ? memory_count + ' local memory entries' : '';
+			var fallback_parts = [];
+			if (memory_count > 0) fallback_parts.push(memory_count + ' local memory entries');
+			if (embedder_backend) fallback_parts.push('embeddings ' + embedder_backend);
+			return fallback_parts.join(' · ');
 		}
 		var entries = tools.list();
 		var parts = [entries.length + ' task adapters'];
 		if (memory_count > 0) {
 			parts.push(memory_count + ' local memory entries');
+		}
+		if (embedder_backend) {
+			parts.push('embeddings ' + embedder_backend);
 		}
 		return parts.join(' · ');
 	}
@@ -72,6 +81,33 @@
 		setState({ context_summary: buildContextSummary() });
 	}
 
+	async function refreshEmbedderState() {
+		var embedder = window.FuwaAIEmbedder;
+		if (!(embedder && typeof embedder.describeState === 'function')) {
+			return;
+		}
+
+		try {
+			if (typeof embedder.prime === 'function') {
+				await embedder.prime();
+			}
+			var state = embedder.describeState();
+			setState({
+				embedder_backend: state.backend || 'hash-embed-fallback',
+				embedder_model: state.model_id || 'hash-embed-fallback',
+				embedder_error: state.available ? null : (state.diagnostic || null),
+			});
+		} catch (err) {
+			log('embedder refresh error', err && err.message ? err.message : err);
+			setState({
+				embedder_backend: 'hash-embed-fallback',
+				embedder_error: err && err.message ? err.message : String(err),
+			});
+		}
+
+		setState({ context_summary: buildContextSummary() });
+	}
+
 	async function rememberTurn(role, content, kind) {
 		var memory = window.FuwaAIMemoryStore;
 		if (!(memory && memory.save) || !content) {
@@ -96,6 +132,7 @@
 			});
 		}
 
+		await refreshEmbedderState();
 		await refreshMemoryState();
 	}
 
@@ -194,6 +231,7 @@
 			window.FuwaAIProviderCompat.prime();
 		}
 		setState({ context_summary: buildContextSummary() });
+		void refreshEmbedderState();
 		void refreshMemoryState();
 	}
 

@@ -79,10 +79,12 @@ t.test("panel modules expose stable shell seams", function()
 
 	t.contains(state, "window.FuwaAIState", "expected exported AI state store")
 	t.contains(state, "fuwa_ai_provider_key", "expected generic provider storage key")
+	t.contains(state, "embedder_backend", "expected embedder state in the shared AI store")
 	t.contains(commands, "set_provider_key", "expected command parser to expose provider-key command")
 	t.contains(router, "runTextTask", "expected explicit task router")
 	t.contains(panel, "window.FuwaShellAI", "expected shell mount API")
 	t.contains(panel, "task adapters", "expected context summary to talk about task adapters")
+	t.contains(panel, "embeddings ", "expected context summary to include embedder backend status")
 end)
 
 if results.failed > 0 then

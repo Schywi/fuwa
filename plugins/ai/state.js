@@ -22,6 +22,9 @@
 			memory_recent: [],
 			memory_recent_count: 0,
 			memory_error: null,
+			embedder_backend: 'hash-embed-fallback',
+			embedder_model: 'hash-embed-fallback',
+			embedder_error: null,
 		};
 	}
 

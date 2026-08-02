@@ -62,8 +62,10 @@ t.test("model manager exposes a manifest seam without changing execution ownersh
 	t.contains(source, "ensureManifest", "expected manifest loader")
 	t.contains(source, "listModelsForTask", "expected task model selector")
 	t.contains(source, "chooseModel", "expected capability-aware chooser")
+	t.contains(source, "prepareModel", "expected model preparation seam")
 	t.contains(source, "markWarm", "expected warm model bookkeeping scaffold")
-	t.contains(embedder, "chooseModel('memory')", "expected memory embedder to consult the model manager")
+	t.contains(source, "Browser ONNX runtime is not vendored in this repo yet.", "expected explicit missing local onnx runtime diagnostic")
+	t.contains(embedder, "prepareModel('memory')", "expected memory embedder to consult the model manager")
 end)
 
 t.test("openresty ai manifest exposes the planned model contract", function()

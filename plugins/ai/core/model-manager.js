@@ -6,6 +6,7 @@
 	var cached_manifest_promise = null;
 	var warm_models = {};
 	var warm_order = [];
+	var runtime_support = {};
 
 	function clone(value) {
 		return JSON.parse(JSON.stringify(value));
@@ -97,6 +98,83 @@
 		return null;
 	}
 
+	function runtime_support_for(model) {
+		if (!model) {
+			return {
+				available: false,
+				runtime: '',
+				backend: 'wasm',
+				reason: 'No model selected.',
+			};
+		}
+
+		var runtime = String(model.runtime || '');
+		var backend = String(model.preferred_backend || 'wasm');
+		if (runtime === 'onnx') {
+			if (window.FuwaAIOnnxRuntime && typeof window.FuwaAIOnnxRuntime.embed === 'function') {
+				return {
+					available: true,
+					runtime: runtime,
+					backend: backend,
+					reason: 'Browser ONNX runtime is available.',
+				};
+			}
+			return {
+				available: false,
+				runtime: runtime,
+				backend: backend,
+				reason: 'Browser ONNX runtime is not vendored in this repo yet.',
+			};
+		}
+
+		if (runtime === 'gen') {
+			if (window.FuwaAIGenRuntime && typeof window.FuwaAIGenRuntime.generate === 'function') {
+				return {
+					available: true,
+					runtime: runtime,
+					backend: backend,
+					reason: 'Local generation runtime is available.',
+				};
+			}
+			return {
+				available: false,
+				runtime: runtime,
+				backend: backend,
+				reason: 'Local generation runtime is not wired yet.',
+			};
+		}
+
+		return {
+			available: false,
+			runtime: runtime,
+			backend: backend,
+			reason: 'Unsupported local runtime: ' + runtime,
+		};
+	}
+
+	async function prepare_model(task_kind) {
+		var model = await choose_model(task_kind);
+		if (!model) {
+			return {
+				model: null,
+				available: false,
+				runtime: '',
+				backend: 'wasm',
+				reason: 'No AI model matched task "' + String(task_kind || '') + '".',
+			};
+		}
+
+		var support = runtime_support_for(model);
+		runtime_support[model.id] = clone(support);
+		return {
+			model: model,
+			available: support.available,
+			runtime: support.runtime,
+			backend: support.backend,
+			reason: support.reason,
+		};
+	}
+
 	function mark_warm(model_id, estimated_mb) {
 		var id = String(model_id || '');
 		if (!id) return;
@@ -130,6 +208,7 @@
 			manifest_endpoint: MANIFEST_ENDPOINT,
 			warm_models: warm,
 			estimated_resident_mb: resident_mb,
+			runtime_support: clone(runtime_support),
 		};
 	}
 
@@ -138,6 +217,7 @@
 		cached_manifest_promise = null;
 		warm_models = {};
 		warm_order = [];
+		runtime_support = {};
 	}
 
 	window.FuwaAIModelManager = {
@@ -146,6 +226,7 @@
 		getCapability: get_capability,
 		listModelsForTask: list_models_for_task,
 		chooseModel: choose_model,
+		prepareModel: prepare_model,
 		markWarm: mark_warm,
 		describeState: describe_state,
 		clearCache: clear_cache,

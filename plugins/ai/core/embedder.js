@@ -3,6 +3,7 @@
 
 	var DIMENSIONS = 64;
 	var cached_model = null;
+	var cached_preparation = null;
 
 	function tokenize(text) {
 		return String(text || '')
@@ -76,19 +77,60 @@
 			vector: build_vector(text),
 			backend: 'hash-embed-fallback',
 			model_id: 'hash-embed-fallback',
+			runtime: 'hash',
+			available: false,
+			diagnostic: null,
 		};
 	}
 
-	async function choose_model() {
-		if (cached_model) return cached_model;
-		if (!(window.FuwaAIModelManager && typeof window.FuwaAIModelManager.chooseModel === 'function')) {
-			return null;
+	function describe_state() {
+		if (!cached_preparation) {
+			return {
+				backend: 'hash-embed-fallback',
+				model_id: cached_model ? cached_model.id : 'hash-embed-fallback',
+				runtime: cached_model ? cached_model.runtime : 'hash',
+				available: false,
+				diagnostic: 'Local embedding runtime has not been prepared yet.',
+			};
+		}
+		return {
+			backend: cached_preparation.available ? 'local-model-runtime' : 'hash-embed-fallback',
+			model_id: cached_preparation.model && cached_preparation.model.id
+				? cached_preparation.model.id
+				: 'hash-embed-fallback',
+			runtime: cached_preparation.runtime || 'hash',
+			available: !!cached_preparation.available,
+			diagnostic: cached_preparation.reason || null,
+		};
+	}
+
+	async function prepare_model() {
+		if (cached_preparation) return cached_preparation;
+		if (!(window.FuwaAIModelManager && typeof window.FuwaAIModelManager.prepareModel === 'function')) {
+			cached_preparation = {
+				model: null,
+				available: false,
+				runtime: 'hash',
+				backend: 'wasm',
+				reason: 'AI model manager is not initialized.',
+			};
+			return cached_preparation;
 		}
 		try {
-			cached_model = await window.FuwaAIModelManager.chooseModel('memory');
-			return cached_model;
-		} catch (_err) {
-			return null;
+			cached_preparation = await window.FuwaAIModelManager.prepareModel('memory');
+			cached_model = cached_preparation && cached_preparation.model
+				? cached_preparation.model
+				: null;
+			return cached_preparation;
+		} catch (err) {
+			cached_preparation = {
+				model: null,
+				available: false,
+				runtime: 'hash',
+				backend: 'wasm',
+				reason: err && err.message ? err.message : String(err),
+			};
+			return cached_preparation;
 		}
 	}
 
@@ -103,15 +145,27 @@
 	}
 
 	function embed_text_sync(text) {
-		return base_result(text);
+		var result = base_result(text);
+		var state = describe_state();
+		result.model_id = state.model_id;
+		result.runtime = state.runtime;
+		result.available = state.available;
+		result.diagnostic = state.diagnostic;
+		return result;
 	}
 
 	async function embed_text(text) {
 		var result = base_result(text);
-		var model = await choose_model();
+		var preparation = await prepare_model();
+		var model = preparation && preparation.model;
 		if (model) {
 			result.model_id = model.id;
-			result.backend = 'model-manager-scaffold';
+			result.runtime = preparation.runtime || model.runtime || 'hash';
+			result.available = !!preparation.available;
+			result.diagnostic = preparation.reason || null;
+		}
+		if (model && preparation.available) {
+			result.backend = 'local-model-runtime';
 			if (window.FuwaAIModelManager && window.FuwaAIModelManager.markWarm) {
 				window.FuwaAIModelManager.markWarm(model.id, model.estimated_mb || 0);
 			}
@@ -130,6 +184,8 @@
 	window.FuwaAIEmbedder = {
 		dimensions: DIMENSIONS,
 		tokenize: tokenize,
+		describeState: describe_state,
+		prime: prepare_model,
 		embedTextSync: embed_text_sync,
 		embedText: embed_text,
 		embedEntrySync: embed_entry_sync,
