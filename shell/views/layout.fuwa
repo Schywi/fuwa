@@ -22,16 +22,7 @@
     <script type="module" src="https://cdn.jsdelivr.net/npm/iconify-icon@2.3.0/dist/iconify-icon.min.js"></script>
     <script defer src="/vendor/petite-vue/petite-vue-0.4.1.iife.js"></script>
     <script defer src="/vendor/gsap/gsap-3.15.0.min.js"></script>
-    <script defer src="/shell/hooks/editor.js"></script>
-    <script defer src="/shell/hooks/terminal.js"></script>
-    <script defer src="/shell/hooks/workspace.js"></script>
-    <script defer src="/shell/hooks/runtime-session.js"></script>
-    <script defer src="/shell/hooks/preview-browser.js"></script>
-    <script defer src="/shell/hooks/preview.js"></script>
-    <script defer src="/shell/hooks/observability.js"></script>
-    <script defer src="/shell/hooks/motion.js"></script>
-    <script defer src="/shell/hooks/cursor.js"></script>
-    <script defer src="/shell/hooks/tmux.js"></script>
+    <script type="module" src="/shell/hooks/browser/index.js"></script>
     <style>
       :root {
         color-scheme: dark;
