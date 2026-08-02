@@ -175,8 +175,3 @@ if (cursor_enabled) {
 		}
 	});
 }
-
-window.FuwaShellCursor = {
-	mount: mount,
-	unmount: unmount
-};

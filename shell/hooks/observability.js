@@ -274,18 +274,6 @@ export function log(source, message, fields) {
 	});
 }
 
-window.FuwaObservability = {
-	log: log
-};
-
-window.FuwaShellObservability = {
-	mount: mount,
-	unmount: unmount,
-	refresh: refresh,
-	selector: ROOT_SELECTOR,
-	appendEvents: appendEvents
-};
-
 document.addEventListener('htmx:beforeSwap', function (event) {
 	const scope = event.detail && event.detail.target;
 	const roots = (scope && scope.querySelectorAll) ? scope.querySelectorAll(ROOT_SELECTOR) : [];

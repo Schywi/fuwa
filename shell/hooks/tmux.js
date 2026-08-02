@@ -169,9 +169,3 @@ document.addEventListener('click', function (event) {
 		toggleFilter();
 	}
 });
-
-window.FuwaShellTmux = {
-	mountAll: mountAll,
-	unmountAll: unmountAll,
-	toggleFilter: toggleFilter
-};

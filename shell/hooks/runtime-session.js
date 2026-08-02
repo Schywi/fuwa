@@ -375,5 +375,4 @@ import { appendEvents } from './observability.js';
 		};
 	}
 
-	window.FuwaRuntimeSession = { create: create };
 })();

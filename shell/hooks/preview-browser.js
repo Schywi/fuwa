@@ -234,5 +234,4 @@ import { create as createRuntimeSession } from './runtime-session.js';
 		};
 	}
 
-	window.FuwaPreviewBrowserDriver = { create: create };
 })();

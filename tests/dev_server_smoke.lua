@@ -191,7 +191,8 @@ local function test_raw_asset_requests()
 	)
 	assert_true(browser_index_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected browser entrypoint to respond")
 	assert_true(browser_index_js:find("import '../editor.js';", 1, true) ~= nil, "expected entrypoint to import editor")
-	assert_true(browser_index_js:find("import '../preview-browser.js';", 1, true) ~= nil, "expected entrypoint to import preview browser")
+	assert_true(browser_index_js:find("import { create as createPreviewBrowserDriver } from '../preview-browser.js';", 1, true) ~= nil, "expected entrypoint to import preview browser factory")
+	assert_true(browser_index_js:find("window.FuwaPreviewBrowserDriver", 1, true) ~= nil, "expected entrypoint to expose the preview browser compatibility global")
 
 	local workspace_js = run_command(
 		"printf 'GET /shell/hooks/workspace.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
@@ -223,12 +224,22 @@ local function test_raw_asset_requests()
 		assert_true(tenant_runtime_js:find("responseUrl", 1, true) ~= nil, "expected response URL contract")
 		assert_true(tenant_runtime_js:find("window.location.href", 1, true) ~= nil, "expected same-origin URL resolution")
 
-		local runtime_session_js = run_command(
-			"printf 'GET /shell/hooks/runtime-session.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
-		)
-		assert_true(runtime_session_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected runtime session to respond")
-		assert_true(runtime_session_js:find("resolveResponseUrl", 1, true) ~= nil, "expected request path normalization")
-		assert_true(runtime_session_js:find("appBasePath", 1, true) ~= nil, "expected payload base propagation")
+	local runtime_session_js = run_command(
+		"printf 'GET /shell/hooks/runtime-session.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(runtime_session_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected runtime session to respond")
+	assert_true(runtime_session_js:find("resolveResponseUrl", 1, true) ~= nil, "expected request path normalization")
+	assert_true(runtime_session_js:find("appBasePath", 1, true) ~= nil, "expected payload base propagation")
+	assert_true(runtime_session_js:find("window.FuwaRuntimeSession", 1, true) == nil, "expected runtime session module to stay free of compatibility globals")
+
+	local browser_index_js = run_command(
+		"printf 'GET /shell/hooks/browser/index.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(browser_index_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected browser entrypoint to respond")
+	assert_true(browser_index_js:find("window.FuwaRuntimeSession", 1, true) ~= nil, "expected browser entrypoint to expose the runtime session compatibility global")
+	assert_true(browser_index_js:find("window.FuwaPreviewBrowserDriver", 1, true) ~= nil, "expected browser entrypoint to expose the preview-browser compatibility global")
+	assert_true(browser_index_js:find("window.FuwaShellTmux", 1, true) ~= nil, "expected browser entrypoint to expose the tmux compatibility global")
+	assert_true(browser_index_js:find("window.FuwaShellCursor", 1, true) ~= nil, "expected browser entrypoint to expose the cursor compatibility global")
 
 	local terminal_js = run_command(
 		"printf 'GET /shell/hooks/terminal.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
@@ -246,6 +257,7 @@ local function test_raw_asset_requests()
 	assert_true(observability_js:find("EventSource('/__dev/traces/live')", 1, true) ~= nil, "expected SSE live trace stream")
 	assert_true(observability_js:find("fetch('/__dev/traces')", 1, true) ~= nil, "expected trace snapshot seed on mount")
 	assert_true(observability_js:find(".stageSummary", 1, true) ~= nil, "expected request-centric activity summaries")
+	assert_true(observability_js:find("window.FuwaShellObservability", 1, true) == nil, "expected observability module to stay free of compatibility globals")
 
 	local motion_js = run_command(
 		"printf 'GET /shell/hooks/motion.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"

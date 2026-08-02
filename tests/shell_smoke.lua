@@ -41,6 +41,7 @@ local observability_js = files["hooks/observability.js"]
 local motion_js = files["hooks/motion.js"]
 local preview_js = files["hooks/preview.js"]
 local runtime_session_js = files["hooks/runtime-session.js"]
+local browser_index_js = files["hooks/browser/index.js"]
 local home_fuwa = files["views/fragments/home.fuwa"]
 local workspace_fuwa = files["views/fragments/workspace.fuwa"]
 local layout_fuwa = files["views/layout.fuwa"]
@@ -63,10 +64,10 @@ assert_true(workspace_js:find("mountTmuxPanels();", 1, true) ~= nil, "workspace 
 assert_true(workspace_js:find("loadMermaidDiagram();", 1, true) ~= nil, "workspace should call the imported motion helper")
 assert_true(workspace_js:find("window.FuwaShellTmux", 1, true) == nil, "workspace should not read the tmux global directly")
 assert_true(workspace_js:find("window.FuwaShellMotion", 1, true) == nil, "workspace should not read the motion global directly")
-assert_true(observability_js:find("window.FuwaShellObservability = {", 1, true) ~= nil, "shell should keep the observability compatibility global")
-assert_true(observability_js:find("mount: mount", 1, true) ~= nil, "shell should expose observability mount controls against the current root")
-assert_true(observability_js:find("unmount: unmount", 1, true) ~= nil, "shell should expose observability unmount controls against the current root")
-assert_true(observability_js:find("refresh: refresh", 1, true) ~= nil, "shell should expose observability refresh controls against the current root")
+assert_true(browser_index_js:find("window.FuwaShellObservability = {", 1, true) ~= nil, "browser entrypoint should keep the observability compatibility global")
+assert_true(browser_index_js:find("mount: mountObservability", 1, true) ~= nil, "browser entrypoint should expose observability mount controls")
+assert_true(browser_index_js:find("unmount: unmountObservability", 1, true) ~= nil, "browser entrypoint should expose observability unmount controls")
+assert_true(browser_index_js:find("refresh: refreshObservability", 1, true) ~= nil, "browser entrypoint should expose observability refresh controls")
 assert_true(editor_js:find("lineNumbers()", 1, true) ~= nil, "shell should show line numbers in CodeMirror")
 assert_true(editor_js:find("highlightActiveLineGutter()", 1, true) ~= nil, "shell should highlight the active gutter")
 assert_true(editor_js:find("highlightActiveLine()", 1, true) ~= nil, "shell should highlight the active line")
@@ -83,6 +84,7 @@ assert_true(observability_js:find("ROOT_SELECTOR = '[data-obs-root]'", 1, true) 
 assert_true(observability_js:find("export const ROOT_SELECTOR", 1, true) ~= nil, "observability should expose an ESM root selector")
 assert_true(observability_js:find("export function mount", 1, true) ~= nil, "observability should expose an ESM mount helper")
 assert_true(observability_js:find("export function appendEvents", 1, true) ~= nil, "observability should expose an ESM appendEvents helper")
+assert_true(observability_js:find("window.FuwaShellObservability", 1, true) == nil, "observability module should not assign the compatibility global directly")
 assert_true(observability_js:find("app.unmount()", 1, true) ~= nil, "observability should tear down the previous mount before remounting")
 assert_true(observability_js:find("htmx:beforeSwap", 1, true) ~= nil, "observability should clear mounts before swaps")
 assert_true(observability_js:find("htmx:afterSwap", 1, true) ~= nil, "observability should remount after swaps")
@@ -99,12 +101,13 @@ assert_true(tmux_js:find("connectMux", 1, true) ~= nil, "tmux should route by co
 assert_true(tmux_js:find("EventSource('/__dev/containers/", 1, true) == nil, "tmux should not create per-pane EventSources")
 assert_true(tmux_js:find("errors_only=1", 1, true) ~= nil, "tmux should request server-side error-only filtering")
 assert_true(tmux_js:find("fontSize: 9", 1, true) ~= nil, "tmux should reduce the terminal font size")
+assert_true(tmux_js:find("window.FuwaShellTmux", 1, true) == nil, "tmux module should not assign the compatibility global directly")
 
 local cursor_js = files["hooks/cursor.js"]
 assert_true(cursor_js ~= nil, "cursor.js should be present in the package")
 assert_true(cursor_js:find("export function mount", 1, true) ~= nil, "cursor should expose an ESM mount helper")
 assert_true(cursor_js:find("export function unmount", 1, true) ~= nil, "cursor should expose an ESM unmount helper")
-assert_true(cursor_js:find("window.FuwaShellCursor", 1, true) ~= nil, "cursor should keep the compatibility window contract")
+assert_true(cursor_js:find("window.FuwaShellCursor", 1, true) == nil, "cursor module should not assign the compatibility global directly")
 assert_true(preview_js:find("import { log as observabilityLog } from './observability.js';", 1, true) ~= nil, "preview should import observability logging")
 assert_true(preview_js:find("observabilityLog('shell:preview'", 1, true) ~= nil, "preview should use the imported observability logger")
 assert_true(preview_js:find("window.FuwaObservability", 1, true) == nil, "preview should not reach into the observability global directly")
@@ -138,10 +141,15 @@ assert_true(preview_browser_js:find("import { create as createRuntimeSession } f
 assert_true(preview_browser_js:find("session = createRuntimeSession({", 1, true) ~= nil, "preview browser driver should build the runtime session through the imported factory")
 assert_true(preview_browser_js:find("window.FuwaRuntimeSession", 1, true) == nil, "preview browser driver should not read the runtime-session global directly")
 assert_true(preview_browser_js:find("export function create(context)", 1, true) ~= nil, "preview browser driver should expose an ESM create factory")
+assert_true(preview_browser_js:find("window.FuwaPreviewBrowserDriver", 1, true) == nil, "preview browser module should not assign the compatibility global directly")
 assert_true(editor_js:find("export function getPendingEdits()", 1, true) ~= nil, "editor should expose an ESM pending-edits helper")
 assert_true(editor_js:find("export function switchFile(root, filePath, contents)", 1, true) ~= nil, "editor should expose an ESM switchFile helper")
 assert_true(workspace_js:find("export function closePopover(name)", 1, true) ~= nil, "workspace should expose an ESM closePopover helper")
 assert_true(motion_js:find("export function loadMermaid()", 1, true) ~= nil, "motion should expose an ESM loadMermaid helper")
+assert_true(browser_index_js:find("window.FuwaShellCursor = {", 1, true) ~= nil, "browser entrypoint should keep the cursor compatibility global")
+assert_true(browser_index_js:find("window.FuwaShellTmux = {", 1, true) ~= nil, "browser entrypoint should keep the tmux compatibility global")
+assert_true(browser_index_js:find("window.FuwaRuntimeSession = {", 1, true) ~= nil, "browser entrypoint should keep the runtime session compatibility global")
+assert_true(browser_index_js:find("window.FuwaPreviewBrowserDriver = {", 1, true) ~= nil, "browser entrypoint should keep the preview-browser compatibility global")
 
 assert_true(observability_js:find("expandedTraceId", 1, true) ~= nil, "observability should support per-row expand/collapse")
 assert_true(observability_js:find(".stageSummary", 1, true) ~= nil, "observability should render request-centric summaries")
