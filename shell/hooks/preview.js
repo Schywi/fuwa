@@ -1,5 +1,8 @@
 import { log as observabilityLog } from './observability.js';
 import { create as createPreviewBrowserDriver } from './preview-browser.js';
+import { getPendingEdits, switchFile as switchEditorFile } from './editor.js';
+import { write as writeTerminalOutput } from './terminal.js';
+import { closePopover as closeWorkspacePopover } from './workspace.js';
 
 (function () {
 	'use strict';
@@ -23,9 +26,7 @@ import { create as createPreviewBrowserDriver } from './preview-browser.js';
 	}
 
 	function writeTerminal(text) {
-		if (window.FuwaShellTerminal) {
-			window.FuwaShellTerminal.write(payloadId(), text);
-		}
+		writeTerminalOutput(payloadId(), text);
 	}
 
 	function log(step, detail) {
@@ -101,7 +102,7 @@ import { create as createPreviewBrowserDriver } from './preview-browser.js';
 					return false;
 				}
 
-				const pendingEdits = window.FuwaShellEditor && window.FuwaShellEditor.pendingEdits;
+				const pendingEdits = getPendingEdits();
 				if (pendingEdits && typeof pendingEdits.forEach === 'function') {
 					let replay = Promise.resolve();
 					pendingEdits.forEach(function (contents, path) {
@@ -183,7 +184,7 @@ import { create as createPreviewBrowserDriver } from './preview-browser.js';
 	// The session already holds every file's content in memory after boot, so
 	// switching files can read from it directly instead of an hx-get fetch.
 	function resolveFileContents(path) {
-		const pending_edits = window.FuwaShellEditor && window.FuwaShellEditor.pendingEdits;
+		const pending_edits = getPendingEdits();
 		if (pending_edits && pending_edits.has(path)) {
 			return pending_edits.get(path);
 		}
@@ -236,13 +237,11 @@ import { create as createPreviewBrowserDriver } from './preview-browser.js';
 		event.stopImmediatePropagation();
 
 		const editor_root = document.querySelector('[data-editor-root]');
-		if (editor_root && window.FuwaShellEditor && typeof window.FuwaShellEditor.switchFile === 'function') {
-			window.FuwaShellEditor.switchFile(editor_root, path, contents);
+		if (editor_root) {
+			switchEditorFile(editor_root, path, contents);
 		}
 		updateSelectionMarkers(path);
-		if (window.FuwaShellWorkspace?.state && typeof window.FuwaShellWorkspace.state.closePopover === 'function') {
-			window.FuwaShellWorkspace.state.closePopover('file-select');
-		}
+		closeWorkspacePopover('file-select');
 		log('file-switch:client-side', { path: path });
 	}
 

@@ -75,7 +75,8 @@ t.test("workspace and tenant runtime keep architecture and vendor assets on the 
 	local workspace = read_file("shell/hooks/workspace.js")
 	local tenant = read_file("shell/hooks/tenant-runtime.js")
 
-	t.contains(workspace, "window.FuwaShellMotion.loadMermaid()", "expected workspace to call the exported motion hook")
+	t.contains(workspace, "import { loadMermaid as loadMermaidDiagram } from './motion.js';", "expected workspace to import the motion loader helper")
+	t.contains(workspace, "loadMermaidDiagram();", "expected workspace to call the imported motion helper")
 	t.contains(tenant, "function isHostManagedPath(path)", "expected tenant host-path guard")
 	t.contains(tenant, "path.startsWith('/vendor/')", "expected vendor assets to stay rooted at /vendor")
 	t.contains(tenant, "path.startsWith('/shell/')", "expected shell assets to stay rooted at /shell")

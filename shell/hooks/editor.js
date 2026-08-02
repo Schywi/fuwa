@@ -1,5 +1,8 @@
 import { log as observabilityLog } from './observability.js';
 
+let pending_edits_impl = null;
+let switch_file_impl = null;
+
 (function () {
 	'use strict';
 
@@ -566,6 +569,9 @@ import { log as observabilityLog } from './observability.js';
 		void mount(root);
 	}
 
+	pending_edits_impl = pending_edits;
+	switch_file_impl = switchFile;
+
 	window.FuwaShellEditor = {
 		mount,
 		unmount,
@@ -592,3 +598,12 @@ import { log as observabilityLog } from './observability.js';
 	document.addEventListener('htmx:beforeSwap', handleBeforeSwap);
 	document.addEventListener('htmx:afterSwap', handleAfterSwap);
 })();
+
+export function getPendingEdits() {
+	return pending_edits_impl;
+}
+
+export function switchFile(root, filePath, contents) {
+	if (!switch_file_impl) return;
+	switch_file_impl(root, filePath, contents);
+}

@@ -1,3 +1,9 @@
+let load_mermaid_impl = null;
+
+export function loadMermaid() {
+	return load_mermaid_impl ? load_mermaid_impl() : undefined;
+}
+
 (function () {
 	'use strict';
 
@@ -563,6 +569,8 @@
 				return false;
 			});
 	}
+
+	load_mermaid_impl = loadMermaid;
 
 	function renderArchDiagram(tab) {
 		var el = document.querySelector('[data-arch-diagram]');

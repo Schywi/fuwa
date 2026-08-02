@@ -1,5 +1,7 @@
 import { log as observabilityLog } from './observability.js';
 
+let write_impl = null;
+
 (function () {
 	'use strict';
 
@@ -197,6 +199,8 @@ import { log as observabilityLog } from './observability.js';
 		}
 	}
 
+	write_impl = write;
+
 	function clear(session_id) {
 		const session = sessions.get(session_id);
 		if (session) {
@@ -282,3 +286,8 @@ import { log as observabilityLog } from './observability.js';
 	document.addEventListener('htmx:beforeSwap', handleBeforeSwap);
 	document.addEventListener('htmx:afterSwap', handleAfterSwap);
 })();
+
+export function write(sessionId, text) {
+	if (!write_impl) return;
+	write_impl(sessionId, text);
+}

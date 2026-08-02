@@ -1,4 +1,5 @@
 import { mountAll as mountTmuxPanels } from './tmux.js';
+import { loadMermaid as loadMermaidDiagram } from './motion.js';
 
 (function () {
 	'use strict';
@@ -165,9 +166,7 @@ import { mountAll as mountTmuxPanels } from './tmux.js';
 				if (opening) {
 					self.archOpen = true;
 					shell.classList.add('is-arch');
-					if (window.FuwaShellMotion && typeof window.FuwaShellMotion.loadMermaid === 'function') {
-						window.FuwaShellMotion.loadMermaid();
-					}
+					loadMermaidDiagram();
 				}
 
 				if (window.gsap) {
@@ -542,3 +541,9 @@ import { mountAll as mountTmuxPanels } from './tmux.js';
 		mount(target);
 	});
 })();
+
+export function closePopover(name) {
+	if (workspace_state && typeof workspace_state.closePopover === 'function') {
+		workspace_state.closePopover(name);
+	}
+}
