@@ -35,6 +35,7 @@
     <script defer src="/plugins/ai/worker-bridge.js"></script>
     <script defer src="/plugins/ai/state.js"></script>
     <script defer src="/plugins/ai/commands.js"></script>
+    <script defer src="/plugins/ai/core/embedder.js"></script>
     <script defer src="/plugins/ai/core/memory-store.js"></script>
     <script defer src="/plugins/ai/core/provider-compat.js"></script>
     <script defer src="/plugins/ai/core/backend-select.js"></script>

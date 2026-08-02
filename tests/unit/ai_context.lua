@@ -47,6 +47,7 @@ t.test("context assembler defines bounded explain and summarize tasks", function
 	t.contains(assembler, "terminal.collectFormatted", "expected summarize path to include terminal context")
 	t.contains(assembler, "traces.collectFormatted", "expected summarize path to include trace context")
 	t.contains(assembler, "memory.findRelevant", "expected retrieval memory participation")
+	t.contains(assembler, "findRelevantSync", "expected sync memory retrieval for bounded context")
 	t.contains(assembler, "type: 'memory_entry'", "expected memory entries in bounded context")
 	t.contains(assembler, "bounded_context_only=true", "expected prompt to declare bounded context rule")
 end)

@@ -81,6 +81,7 @@ local function test_http_request()
 	assert_true(output:find('.shell-widget-shell[data-widget-state="mounted"]', 1, true) ~= nil, "expected literal CSS selectors")
 	assert_true(output:find('data-select', 1, true) ~= nil, "expected shell select control")
 	assert_true(output:find('/plugins/ai/state.js', 1, true) ~= nil, "expected AI state module asset")
+	assert_true(output:find('/plugins/ai/core/embedder.js', 1, true) ~= nil, "expected AI embedder asset")
 	assert_true(output:find('/plugins/ai/core/provider-compat.js', 1, true) ~= nil, "expected AI provider compatibility asset")
 	assert_true(output:find('/plugins/ai/panel.js', 1, true) ~= nil, "expected AI panel asset")
 	assert_true(output:find('/plugins/ai/chat.js', 1, true) == nil, "expected old AI chat monolith to be detached from the shell")
@@ -216,6 +217,12 @@ local function test_raw_asset_requests()
 	)
 	assert_true(ai_panel_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected AI panel asset to respond")
 	assert_true(ai_panel_js:find("window.FuwaShellAI", 1, true) ~= nil, "expected AI shell mount contract")
+
+	local ai_embedder_js = run_command(
+		"printf 'GET /plugins/ai/core/embedder.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"
+	)
+	assert_true(ai_embedder_js:find("HTTP/1.1 200 OK", 1, true) ~= nil, "expected AI embedder asset to respond")
+	assert_true(ai_embedder_js:find("window.FuwaAIEmbedder", 1, true) ~= nil, "expected AI embedder export")
 
 	local ai_compat_js = run_command(
 		"printf 'GET /plugins/ai/core/provider-compat.js HTTP/1.1\\r\\nHost: localhost\\r\\n\\r\\n' | lua5.4 runtime/fuwa-dev.lua"

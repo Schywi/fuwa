@@ -55,6 +55,7 @@ end)
 
 t.test("model manager exposes a manifest seam without changing execution ownership", function()
 	local source = read_file("plugins/ai/core/model-manager.js")
+	local embedder = read_file("plugins/ai/core/embedder.js")
 
 	t.contains(source, "window.FuwaAIModelManager", "expected model manager export")
 	t.contains(source, "/ai/manifest.json", "expected manifest endpoint")
@@ -62,6 +63,7 @@ t.test("model manager exposes a manifest seam without changing execution ownersh
 	t.contains(source, "listModelsForTask", "expected task model selector")
 	t.contains(source, "chooseModel", "expected capability-aware chooser")
 	t.contains(source, "markWarm", "expected warm model bookkeeping scaffold")
+	t.contains(embedder, "chooseModel('memory')", "expected memory embedder to consult the model manager")
 end)
 
 t.test("openresty ai manifest exposes the planned model contract", function()

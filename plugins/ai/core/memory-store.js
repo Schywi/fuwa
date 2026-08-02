@@ -14,6 +14,7 @@
 	var sqlite3_promise = null;
 	var db_backend_label = 'sqlite-kvvfs';
 	var cached_recent_entries = [];
+	var cached_vectors = {};
 
 	function now_ms() {
 		return Date.now();
@@ -161,6 +162,14 @@
 			'CREATE INDEX IF NOT EXISTS idx_ai_memory_recent ON ai_memory_entries(scope, created_at DESC);',
 			'CREATE INDEX IF NOT EXISTS idx_ai_memory_kind ON ai_memory_entries(kind, created_at DESC);',
 			'CREATE INDEX IF NOT EXISTS idx_ai_memory_role ON ai_memory_entries(role, created_at DESC);',
+			'CREATE TABLE IF NOT EXISTS ai_memory_vectors (',
+			'  entry_id TEXT PRIMARY KEY,',
+			'  model_id TEXT NOT NULL,',
+			'  dimensions INTEGER NOT NULL,',
+			'  token_count INTEGER NOT NULL DEFAULT 0,',
+			'  vector_json TEXT NOT NULL,',
+			'  updated_at INTEGER NOT NULL',
+			');',
 		].join('\n'));
 	}
 
@@ -182,6 +191,9 @@
 		if (legacy.length > 0) {
 			for (var i = 0; i < legacy.length; i++) {
 				insert_or_replace(db, legacy[i]);
+				upsert_embedding(db, window.FuwaAIEmbedder && window.FuwaAIEmbedder.embedEntrySync
+					? window.FuwaAIEmbedder.embedEntrySync(legacy[i])
+					: null, legacy[i].entry_id);
 			}
 			prune_entries(db);
 		}
@@ -322,6 +334,14 @@
 		return cached_recent_entries.slice();
 	}
 
+	function remember_vectors(rows) {
+		cached_vectors = {};
+		for (var i = 0; i < rows.length; i++) {
+			cached_vectors[rows[i].entry_id] = rows[i];
+		}
+		return cached_vectors;
+	}
+
 	function select_entries(db, options) {
 		options = options || {};
 		var clauses = [];
@@ -368,67 +388,124 @@
 			.match(/[a-z0-9_./-]+/g) || [];
 	}
 
+	function row_to_embedding(row) {
+		var vector = [];
+		try {
+			vector = JSON.parse(row.vector_json || '[]');
+		} catch (_err) {}
+		return {
+			entry_id: row.entry_id,
+			model_id: row.model_id,
+			dimensions: as_int(row.dimensions) || 0,
+			token_count: as_int(row.token_count) || 0,
+			vector: Array.isArray(vector) ? vector : [],
+			updated_at: as_int(row.updated_at) || 0,
+		};
+	}
+
+	function select_vectors(db, entry_ids) {
+		if (!entry_ids || entry_ids.length === 0) return [];
+		var placeholders = entry_ids.map(function () { return '?'; }).join(', ');
+		return db.selectObjects(
+			'SELECT entry_id, model_id, dimensions, token_count, vector_json, updated_at FROM ai_memory_vectors WHERE entry_id IN (' + placeholders + ')',
+			entry_ids
+		).map(row_to_embedding);
+	}
+
+	function upsert_embedding(db, embedding, entry_id) {
+		if (!embedding || !entry_id) return;
+		db.exec({
+			sql: [
+				'INSERT OR REPLACE INTO ai_memory_vectors (',
+				'entry_id, model_id, dimensions, token_count, vector_json, updated_at',
+				') VALUES (?, ?, ?, ?, ?, ?)'
+			].join(' '),
+			bind: [
+				entry_id,
+				embedding.model_id || 'hash-embed-fallback',
+				embedding.dimensions || 0,
+				embedding.token_count || 0,
+				JSON.stringify(embedding.vector || []),
+				now_ms(),
+			],
+		});
+	}
+
+	function hydrate_cache(db, entries) {
+		remember_entries(entries);
+		remember_vectors(select_vectors(db, entries.map(function (entry) { return entry.entry_id; })));
+		return cached_recent_entries.slice();
+	}
+
+	function lexical_relevant_entries(entries, query, limit) {
+		var terms = tokenize(query).slice(0, 6);
+		if (terms.length === 0) return entries.slice(0, limit);
+		return entries.map(function (entry) {
+			var text = [
+				entry.title || '',
+				entry.body || '',
+				entry.source_path || ''
+			].join(' ').toLowerCase();
+			var score = 0;
+			for (var i = 0; i < terms.length; i++) {
+				if (text.indexOf(terms[i]) >= 0) score += 1;
+			}
+			return { entry: entry, score: score };
+		}).filter(function (entry) {
+			return entry.score > 0;
+		}).sort(function (left, right) {
+			if (right.score !== left.score) return right.score - left.score;
+			return right.entry.created_at - left.entry.created_at;
+		}).map(function (entry) {
+			return entry.entry;
+		}).slice(0, limit);
+	}
+
 	function select_relevant_entries(db, query, options) {
 		options = options || {};
-		var terms = tokenize(query).slice(0, 6);
-		if (terms.length === 0) {
-			return select_entries(db, options);
+		var limit = as_int(options.limit) || 4;
+		var entries = select_entries(db, Object.assign({}, options, { limit: MAX_ENTRIES }));
+		var embedder = window.FuwaAIEmbedder;
+		if (!(embedder && typeof embedder.embedTextSync === 'function' && typeof embedder.cosineSimilarity === 'function')) {
+			return lexical_relevant_entries(entries, query, limit);
 		}
 
-		var clauses = [];
-		var bind = [];
-		var score_parts = [];
-
-		if (options.scope) {
-			clauses.push('scope = ?');
-			bind.push(options.scope);
-		}
-		if (options.kind) {
-			clauses.push('kind = ?');
-			bind.push(options.kind);
+		var query_embedding = embedder.embedTextSync(query);
+		var vector_rows = select_vectors(db, entries.map(function (entry) { return entry.entry_id; }));
+		var vector_map = {};
+		for (var i = 0; i < vector_rows.length; i++) {
+			vector_map[vector_rows[i].entry_id] = vector_rows[i];
 		}
 
-		for (var i = 0; i < terms.length; i++) {
-			var like = '%' + terms[i] + '%';
-			score_parts.push('(CASE WHEN lower(body) LIKE ? THEN 2 ELSE 0 END)');
-			bind.push(like);
-			score_parts.push('(CASE WHEN lower(coalesce(title, \'\')) LIKE ? THEN 2 ELSE 0 END)');
-			bind.push(like);
-			score_parts.push('(CASE WHEN lower(coalesce(source_path, \'\')) LIKE ? THEN 1 ELSE 0 END)');
-			bind.push(like);
-		}
+		var ranked = entries.map(function (entry) {
+			var vector = vector_map[entry.entry_id];
+			var semantic = vector ? embedder.cosineSimilarity(query_embedding.vector, vector.vector) : 0;
+			var lexical = lexical_relevant_entries([entry], query, 1).length > 0 ? 0.12 : 0;
+			return {
+				entry: entry,
+				score: semantic + lexical,
+			};
+		}).filter(function (entry) {
+			return entry.score > 0;
+		}).sort(function (left, right) {
+			if (right.score !== left.score) return right.score - left.score;
+			return right.entry.created_at - left.entry.created_at;
+		}).map(function (entry) {
+			return entry.entry;
+		});
 
-		var sql = [
-			'SELECT entry_id, kind, scope, role, source_path, source_hash,',
-			'selection_start, selection_end, title, body,',
-			'created_at, last_used_at, use_count,',
-			score_parts.join(' + ') + ' AS score',
-			'FROM ai_memory_entries'
-		].join(' ');
-
-		if (clauses.length > 0) {
-			sql += ' WHERE ' + clauses.join(' AND ');
-		}
-
-		sql += ' ORDER BY score DESC, created_at DESC, entry_id DESC';
-
-		var limit = as_int(options.limit);
-		if (limit != null && limit > 0) {
-			sql += ' LIMIT ?';
-			bind.push(limit);
-		}
-
-		return db.selectObjects(sql, bind)
-			.filter(function (row) { return Number(row.score || 0) > 0; })
-			.map(row_to_entry);
+		return ranked.slice(0, limit);
 	}
 
 	async function save(entry) {
 		var normalized = normalize_entry(entry);
 		var db = await get_db();
 		insert_or_replace(db, normalized);
+		if (window.FuwaAIEmbedder && typeof window.FuwaAIEmbedder.embedEntry === 'function') {
+			upsert_embedding(db, await window.FuwaAIEmbedder.embedEntry(normalized), normalized.entry_id);
+		}
 		prune_entries(db);
-		remember_entries(select_entries(db, { limit: MAX_ENTRIES }));
+		hydrate_cache(db, select_entries(db, { limit: MAX_ENTRIES }));
 
 		try {
 			await mirror_runtime_entry(normalized);
@@ -440,7 +517,7 @@
 
 	async function list(options) {
 		var db = await get_db();
-		return remember_entries(select_entries(db, options));
+		return hydrate_cache(db, select_entries(db, options));
 	}
 
 	async function find_recent(options) {
@@ -451,7 +528,9 @@
 	async function find_relevant(query, options) {
 		var db = await get_db();
 		options = Object.assign({ limit: 4 }, options || {});
-		return remember_entries(select_relevant_entries(db, query, options));
+		var entries = select_relevant_entries(db, query, options);
+		hydrate_cache(db, entries);
+		return entries;
 	}
 
 	function find_relevant_sync(query, options) {
@@ -460,8 +539,8 @@
 		var kind = options.kind;
 		var role = options.role;
 		var limit = as_int(options.limit) || 4;
-		var terms = tokenize(query).slice(0, 6);
 		var rows = cached_recent_entries.slice();
+		var embedder = window.FuwaAIEmbedder;
 
 		if (scope) {
 			rows = rows.filter(function (entry) { return entry.scope === scope; });
@@ -473,20 +552,18 @@
 			rows = rows.filter(function (entry) { return entry.role === role; });
 		}
 
-		if (terms.length === 0) {
+		if (!(embedder && typeof embedder.embedTextSync === 'function' && typeof embedder.cosineSimilarity === 'function')) {
+			return lexical_relevant_entries(rows, query, limit);
+		}
+
+		var query_embedding = embedder.embedTextSync(query);
+		if (!query_embedding || !Array.isArray(query_embedding.vector)) {
 			return rows.slice(0, limit);
 		}
 
 		rows = rows.map(function (entry) {
-			var text = [
-				entry.title || '',
-				entry.body || '',
-				entry.source_path || ''
-			].join(' ').toLowerCase();
-			var score = 0;
-			for (var i = 0; i < terms.length; i++) {
-				if (text.indexOf(terms[i]) >= 0) score += 1;
-			}
+			var vector = cached_vectors[entry.entry_id];
+			var score = vector ? embedder.cosineSimilarity(query_embedding.vector, vector.vector) : 0;
 			return { entry: entry, score: score };
 		}).filter(function (entry) {
 			return entry.score > 0;
