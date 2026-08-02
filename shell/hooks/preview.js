@@ -1,3 +1,5 @@
+import { log as observabilityLog } from './observability.js';
+
 (function () {
 	'use strict';
 
@@ -28,11 +30,11 @@
 	function log(step, detail) {
 		if (detail === undefined) {
 			console.info(LOG_PREFIX + ' ' + step);
-			window.FuwaObservability && window.FuwaObservability.log('shell:preview', step);
+			observabilityLog('shell:preview', step);
 			return;
 		}
 		console.info(LOG_PREFIX + ' ' + step, detail);
-		window.FuwaObservability && window.FuwaObservability.log('shell:preview', step, detail);
+		observabilityLog('shell:preview', step, detail);
 	}
 
 	function updateStatusPill(state) {

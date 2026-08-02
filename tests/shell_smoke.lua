@@ -39,6 +39,8 @@ local workspace_js = files["hooks/workspace.js"]
 local editor_js = files["hooks/editor.js"]
 local observability_js = files["hooks/observability.js"]
 local motion_js = files["hooks/motion.js"]
+local preview_js = files["hooks/preview.js"]
+local runtime_session_js = files["hooks/runtime-session.js"]
 local home_fuwa = files["views/fragments/home.fuwa"]
 local workspace_fuwa = files["views/fragments/workspace.fuwa"]
 local layout_fuwa = files["views/layout.fuwa"]
@@ -55,6 +57,9 @@ assert_true(workspace_js:find("event.metaKey || event.ctrlKey", 1, true) ~= nil,
 assert_true(workspace_js:find("boot:mount-shell", 1, true) ~= nil, "shell should mount petite-vue on the stable parent")
 assert_true(workspace_js:find("document.querySelector('[data-workspace]')", 1, true) ~= nil, "shell should remount the live workspace after swaps")
 assert_true(workspace_js:find("htmx:afterSwap", 1, true) ~= nil, "shell should remount petite-vue after swaps")
+assert_true(workspace_js:find("import { mountAll as mountTmuxPanels } from './tmux.js';", 1, true) ~= nil, "workspace should import tmux mounting from the ESM helper")
+assert_true(workspace_js:find("mountTmuxPanels();", 1, true) ~= nil, "workspace should call the imported tmux mount helper")
+assert_true(workspace_js:find("window.FuwaShellTmux", 1, true) == nil, "workspace should not read the tmux global directly")
 assert_true(observability_js:find("window.FuwaShellObservability = {", 1, true) ~= nil, "shell should keep the observability compatibility global")
 assert_true(observability_js:find("mount: mount", 1, true) ~= nil, "shell should expose observability mount controls against the current root")
 assert_true(observability_js:find("unmount: unmount", 1, true) ~= nil, "shell should expose observability unmount controls against the current root")
@@ -94,6 +99,12 @@ assert_true(cursor_js ~= nil, "cursor.js should be present in the package")
 assert_true(cursor_js:find("export function mount", 1, true) ~= nil, "cursor should expose an ESM mount helper")
 assert_true(cursor_js:find("export function unmount", 1, true) ~= nil, "cursor should expose an ESM unmount helper")
 assert_true(cursor_js:find("window.FuwaShellCursor", 1, true) ~= nil, "cursor should keep the compatibility window contract")
+assert_true(preview_js:find("import { log as observabilityLog } from './observability.js';", 1, true) ~= nil, "preview should import observability logging")
+assert_true(preview_js:find("observabilityLog('shell:preview'", 1, true) ~= nil, "preview should use the imported observability logger")
+assert_true(preview_js:find("window.FuwaObservability", 1, true) == nil, "preview should not reach into the observability global directly")
+assert_true(runtime_session_js:find("import { appendEvents } from './observability.js';", 1, true) ~= nil, "runtime session should import the observability event sink")
+assert_true(runtime_session_js:find("appendEvents(message.events);", 1, true) ~= nil, "runtime session should forward worker traces through the imported sink")
+assert_true(runtime_session_js:find("window.FuwaShellObservability", 1, true) == nil, "runtime session should not read the observability global directly")
 
 assert_true(observability_js:find("expandedTraceId", 1, true) ~= nil, "observability should support per-row expand/collapse")
 assert_true(observability_js:find(".stageSummary", 1, true) ~= nil, "observability should render request-centric summaries")

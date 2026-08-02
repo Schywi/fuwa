@@ -1,3 +1,5 @@
+import { mountAll as mountTmuxPanels } from './tmux.js';
+
 (function () {
 	'use strict';
 
@@ -209,7 +211,7 @@
 					self.tmuxOpen = true;
 					shell.classList.add('is-tmux');
 					setTimeout(function () {
-						if (window.FuwaShellTmux) window.FuwaShellTmux.mountAll();
+						mountTmuxPanels();
 					}, 200);
 				}
 
