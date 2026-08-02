@@ -35,7 +35,10 @@
     <script defer src="/plugins/ai/worker-bridge.js"></script>
     <script defer src="/plugins/ai/state.js"></script>
     <script defer src="/plugins/ai/commands.js"></script>
+    <script defer src="/plugins/ai/core/memory-store.js"></script>
     <script defer src="/plugins/ai/core/provider-compat.js"></script>
+    <script defer src="/plugins/ai/core/backend-select.js"></script>
+    <script defer src="/plugins/ai/core/model-manager.js"></script>
     <script defer src="/plugins/ai/tools/index.js"></script>
     <script defer src="/plugins/ai/tools/traces.js"></script>
     <script defer src="/plugins/ai/tools/terminal.js"></script>
@@ -44,6 +47,7 @@
     <script defer src="/plugins/ai/tools/classifier.js"></script>
     <script defer src="/plugins/ai/tools/orchestrator.js"></script>
     <script defer src="/plugins/ai/tools/agent.js"></script>
+    <script defer src="/plugins/ai/core/context-assembler.js"></script>
     <script defer src="/plugins/ai/core/task-router.js"></script>
     <script defer src="/plugins/ai/panel.js"></script>
     <style>

@@ -18,6 +18,10 @@
 			status: '',
 			context_summary: '',
 			api_key: readStoredProviderKey(),
+			memory_backend: 'localStorage',
+			memory_recent: [],
+			memory_recent_count: 0,
+			memory_error: null,
 		};
 	}
 

@@ -24,14 +24,79 @@
 
 	function buildContextSummary() {
 		var tools = window.FuwaAITools;
-		if (!tools || !tools.list) return '';
+		var store = aiState();
+		var memory_count = 0;
+		if (store && store.create) {
+			memory_count = Number(store.create().memory_recent_count) || 0;
+		}
+		if (!tools || !tools.list) {
+			return memory_count > 0 ? memory_count + ' local memory entries' : '';
+		}
 		var entries = tools.list();
-		return entries.length + ' task adapters';
+		var parts = [entries.length + ' task adapters'];
+		if (memory_count > 0) {
+			parts.push(memory_count + ' local memory entries');
+		}
+		return parts.join(' · ');
 	}
 
 	function setState(updates) {
 		var store = aiState();
 		return store && store.patch ? store.patch(updates) : null;
+	}
+
+	async function refreshMemoryState() {
+		var memory = window.FuwaAIMemoryStore;
+		if (!(memory && memory.findRecent)) {
+			return;
+		}
+
+		try {
+			var recent = await memory.findRecent({
+				limit: 6,
+				scope: 'ai_panel',
+			});
+			setState({
+				memory_recent: recent,
+				memory_recent_count: recent.length,
+				memory_backend: 'localStorage',
+				memory_error: null,
+			});
+		} catch (err) {
+			log('memory refresh error', err && err.message ? err.message : err);
+			setState({
+				memory_error: err && err.message ? err.message : String(err),
+			});
+		}
+
+		setState({ context_summary: buildContextSummary() });
+	}
+
+	async function rememberTurn(role, content, kind) {
+		var memory = window.FuwaAIMemoryStore;
+		if (!(memory && memory.save) || !content) {
+			return;
+		}
+
+		try {
+			var saved = await memory.save({
+				kind: kind || 'turn',
+				scope: 'ai_panel',
+				role: role,
+				body: content,
+			});
+			setState({
+				memory_backend: saved.backend || 'localStorage',
+				memory_error: null,
+			});
+		} catch (err) {
+			log('memory save error', err && err.message ? err.message : err);
+			setState({
+				memory_error: err && err.message ? err.message : String(err),
+			});
+		}
+
+		await refreshMemoryState();
 	}
 
 	async function handleSend() {
@@ -65,6 +130,7 @@
 		}
 
 		store.appendMessage('user', parsed.text);
+		await rememberTurn('user', parsed.text, 'turn');
 		setState({
 			loading: true,
 			error: null,
@@ -78,9 +144,12 @@
 				setState({ status: status_text });
 			});
 			store.appendMessage('assistant', result.answer);
+			await rememberTurn('assistant', result.answer, 'turn');
 		} catch (err) {
 			log('task error', err && err.message ? err.message : err);
-			store.appendMessage('assistant', 'Error: ' + (err && err.message ? err.message : err));
+			var error_text = 'Error: ' + (err && err.message ? err.message : err);
+			store.appendMessage('assistant', error_text);
+			await rememberTurn('assistant', error_text, 'diagnostic');
 		} finally {
 			setState({ loading: false, status: '', input: '' });
 		}
@@ -125,6 +194,7 @@
 			window.FuwaAIProviderCompat.prime();
 		}
 		setState({ context_summary: buildContextSummary() });
+		void refreshMemoryState();
 	}
 
 	function unmount(root) {
