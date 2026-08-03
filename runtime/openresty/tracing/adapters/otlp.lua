@@ -33,8 +33,6 @@ local function request_span_payload(event, service_name)
 			},
 			scopeSpans = {{
 				spans = {{
-					traceId = tostring(event.trace_id or ""):gsub("[^a-fA-F0-9]", ""):sub(1, 32),
-					spanId = tostring(event.span_id or ""):gsub("[^a-fA-F0-9]", ""):sub(1, 16),
 					name = method .. " " .. path,
 					kind = 2,
 					startTimeUnixNano = tostring(start_time_unix_nano),

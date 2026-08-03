@@ -10,7 +10,7 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     environment:
       FUWA_DB_PATH: /app/.fuwa-dev/sqlite-local.db
-      FUWA_SIGNOZ_OTLP_URL: http://signoz-ingester:4318/v1/traces
+      FUWA_SIGNOZ_OTLP_URL: http://vector-router:4318/v1/traces
       FUWA_VECTOR_URL: http://vector-router:8687/
       PORT: ${PORT:-8080}
     working_dir: /app

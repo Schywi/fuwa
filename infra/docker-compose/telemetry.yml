@@ -12,8 +12,8 @@ services:
     depends_on:
       victoriametrics:
         condition: service_started
-      signoz-clickhouse:
-        condition: service_healthy
+      signoz-ingester:
+        condition: service_started
     restart: unless-stopped
 
   victoriametrics:
@@ -25,18 +25,6 @@ services:
       - "--storageDataPath=/vmetrics-data"
     volumes:
       - vm_data:/vmetrics-data
-    restart: unless-stopped
-
-  otlp-bridge:
-    build:
-      context: ../..
-      dockerfile: infra/docker-compose/otlp-bridge.Dockerfile
-    environment:
-      SEED_COUNT: ${SEED_COUNT:-0}
-      OTLP_URL: http://signoz-ingester:4318/v1/traces
-    depends_on:
-      signoz-ingester:
-        condition: service_started
     restart: unless-stopped
 
 volumes:

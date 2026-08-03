@@ -48,7 +48,7 @@ t.test("top-level infra entrypoint imports the real stack and names the compose 
 	t.contains(app, "services:", "expected app fragment to define services")
 	t.contains(app, "openresty:", "expected current ingress service to stay authoritative")
 	t.contains(app, "infra/Dockerfile.openresty", "expected app fragment to reuse the current OpenResty image build")
-	t.contains(app, "FUWA_SIGNOZ_OTLP_URL: http://signoz-ingester:4318/v1/traces", "expected ingress container to publish the direct SigNoz OTLP target")
+	t.contains(app, "FUWA_SIGNOZ_OTLP_URL: http://vector-router:4318/v1/traces", "expected OTLP traces to route through Vector before reaching Signoz")
 	t.contains(app, "FUWA_VECTOR_URL: http://vector-router:8687/", "expected ingress container to know where to forward request events")
 	t.not_contains(app, "busybox", "expected busybox placeholders to be removed from the app fragment")
 

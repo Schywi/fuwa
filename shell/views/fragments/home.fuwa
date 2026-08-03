@@ -87,7 +87,6 @@
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-openresty-1" data-tmux-label="openresty"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-1" data-tmux-label="signoz"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-ingester-1" data-tmux-label="ingester"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-otlp-bridge-1" data-tmux-label="bridge"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-clickhouse-1" data-tmux-label="clickhouse"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-keeper-1" data-tmux-label="keeper"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-vector-router-1" data-tmux-label="vector"></div>

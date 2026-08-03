@@ -4,10 +4,7 @@ data_dir = "/var/lib/vector"
 enabled = true
 address = "0.0.0.0:8686"
 
-[sources.internal_metrics]
-type = "internal_metrics"
-scrape_interval_secs = 30
-
+# ── Metrics source: Fuwa custom JSON via HTTP ──────────────────────
 [sources.fuwa_http]
 type = "http_server"
 address = "0.0.0.0:8687"
@@ -18,6 +15,17 @@ address = "0.0.0.0:8687"
   [sources.fuwa_http.framing]
   method = "bytes"
 
+# ── Traces source: OTLP over HTTP from OpenResty ───────────────────
+[sources.otlp]
+type = "opentelemetry"
+address = "0.0.0.0:4318"
+
+# ── Self-monitoring ────────────────────────────────────────────────
+[sources.internal_metrics]
+type = "internal_metrics"
+scrape_interval_secs = 30
+
+# ── Metrics transform: extract counters + gauges from fuwa events ──
 [transforms.fuwa_request_metrics]
 type = "log_to_metric"
 inputs = ["fuwa_http"]
@@ -39,6 +47,7 @@ inputs = ["fuwa_http"]
   field = "duration_ms"
   name = "http_request_duration_ms"
 
+# ── Sink: metrics → VictoriaMetrics ────────────────────────────────
 [sinks.metrics_victoriametrics]
 type = "prometheus_remote_write"
 inputs = ["fuwa_request_metrics", "internal_metrics"]
@@ -49,11 +58,9 @@ default_namespace = "fuwa"
   [sinks.metrics_victoriametrics.healthcheck]
   enabled = false
 
-[sinks.otlp_bridge]
-type = "socket"
-inputs = ["fuwa_http"]
-address = "otlp-bridge:4321"
-mode = "tcp"
-
-  [sinks.otlp_bridge.encoding]
-  codec = "json"
+# ── Sink: traces → SigNoz ingester ─────────────────────────────────
+[sinks.signoz]
+type = "opentelemetry"
+inputs = ["otlp"]
+endpoint = "http://signoz-ingester:4318"
+protocol = "http"

@@ -47,6 +47,19 @@ local function post_json_now(premature, target, payload_json, log_label)
 	local bytes, send_err = sock:send(request_data)
 	if not bytes then
 		ngx.log(ngx.WARN, log_label, " send failed: ", tostring(send_err))
+		sock:close()
+		return
+	end
+
+	-- Read HTTP status line so we can log delivery failures
+	local line, read_err = sock:receive("*l")
+	if line then
+		local status_code = line:match("^HTTP/1%.%d (%d+)")
+		if status_code and tonumber(status_code) ~= 200 then
+			ngx.log(ngx.WARN, log_label, " HTTP ", status_code, " for ", target.path)
+		end
+	elseif read_err ~= "closed" then
+		ngx.log(ngx.WARN, log_label, " no response: ", tostring(read_err))
 	end
 
 	sock:close()
