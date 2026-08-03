@@ -1,5 +1,8 @@
 {
   "title": "Fuwa Overview",
-  "description": "Seed placeholder for the local SigNoz dev stack.",
+  "description": "Request count, error rate, and status breakdown across all services",
+  "spec": {
+    "panels": []
+  },
   "tags": ["fuwa", "overview"]
 }

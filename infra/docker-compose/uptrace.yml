@@ -1,0 +1,35 @@
+services:
+  uptrace-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: uptrace
+      POSTGRES_PASSWORD: uptrace
+      POSTGRES_DB: uptrace
+    ports:
+      - "5434:5432"
+    volumes:
+      - uptrace_pg_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  uptrace-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  uptrace:
+    image: uptrace/uptrace:2.0.2
+    ports:
+      - "14317:14317"
+      - "14318:14318"
+    volumes:
+      - ./uptrace/config.yml:/etc/uptrace/config.yml:ro
+    depends_on:
+      signoz-clickhouse:
+        condition: service_healthy
+      uptrace-postgres:
+        condition: service_started
+      uptrace-redis:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  uptrace_pg_data:

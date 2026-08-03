@@ -1,0 +1,71 @@
+# Uptrace minimal config — demo only, not production
+listen:
+  http:
+    addr: ':14318'
+  grpc:
+    addr: ':14317'
+
+site:
+  url: 'http://localhost:8080/dash/uptrace'
+
+service:
+  secret: 'demo-secret-not-production-abc123xyz'
+
+pg:
+  addr: uptrace-postgres:5432
+  user: uptrace
+  password: uptrace
+  database: uptrace
+
+ch_cluster:
+  shards:
+    - replicas:
+        - addr: signoz-clickhouse:9000
+          user: default
+          password: ''
+          database: uptrace
+          query_settings:
+            enable_json_type: 1
+
+redis_cache:
+  addrs:
+    alpha: uptrace-redis:6379
+
+spans:
+  max_buffered_bytes: 134217728
+logs:
+  max_buffered_bytes: 134217728
+metrics:
+  max_buffered_bytes: 134217728
+
+logging:
+  level: INFO
+
+seed_data:
+  users:
+    - key: admin
+      name: Admin
+      email: admin@uptrace.local
+      password: uptrace
+      email_confirmed: true
+  orgs:
+    - key: fuwa_org
+      name: Fuwa
+  org_users:
+    - key: admin_org
+      org_key: fuwa_org
+      user_key: admin
+      role: owner
+  projects:
+    - key: fuwa_project
+      name: Fuwa Telemetry
+      org_key: fuwa_org
+  project_users:
+    - key: admin_project
+      project_key: fuwa_project
+      org_user_key: admin_org
+      perm_level: admin
+  project_tokens:
+    - key: fuwa_token
+      project_key: fuwa_project
+      token: fuwa_telemetry_demo
