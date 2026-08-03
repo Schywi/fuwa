@@ -1,3 +1,5 @@
 include:
   - telemetry.yml
   - signoz.yml
+  - load.yml
+  - k6.yml
