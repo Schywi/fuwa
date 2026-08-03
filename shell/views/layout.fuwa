@@ -1183,8 +1183,7 @@
         position: relative;
       }
 
-      .ide-shell.is-signoz .signoz-panel,
-      .ide-shell.is-uptrace .uptrace-panel {
+      .ide-shell.is-signoz .signoz-panel {
         display: flex;
       }
 
@@ -1248,6 +1247,8 @@
 
       .ide-shell.is-grafana .ide-panel,
       .ide-shell.is-grafana .ide-preview-island--right,
+      .ide-shell.is-signoz .ide-panel,
+      .ide-shell.is-signoz .ide-preview-island--right,
       .ide-shell.is-tmux .ide-panel,
       .ide-shell.is-tmux .ide-preview-island--right,
       .ide-shell.is-arch .ide-panel,

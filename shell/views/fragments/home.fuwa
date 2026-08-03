@@ -1,5 +1,5 @@
 <section id="shell-content" class="shell-content">
-  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()" :class="{ 'is-signoz': signozOpen, 'is-uptrace': uptraceOpen }">
+  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()" :class="{ 'is-signoz': signozOpen }">
     <section class="ide-island ide-preview-island">
       <div
         class="ide-preview-stage"
@@ -49,7 +49,6 @@
         <div class="stage-header">
           <span class="stage-title">Observability</span>
           <button class="grafana-trigger" @click="openSignoz()">Grafana ↗</button>
-          <button class="grafana-trigger" style="margin-left:4px" @click="openUptrace()">uptrace ↗</button>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
           <div v-for="request in requests" class="obs-request-group">
@@ -80,10 +79,6 @@
       <button class="grafana-back-btn" @click="closeSignoz()">← Back to code</button>
     </div>
 
-    <div class="grafana-panel uptrace-panel">
-      <iframe class="grafana-frame" src="/dash/uptrace/" sandbox="allow-scripts allow-same-origin allow-forms" title="Uptrace dashboard"></iframe>
-      <button class="grafana-back-btn" @click="closeUptrace()">← Back to code</button>
-    </div>
 
     <div class="tmux-panel">
       <button class="grafana-back-btn" @click="toggleTmux()">← Back to code</button>

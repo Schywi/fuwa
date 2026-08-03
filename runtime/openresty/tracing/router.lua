@@ -6,12 +6,10 @@ local M = {}
 local adapters = {
 	vector = vector_adapter.new(os.getenv("FUWA_VECTOR_URL") or ""),
 	signoz = otlp_adapter.new(os.getenv("FUWA_SIGNOZ_OTLP_URL") or "", "fuwa", "signoz sink"),
-	uptrace = otlp_adapter.new(os.getenv("FUWA_UPTRACE_OTLP_URL") or "", "fuwa", "uptrace sink"),
 }
 
 function M.emit_trace(event)
 	adapters.signoz:emit_trace(event)
-	adapters.uptrace:emit_trace(event)
 end
 
 function M.emit_metric(event)

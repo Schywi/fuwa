@@ -144,7 +144,6 @@
 			open_popover: null,
 			root: null,
 			signozOpen: false,
-			uptraceOpen: false,
 			tmuxOpen: false,
 			archOpen: false,
 			toggleArch: function () {
@@ -246,15 +245,12 @@
 
 				if (!panel || !right || !signoz || !shell) {
 					self.signozOpen = true;
-					self.uptraceOpen = false;
 					return;
 				}
 
 				var opening = !self.signozOpen;
 				self.signozOpen = true;
-				self.uptraceOpen = false;
 				shell.classList.add('is-signoz');
-				shell.classList.remove('is-uptrace');
 
 				if (window.gsap) {
 					var tl = window.gsap.timeline({ onComplete: function () {} });
@@ -294,65 +290,6 @@
 				} else {
 					self.signozOpen = false;
 					shell.classList.remove('is-signoz');
-				}
-			},
-			openUptrace: function () {
-				var self = this;
-				var panel = document.querySelector('.ide-panel');
-				var right = document.querySelector('.ide-preview-island--right');
-				var uptrace = document.querySelector('.uptrace-panel');
-				var shell = document.querySelector('.ide-shell');
-
-				if (!panel || !right || !uptrace || !shell) {
-					self.uptraceOpen = true;
-					self.signozOpen = false;
-					return;
-				}
-
-				var opening = !self.uptraceOpen;
-				self.uptraceOpen = true;
-				self.signozOpen = false;
-				shell.classList.add('is-uptrace');
-				shell.classList.remove('is-signoz');
-
-				if (window.gsap) {
-					var tl = window.gsap.timeline({ onComplete: function () {} });
-
-					if (opening) {
-						tl.to([panel, right], { opacity: 0, x: -20, duration: 0.25, ease: 'power2.in', stagger: 0.04 }, 0);
-						tl.fromTo(uptrace, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power2.out' }, 0.08);
-					}
-				}
-			},
-			closeUptrace: function () {
-				var self = this;
-				var panel = document.querySelector('.ide-panel');
-				var right = document.querySelector('.ide-preview-island--right');
-				var uptrace = document.querySelector('.uptrace-panel');
-				var shell = document.querySelector('.ide-shell');
-
-				if (!self.uptraceOpen) {
-					return;
-				}
-
-				if (!panel || !right || !uptrace || !shell) {
-					self.uptraceOpen = false;
-					return;
-				}
-
-				if (window.gsap) {
-					var tl = window.gsap.timeline({
-						onComplete: function () {
-							self.uptraceOpen = false;
-							shell.classList.remove('is-uptrace');
-						}
-					});
-
-					tl.to(uptrace, { opacity: 0, scale: 0.97, duration: 0.2, ease: 'power2.in' }, 0);
-					tl.fromTo([panel, right], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out', stagger: 0.04 }, 0.06);
-				} else {
-					self.uptraceOpen = false;
-					shell.classList.remove('is-uptrace');
 				}
 			},
 			openPalette: function () {

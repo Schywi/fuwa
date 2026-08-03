@@ -1,4 +1,3 @@
 include:
   - telemetry.yml
   - signoz.yml
-  - uptrace.yml
