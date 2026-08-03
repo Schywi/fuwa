@@ -48,8 +48,8 @@
       <div class="ide-preview-block ide-preview-block--obs">
         <div class="stage-header">
           <span class="stage-title">Observability</span>
-          <button class="grafana-trigger" @click="toggleGrafana('/dash/signoz', 'SigNoz dashboard')">Grafana ↗</button>
-          <button class="grafana-trigger" style="margin-left:4px" @click="toggleGrafana('/dash/uptrace/', 'Uptrace dashboard')">uptrace ↗</button>
+          <button class="grafana-trigger" @click="openDashboard('/dash/signoz', 'SigNoz dashboard')">Grafana ↗</button>
+          <button class="grafana-trigger" style="margin-left:4px" @click="openDashboard('/dash/uptrace/', 'Uptrace dashboard')">uptrace ↗</button>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
           <div v-for="request in requests" class="obs-request-group">
@@ -77,7 +77,7 @@
 
     <div class="grafana-panel">
       <iframe class="grafana-frame" :src="dashboardSrc" sandbox="allow-scripts allow-same-origin allow-forms" :title="dashboardTitle"></iframe>
-      <button class="grafana-back-btn" @click="toggleGrafana()">← Back to code</button>
+      <button class="grafana-back-btn" @click="closeDashboard()">← Back to code</button>
     </div>
 
     <div class="tmux-panel">

@@ -238,53 +238,77 @@
 					self.tmuxOpen = !self.tmuxOpen;
 				}
 			},
-			toggleGrafana: function (src, title) {
+			openDashboard: function (src, title) {
 				var self = this;
 				var panel = document.querySelector('.ide-panel');
 				var right = document.querySelector('.ide-preview-island--right');
 				var grafana = document.querySelector('.grafana-panel');
 				var shell = document.querySelector('.ide-shell');
-				var nextSrc = src || '/dash/signoz';
-				var nextTitle = title || 'SigNoz dashboard';
+				var nextSrc = src;
+				var nextTitle = title;
+
+				if (!nextSrc) {
+					return;
+				}
 
 				if (!panel || !right || !grafana || !shell) {
 					self.dashboardSrc = nextSrc;
 					self.dashboardTitle = nextTitle;
-					self.grafanaOpen = !self.grafanaOpen;
+					self.grafanaOpen = true;
 					return;
 				}
 
 				var switching = self.grafanaOpen && self.dashboardSrc !== nextSrc;
-				var opening = !self.grafanaOpen || switching;
-
-				if (opening) {
-					self.dashboardSrc = nextSrc;
-					self.dashboardTitle = nextTitle;
-					self.grafanaOpen = true;
-					shell.classList.add('is-grafana');
-				}
+				var opening = !self.grafanaOpen;
+				self.dashboardSrc = nextSrc;
+				self.dashboardTitle = nextTitle;
+				self.grafanaOpen = true;
+				shell.classList.add('is-grafana');
 
 				if (window.gsap) {
 					var tl = window.gsap.timeline({
-						onComplete: function () {
-							if (!opening) {
-								self.grafanaOpen = false;
-								shell.classList.remove('is-grafana');
-							}
-						}
+						onComplete: function () {}
 					});
 
 					if (opening) {
 						tl.to([panel, right], { opacity: 0, x: -20, duration: 0.25, ease: 'power2.in', stagger: 0.04 }, 0);
 						tl.fromTo(grafana, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power2.out' }, 0.08);
-					} else {
-						self.grafanaOpen = false;
-						shell.classList.remove('is-grafana');
-						tl.to(grafana, { opacity: 0, scale: 0.97, duration: 0.2, ease: 'power2.in' }, 0);
-						tl.fromTo([panel, right], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out', stagger: 0.04 }, 0.06);
+					} else if (switching) {
+						tl.fromTo(grafana, { opacity: 0.75 }, { opacity: 1, duration: 0.18, ease: 'power2.out' }, 0);
 					}
 				} else {
-					self.grafanaOpen = !self.grafanaOpen;
+					self.grafanaOpen = true;
+				}
+			},
+			closeDashboard: function () {
+				var self = this;
+				var panel = document.querySelector('.ide-panel');
+				var right = document.querySelector('.ide-preview-island--right');
+				var grafana = document.querySelector('.grafana-panel');
+				var shell = document.querySelector('.ide-shell');
+
+				if (!self.grafanaOpen) {
+					return;
+				}
+
+				if (!panel || !right || !grafana || !shell) {
+					self.grafanaOpen = false;
+					return;
+				}
+
+				if (window.gsap) {
+					var tl = window.gsap.timeline({
+						onComplete: function () {
+							self.grafanaOpen = false;
+							shell.classList.remove('is-grafana');
+						}
+					});
+
+					tl.to(grafana, { opacity: 0, scale: 0.97, duration: 0.2, ease: 'power2.in' }, 0);
+					tl.fromTo([panel, right], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out', stagger: 0.04 }, 0.06);
+				} else {
+					self.grafanaOpen = false;
+					shell.classList.remove('is-grafana');
 				}
 			},
 			openPalette: function () {
