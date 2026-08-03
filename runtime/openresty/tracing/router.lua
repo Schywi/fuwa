@@ -3,21 +3,24 @@ local vector_adapter = require("runtime.openresty.tracing.adapters.vector")
 
 local M = {}
 
+local base_url = (os.getenv("FUWA_SIGNOZ_OTLP_URL") or ""):gsub("/v1/traces$", "")
+
 local adapters = {
-	vector = vector_adapter.new(os.getenv("FUWA_VECTOR_URL") or ""),
-	signoz = otlp_adapter.new(os.getenv("FUWA_SIGNOZ_OTLP_URL") or "", "fuwa", "signoz sink"),
+	metrics = vector_adapter.new(os.getenv("FUWA_VECTOR_URL") or ""),
+	traces  = otlp_adapter.new(base_url .. "/v1/traces", "fuwa", "otlp traces"),
+	logs    = otlp_adapter.new(base_url .. "/v1/logs",   "fuwa", "otlp logs"),
 }
 
 function M.emit_trace(event)
-	adapters.signoz:emit_trace(event)
+	adapters.traces:emit_trace(event)
 end
 
 function M.emit_metric(event)
-	adapters.vector:emit_metric(event)
+	adapters.metrics:emit_metric(event)
 end
 
 function M.emit_log(event)
-	adapters.vector:emit_log(event)
+	adapters.logs:emit_log(event)
 end
 
 function M.route_event(event)

@@ -60,6 +60,40 @@ local function padded_id(value, width, fallback)
 	return compact:sub(1, width)
 end
 
+local function request_log_payload(event, service_name)
+	if type(event) ~= "table" or event.kind ~= "span_log" then
+		return nil
+	end
+
+	local now_ns = math.floor(ngx.now() * 1000000000)
+	local attrs = {}
+	for k, v in pairs(event.fields or {}) do
+		table.insert(attrs, { key = tostring(k), value = { stringValue = tostring(v) } })
+	end
+
+	return {
+		resourceLogs = {{
+			resource = {
+				attributes = {
+					{ key = "service.name", value = { stringValue = service_name } },
+				},
+			},
+			scopeLogs = {{
+				logRecords = {{
+					timeUnixNano = tostring(now_ns),
+					observedTimeUnixNano = tostring(now_ns),
+					severityNumber = 9,
+					severityText = "INFO",
+					body = { stringValue = tostring(event.message or "event") },
+					attributes = attrs,
+					traceId = padded_id(event.trace_id, 32, "1"),
+					spanId = padded_id(event.span_id, 16, "1"),
+				}},
+			}},
+		}},
+	}
+end
+
 function M:emit_trace(event)
 	if not self.target then
 		return false, "otlp target not configured"
@@ -77,6 +111,24 @@ function M:emit_trace(event)
 	local ok, payload_json = pcall(cjson.encode, payload)
 	if not ok then
 		return false, "failed to encode otlp payload"
+	end
+
+	return http.schedule_json(self.target, payload_json, self.label)
+end
+
+function M:emit_log(event)
+	if not self.target then
+		return false, "otlp target not configured"
+	end
+
+	local payload = request_log_payload(event, self.service_name)
+	if not payload then
+		return false, "event does not produce an otlp log"
+	end
+
+	local ok, payload_json = pcall(cjson.encode, payload)
+	if not ok then
+		return false, "failed to encode otlp log payload"
 	end
 
 	return http.schedule_json(self.target, payload_json, self.label)
