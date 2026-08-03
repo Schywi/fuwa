@@ -144,6 +144,8 @@
 			open_popover: null,
 			root: null,
 			grafanaOpen: false,
+			dashboardSrc: '/dash/signoz',
+			dashboardTitle: 'SigNoz dashboard',
 			tmuxOpen: false,
 			archOpen: false,
 			toggleArch: function () {
@@ -236,21 +238,28 @@
 					self.tmuxOpen = !self.tmuxOpen;
 				}
 			},
-			toggleGrafana: function () {
+			toggleGrafana: function (src, title) {
 				var self = this;
 				var panel = document.querySelector('.ide-panel');
 				var right = document.querySelector('.ide-preview-island--right');
 				var grafana = document.querySelector('.grafana-panel');
 				var shell = document.querySelector('.ide-shell');
+				var nextSrc = src || '/dash/signoz';
+				var nextTitle = title || 'SigNoz dashboard';
 
 				if (!panel || !right || !grafana || !shell) {
+					self.dashboardSrc = nextSrc;
+					self.dashboardTitle = nextTitle;
 					self.grafanaOpen = !self.grafanaOpen;
 					return;
 				}
 
-				var opening = !self.grafanaOpen;
+				var switching = self.grafanaOpen && self.dashboardSrc !== nextSrc;
+				var opening = !self.grafanaOpen || switching;
 
 				if (opening) {
+					self.dashboardSrc = nextSrc;
+					self.dashboardTitle = nextTitle;
 					self.grafanaOpen = true;
 					shell.classList.add('is-grafana');
 				}
