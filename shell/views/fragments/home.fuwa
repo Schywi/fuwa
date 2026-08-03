@@ -49,7 +49,7 @@
         <div class="stage-header">
           <span class="stage-title">Observability</span>
           <button class="grafana-trigger" @click="toggleGrafana()">Grafana ↗</button>
-          <button class="grafana-trigger" style="margin-left:4px" onclick="window.open('/uptrace-local/', '_blank', 'noopener')">uptrace ↗</button>
+          <button class="grafana-trigger" style="margin-left:4px" onclick="window.open('/dash/uptrace/', '_blank', 'noopener')">uptrace ↗</button>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
           <div v-for="request in requests" class="obs-request-group">
