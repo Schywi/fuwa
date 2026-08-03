@@ -11,7 +11,7 @@ services:
       - --workers=1
       - --child-spans=2
       - --service=loadtest
-      - --otlp-attributes=source=loadtest
+      - --otlp-attributes=source=\"loadtest\"
     depends_on:
       vector-router:
         condition: service_started
