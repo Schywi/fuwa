@@ -1,13 +1,11 @@
 services:
-  # ── k6 stress testing (opt-in via --profile k6) ─────────────────────
+  # ── k6 stress testing ────────────────────────────────────────────────
   # Scenarios: ramp, spike, soak, edges
   # Script: infra/k6/fuwa-stress.js
   # Tag: all requests carry ?_src=k6_{scenario} for filtering in Signoz
 
   k6-ramp:
     image: grafana/k6:latest
-    profiles:
-      - k6
     command:
       - run
       - --env
@@ -21,8 +19,6 @@ services:
 
   k6-spike:
     image: grafana/k6:latest
-    profiles:
-      - k6
     command:
       - run
       - --env
@@ -36,8 +32,6 @@ services:
 
   k6-soak:
     image: grafana/k6:latest
-    profiles:
-      - k6
     command:
       - run
       - --env
@@ -51,8 +45,6 @@ services:
 
   k6-edges:
     image: grafana/k6:latest
-    profiles:
-      - k6
     command:
       - run
       - --env
