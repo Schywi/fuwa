@@ -1,6 +1,8 @@
 (function () {
 	'use strict';
 
+	const SIGNOZ_DASHBOARD_SRC = '/dash/signoz/dashboard/019fa5ba-921e-757c-a3d4-115d8d52e1e4?relativeTime=1month';
+
 	// Workspace chrome: petite-vue owns popover state, this hook only supplies
 	// the tiny imperative seams that templates cannot express well: outside
 	// clicks, search filtering, and keyboard focus within the rendered list.
@@ -144,7 +146,7 @@
 			open_popover: null,
 			root: null,
 			grafanaOpen: false,
-			dashboardSrc: '/dash/signoz',
+			dashboardSrc: SIGNOZ_DASHBOARD_SRC,
 			dashboardTitle: 'SigNoz dashboard',
 			tmuxOpen: false,
 			archOpen: false,

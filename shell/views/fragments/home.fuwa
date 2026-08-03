@@ -48,7 +48,7 @@
       <div class="ide-preview-block ide-preview-block--obs">
         <div class="stage-header">
           <span class="stage-title">Observability</span>
-          <button class="grafana-trigger" @click="openDashboard('/dash/signoz', 'SigNoz dashboard')">Grafana ↗</button>
+          <button class="grafana-trigger" @click="openDashboard('/dash/signoz/dashboard/019fa5ba-921e-757c-a3d4-115d8d52e1e4?relativeTime=1month', 'SigNoz dashboard')">Grafana ↗</button>
           <button class="grafana-trigger" style="margin-left:4px" @click="openDashboard('/dash/uptrace/', 'Uptrace dashboard')">uptrace ↗</button>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>

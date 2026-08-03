@@ -93,7 +93,7 @@ t.test("shell tmux pane points at the real app container", function()
 
 	t.contains(home, 'data-tmux-container="docker-compose-openresty-1"', "expected tmux pane to follow the current app ingress container")
 	t.not_contains(home, 'data-tmux-container="docker-compose-fuwa-1"', "expected stale fuwa container slot to be removed")
-	t.contains(home, "openDashboard('/dash/signoz', 'SigNoz dashboard')", "expected SigNoz button to drive the embedded dashboard panel")
+	t.contains(home, "openDashboard('/dash/signoz/dashboard/019fa5ba-921e-757c-a3d4-115d8d52e1e4?relativeTime=1month', 'SigNoz dashboard')", "expected SigNoz button to drive the embedded dashboard panel to the pinned dashboard route")
 	t.contains(home, "openDashboard('/dash/uptrace/', 'Uptrace dashboard')", "expected Uptrace button to reuse the embedded dashboard panel")
 	t.contains(home, ':src="dashboardSrc"', "expected embedded dashboard iframe src to be driven by workspace state")
 	t.not_contains(home, "window.open('/dash/uptrace/'", "expected no external window for Uptrace")
