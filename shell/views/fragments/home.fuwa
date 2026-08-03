@@ -1,5 +1,5 @@
 <section id="shell-content" class="shell-content">
-  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()" :class="{ 'is-grafana': grafanaOpen }">
+  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()" :class="{ 'is-signoz': signozOpen, 'is-uptrace': uptraceOpen }">
     <section class="ide-island ide-preview-island">
       <div
         class="ide-preview-stage"
@@ -48,8 +48,8 @@
       <div class="ide-preview-block ide-preview-block--obs">
         <div class="stage-header">
           <span class="stage-title">Observability</span>
-          <button class="grafana-trigger" @click="openDashboard('/dash/signoz/dashboard/019fa5ba-921e-757c-a3d4-115d8d52e1e4?relativeTime=1month', 'SigNoz dashboard')">Grafana ↗</button>
-          <button class="grafana-trigger" style="margin-left:4px" @click="openDashboard('/dash/uptrace/', 'Uptrace dashboard')">uptrace ↗</button>
+          <button class="grafana-trigger" @click="openSignoz()">Grafana ↗</button>
+          <button class="grafana-trigger" style="margin-left:4px" @click="openUptrace()">uptrace ↗</button>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
           <div v-for="request in requests" class="obs-request-group">
@@ -75,9 +75,14 @@
       </div>
     </section>
 
-    <div class="grafana-panel">
-      <iframe class="grafana-frame" :src="dashboardSrc" sandbox="allow-scripts allow-same-origin allow-forms" :title="dashboardTitle"></iframe>
-      <button class="grafana-back-btn" @click="closeDashboard()">← Back to code</button>
+    <div class="grafana-panel signoz-panel">
+      <iframe class="grafana-frame" src="/dash/signoz/dashboard/019fa5ba-921e-757c-a3d4-115d8d52e1e4?relativeTime=1month" sandbox="allow-scripts allow-same-origin allow-forms" title="SigNoz dashboard"></iframe>
+      <button class="grafana-back-btn" @click="closeSignoz()">← Back to code</button>
+    </div>
+
+    <div class="grafana-panel uptrace-panel">
+      <iframe class="grafana-frame" src="/dash/uptrace/" sandbox="allow-scripts allow-same-origin allow-forms" title="Uptrace dashboard"></iframe>
+      <button class="grafana-back-btn" @click="closeUptrace()">← Back to code</button>
     </div>
 
     <div class="tmux-panel">

@@ -1183,7 +1183,8 @@
         position: relative;
       }
 
-      .ide-shell.is-grafana .grafana-panel {
+      .ide-shell.is-signoz .signoz-panel,
+      .ide-shell.is-uptrace .uptrace-panel {
         display: flex;
       }
 

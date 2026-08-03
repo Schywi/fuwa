@@ -1,8 +1,6 @@
 (function () {
 	'use strict';
 
-	const SIGNOZ_DASHBOARD_SRC = '/dash/signoz/dashboard/019fa5ba-921e-757c-a3d4-115d8d52e1e4?relativeTime=1month';
-
 	// Workspace chrome: petite-vue owns popover state, this hook only supplies
 	// the tiny imperative seams that templates cannot express well: outside
 	// clicks, search filtering, and keyboard focus within the rendered list.
@@ -145,9 +143,8 @@
 		workspace_state = {
 			open_popover: null,
 			root: null,
-			grafanaOpen: false,
-			dashboardSrc: SIGNOZ_DASHBOARD_SRC,
-			dashboardTitle: 'SigNoz dashboard',
+			signozOpen: false,
+			uptraceOpen: false,
 			tmuxOpen: false,
 			archOpen: false,
 			toggleArch: function () {
@@ -240,77 +237,122 @@
 					self.tmuxOpen = !self.tmuxOpen;
 				}
 			},
-			openDashboard: function (src, title) {
+			openSignoz: function () {
 				var self = this;
 				var panel = document.querySelector('.ide-panel');
 				var right = document.querySelector('.ide-preview-island--right');
-				var grafana = document.querySelector('.grafana-panel');
+				var signoz = document.querySelector('.signoz-panel');
 				var shell = document.querySelector('.ide-shell');
-				var nextSrc = src;
-				var nextTitle = title;
 
-				if (!nextSrc) {
+				if (!panel || !right || !signoz || !shell) {
+					self.signozOpen = true;
+					self.uptraceOpen = false;
 					return;
 				}
 
-				if (!panel || !right || !grafana || !shell) {
-					self.dashboardSrc = nextSrc;
-					self.dashboardTitle = nextTitle;
-					self.grafanaOpen = true;
-					return;
-				}
-
-				var switching = self.grafanaOpen && self.dashboardSrc !== nextSrc;
-				var opening = !self.grafanaOpen;
-				self.dashboardSrc = nextSrc;
-				self.dashboardTitle = nextTitle;
-				self.grafanaOpen = true;
-				shell.classList.add('is-grafana');
+				var opening = !self.signozOpen;
+				self.signozOpen = true;
+				self.uptraceOpen = false;
+				shell.classList.add('is-signoz');
+				shell.classList.remove('is-uptrace');
 
 				if (window.gsap) {
-					var tl = window.gsap.timeline({
-						onComplete: function () {}
-					});
+					var tl = window.gsap.timeline({ onComplete: function () {} });
 
 					if (opening) {
 						tl.to([panel, right], { opacity: 0, x: -20, duration: 0.25, ease: 'power2.in', stagger: 0.04 }, 0);
-						tl.fromTo(grafana, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power2.out' }, 0.08);
-					} else if (switching) {
-						tl.fromTo(grafana, { opacity: 0.75 }, { opacity: 1, duration: 0.18, ease: 'power2.out' }, 0);
+						tl.fromTo(signoz, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power2.out' }, 0.08);
 					}
-				} else {
-					self.grafanaOpen = true;
 				}
 			},
-			closeDashboard: function () {
+			closeSignoz: function () {
 				var self = this;
 				var panel = document.querySelector('.ide-panel');
 				var right = document.querySelector('.ide-preview-island--right');
-				var grafana = document.querySelector('.grafana-panel');
+				var signoz = document.querySelector('.signoz-panel');
 				var shell = document.querySelector('.ide-shell');
 
-				if (!self.grafanaOpen) {
+				if (!self.signozOpen) {
 					return;
 				}
 
-				if (!panel || !right || !grafana || !shell) {
-					self.grafanaOpen = false;
+				if (!panel || !right || !signoz || !shell) {
+					self.signozOpen = false;
 					return;
 				}
 
 				if (window.gsap) {
 					var tl = window.gsap.timeline({
 						onComplete: function () {
-							self.grafanaOpen = false;
-							shell.classList.remove('is-grafana');
+							self.signozOpen = false;
+							shell.classList.remove('is-signoz');
 						}
 					});
 
-					tl.to(grafana, { opacity: 0, scale: 0.97, duration: 0.2, ease: 'power2.in' }, 0);
+					tl.to(signoz, { opacity: 0, scale: 0.97, duration: 0.2, ease: 'power2.in' }, 0);
 					tl.fromTo([panel, right], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out', stagger: 0.04 }, 0.06);
 				} else {
-					self.grafanaOpen = false;
-					shell.classList.remove('is-grafana');
+					self.signozOpen = false;
+					shell.classList.remove('is-signoz');
+				}
+			},
+			openUptrace: function () {
+				var self = this;
+				var panel = document.querySelector('.ide-panel');
+				var right = document.querySelector('.ide-preview-island--right');
+				var uptrace = document.querySelector('.uptrace-panel');
+				var shell = document.querySelector('.ide-shell');
+
+				if (!panel || !right || !uptrace || !shell) {
+					self.uptraceOpen = true;
+					self.signozOpen = false;
+					return;
+				}
+
+				var opening = !self.uptraceOpen;
+				self.uptraceOpen = true;
+				self.signozOpen = false;
+				shell.classList.add('is-uptrace');
+				shell.classList.remove('is-signoz');
+
+				if (window.gsap) {
+					var tl = window.gsap.timeline({ onComplete: function () {} });
+
+					if (opening) {
+						tl.to([panel, right], { opacity: 0, x: -20, duration: 0.25, ease: 'power2.in', stagger: 0.04 }, 0);
+						tl.fromTo(uptrace, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power2.out' }, 0.08);
+					}
+				}
+			},
+			closeUptrace: function () {
+				var self = this;
+				var panel = document.querySelector('.ide-panel');
+				var right = document.querySelector('.ide-preview-island--right');
+				var uptrace = document.querySelector('.uptrace-panel');
+				var shell = document.querySelector('.ide-shell');
+
+				if (!self.uptraceOpen) {
+					return;
+				}
+
+				if (!panel || !right || !uptrace || !shell) {
+					self.uptraceOpen = false;
+					return;
+				}
+
+				if (window.gsap) {
+					var tl = window.gsap.timeline({
+						onComplete: function () {
+							self.uptraceOpen = false;
+							shell.classList.remove('is-uptrace');
+						}
+					});
+
+					tl.to(uptrace, { opacity: 0, scale: 0.97, duration: 0.2, ease: 'power2.in' }, 0);
+					tl.fromTo([panel, right], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out', stagger: 0.04 }, 0.06);
+				} else {
+					self.uptraceOpen = false;
+					shell.classList.remove('is-uptrace');
 				}
 			},
 			openPalette: function () {
