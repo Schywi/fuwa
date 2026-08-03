@@ -122,6 +122,24 @@ t.test("seeded dashboard files are present", function()
 	t.contains(overview, "Request count, error rate, and status breakdown across all services", "expected the real seed descriptions from exploration")
 end)
 
+t.test("vector otlp passthrough uses the documented source and sink shape", function()
+	local vector = read_file("infra/docker-compose/vector.toml")
+
+	t.contains(vector, "[sources.otlp.use_otlp_decoding]", "expected OTLP passthrough to preserve trace payloads")
+	t.contains(vector, 'traces = true', "expected OTLP decoding to stay enabled for traces")
+	t.contains(vector, "[sources.otlp.grpc]", "expected the Vector OTLP source to expose the gRPC listener too")
+	t.contains(vector, 'address = "0.0.0.0:4317"', "expected OTLP gRPC to listen on the standard collector port")
+	t.contains(vector, "[sources.otlp.http]", "expected the Vector OTLP source to expose the HTTP listener")
+	t.contains(vector, 'address = "0.0.0.0:4318"', "expected OTLP HTTP to listen on the standard collector port")
+	t.contains(vector, 'inputs = ["otlp.traces"]', "expected the Signoz sink to consume the trace output stream")
+	t.contains(vector, "[sinks.signoz.protocol]", "expected nested protocol config for the Vector OTLP sink")
+	t.contains(vector, 'type = "http"', "expected Vector sink protocol type to be HTTP")
+	t.contains(vector, 'uri = "http://signoz-ingester:4318/v1/traces"', "expected SigNoz OTLP HTTP endpoint")
+	t.contains(vector, "[sinks.signoz.protocol.encoding]", "expected explicit sink encoding block nested under protocol")
+	t.contains(vector, 'codec = "otlp"', "expected OTLP protobuf encoding for the Signoz sink")
+	t.not_contains(vector, 'protocol = "http"', "expected no invalid scalar protocol value in the Vector sink")
+end)
+
 if results.failed > 0 then
 	io.stderr:write(string.format("%d tests failed\n\n", results.failed))
 	for _, failure in ipairs(results.failures) do

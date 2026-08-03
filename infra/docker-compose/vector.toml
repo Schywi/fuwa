@@ -18,7 +18,15 @@ address = "0.0.0.0:8687"
 # ── Traces source: OTLP over HTTP from OpenResty ───────────────────
 [sources.otlp]
 type = "opentelemetry"
-address = "0.0.0.0:4318"
+
+  [sources.otlp.use_otlp_decoding]
+  traces = true
+
+  [sources.otlp.grpc]
+  address = "0.0.0.0:4317"
+
+  [sources.otlp.http]
+  address = "0.0.0.0:4318"
 
 # ── Self-monitoring ────────────────────────────────────────────────
 [sources.internal_metrics]
@@ -61,6 +69,11 @@ default_namespace = "fuwa"
 # ── Sink: traces → SigNoz ingester ─────────────────────────────────
 [sinks.signoz]
 type = "opentelemetry"
-inputs = ["otlp"]
-endpoint = "http://signoz-ingester:4318"
-protocol = "http"
+inputs = ["otlp.traces"]
+
+  [sinks.signoz.protocol]
+  type = "http"
+  uri = "http://signoz-ingester:4318/v1/traces"
+
+  [sinks.signoz.protocol.encoding]
+  codec = "otlp"
