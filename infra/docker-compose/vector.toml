@@ -20,6 +20,7 @@ address = "0.0.0.0:8687"
 type = "opentelemetry"
 
   [sources.otlp.use_otlp_decoding]
+  logs = true
   traces = true
 
   [sources.otlp.grpc]
@@ -76,4 +77,16 @@ inputs = ["otlp.traces"]
   uri = "http://signoz-ingester:4318/v1/traces"
 
   [sinks.signoz.protocol.encoding]
+  codec = "otlp"
+
+# ── Sink: logs → SigNoz ingester ───────────────────────────────────
+[sinks.signoz_logs]
+type = "opentelemetry"
+inputs = ["otlp.logs"]
+
+  [sinks.signoz_logs.protocol]
+  type = "http"
+  uri = "http://signoz-ingester:4318/v1/logs"
+
+  [sinks.signoz_logs.protocol.encoding]
   codec = "otlp"
