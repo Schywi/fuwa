@@ -1,22 +1,5 @@
-services:
-  openresty:
-    build:
-      context: ..
-      dockerfile: infra/Dockerfile.openresty
-    ports:
-      - "${PORT}:${PORT}"
-    volumes:
-      - ..:/app
-      - /var/run/docker.sock:/var/run/docker.sock
-    environment:
-      - FUWA_DB_PATH=/app/.fuwa-dev/sqlite-local.db
-      - PORT=${PORT}
-    working_dir: /app
+name: docker-compose
 
-  busybox-alpha:
-    image: busybox:latest
-    command: sh -c "while true; do echo '[alpha] request processed'; sleep 2; done"
-
-  busybox-beta:
-    image: busybox:latest
-    command: sh -c "while true; do echo '[beta] ERROR connection refused'; sleep 3; done"
+include:
+  - docker-compose/app.dev.yml
+  - docker-compose/dev.yml

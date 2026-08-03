@@ -1,0 +1,43 @@
+services:
+  vector-router:
+    image: timberio/vector:0.57.0-alpine
+    command:
+      - "--config-toml"
+      - "/etc/vector/vector.toml"
+    ports:
+      - "8686:8686"
+      - "8687:8687"
+    volumes:
+      - ./vector.toml:/etc/vector/vector.toml:ro
+    depends_on:
+      victoriametrics:
+        condition: service_started
+      signoz-clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:v1.102.1
+    ports:
+      - "8428:8428"
+    command:
+      - "--retentionPeriod=14d"
+      - "--storageDataPath=/vmetrics-data"
+    volumes:
+      - vm_data:/vmetrics-data
+    restart: unless-stopped
+
+  otlp-bridge:
+    build:
+      context: ../..
+      dockerfile: infra/docker-compose/otlp-bridge.Dockerfile
+    environment:
+      SEED_COUNT: ${SEED_COUNT:-0}
+      OTLP_URL: http://signoz-ingester:4318/v1/traces
+    depends_on:
+      signoz-ingester:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  vm_data:

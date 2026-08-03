@@ -84,7 +84,7 @@
       <button class="grafana-back-btn" @click="toggleTmux()">← Back to code</button>
       <button class="grafana-back-btn tmux-filter-btn" data-tmux-filter-btn style="right: auto; left: 14px;">Errors only</button>
       <div class="tmux-grid">
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-fuwa-1" data-tmux-label="fuwa"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-openresty-1" data-tmux-label="openresty"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-1" data-tmux-label="signoz"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-ingester-1" data-tmux-label="ingester"></div>
         <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-otlp-bridge-1" data-tmux-label="bridge"></div>

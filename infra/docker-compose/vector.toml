@@ -1,0 +1,59 @@
+data_dir = "/var/lib/vector"
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+[sources.internal_metrics]
+type = "internal_metrics"
+scrape_interval_secs = 30
+
+[sources.fuwa_http]
+type = "http_server"
+address = "0.0.0.0:8687"
+
+  [sources.fuwa_http.decoding]
+  codec = "json"
+
+  [sources.fuwa_http.framing]
+  method = "bytes"
+
+[transforms.fuwa_request_metrics]
+type = "log_to_metric"
+inputs = ["fuwa_http"]
+
+  [[transforms.fuwa_request_metrics.metrics]]
+  type = "counter"
+  field = "request_total"
+  name = "http_requests_total"
+  increment_by_value = true
+
+  [[transforms.fuwa_request_metrics.metrics]]
+  type = "counter"
+  field = "error_total"
+  name = "http_request_errors_total"
+  increment_by_value = true
+
+  [[transforms.fuwa_request_metrics.metrics]]
+  type = "gauge"
+  field = "duration_ms"
+  name = "http_request_duration_ms"
+
+[sinks.metrics_victoriametrics]
+type = "prometheus_remote_write"
+inputs = ["fuwa_request_metrics", "internal_metrics"]
+endpoint = "http://victoriametrics:8428/api/v1/write"
+compression = "snappy"
+default_namespace = "fuwa"
+
+  [sinks.metrics_victoriametrics.healthcheck]
+  enabled = false
+
+[sinks.otlp_bridge]
+type = "socket"
+inputs = ["fuwa_http"]
+address = "otlp-bridge:4321"
+mode = "tcp"
+
+  [sinks.otlp_bridge.encoding]
+  codec = "json"

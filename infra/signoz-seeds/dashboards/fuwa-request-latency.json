@@ -1,0 +1,5 @@
+{
+  "title": "Fuwa Request Latency",
+  "description": "Seed placeholder for the local SigNoz dev stack.",
+  "tags": ["fuwa", "latency"]
+}

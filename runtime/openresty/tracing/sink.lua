@@ -1,5 +1,6 @@
 local cjson = require("cjson")
 local trace = require("runtime.trace")
+local pipeline = require("runtime.openresty.tracing.pipeline")
 
 local M = {}
 
@@ -17,15 +18,7 @@ local function openresty_trace_sink(event)
 	if not ok then
 		return
 	end
-	local buffer_json = shm:get("buffer")
-	local buffer = cjson.decode(buffer_json or "[]") or {}
-	event._ts = ngx.now()
-	table.insert(buffer, cjson.encode(event))
-	while #buffer > 200 do
-		table.remove(buffer, 1)
-	end
-	shm:set("buffer", cjson.encode(buffer))
-	shm:incr("trace_counter", 1, 0)
+	pipeline.record_event(event)
 end
 
 function M.install()

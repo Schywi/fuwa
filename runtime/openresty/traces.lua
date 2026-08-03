@@ -2,6 +2,7 @@
 -- /__dev/traces — GET returns the ring buffer, POST ingests trace events.
 
 local cjson = require("cjson")
+local pipeline = require("runtime.openresty.tracing.pipeline")
 local method = ngx.req.get_method()
 
 if method == "GET" then
@@ -53,16 +54,11 @@ if method == "POST" then
 	local count = 0
 
 	for _, event in ipairs(events) do
-		event._ts = ngx.now()
-		table.insert(buffer, cjson.encode(event))
-		count = count + 1
+		local recorded = pipeline.record_event(event)
+		if recorded then
+			count = count + 1
+		end
 	end
-
-	while #buffer > 200 do
-		table.remove(buffer, 1)
-	end
-	shm:set("buffer", cjson.encode(buffer))
-	shm:incr("trace_counter", 1, 0)
 
 	ngx.header.content_type = "application/json"
 	ngx.say(cjson.encode({ok = true, ingested = count}))
