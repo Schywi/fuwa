@@ -1,0 +1,30 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Lua syntax check
+        run: make compile-check
+
+      - name: Unit tests (Lua)
+        run: make test-unit
+
+  docker:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build OpenResty image
+        run: docker build -t fuwa-openresty -f infra/Dockerfile.openresty .
