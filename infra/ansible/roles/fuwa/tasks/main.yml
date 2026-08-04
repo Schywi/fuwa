@@ -22,6 +22,12 @@
   environment:
     PORT: "8080"
 
+- name: Verify compose include resolves services
+  ansible.builtin.shell: |
+    cd /opt/fuwa/infra
+    docker compose -f docker-compose.yml config --services
+  changed_when: false
+
 - name: Wait for OpenResty to be healthy
   ansible.builtin.shell: |
     for i in $(seq 1 30); do

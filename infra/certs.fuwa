@@ -65,7 +65,7 @@ renew() {
   chmod 600 "$CERTS_DIR/privkey.pem"
 
   # Reload OpenResty to pick up new certs
-  docker compose -f "$(dirname "$0")/infra/coolify-ready-compose.yml" exec openresty nginx -s reload 2>/dev/null || true
+  docker compose -f "$(dirname "$0")/docker-compose.yml" exec openresty nginx -s reload 2>/dev/null || true
 
   echo "[certs] renewed"
 }

@@ -27,9 +27,13 @@ write_files:
 runcmd:
   # Install Docker via official script (idempotent)
   - curl -fsSL https://get.docker.com | sh
+  - apt-get update
+  - apt-get install -y docker-compose-plugin
+  - systemctl enable docker --now
+  - systemctl restart docker
 
   # Set hostname
-  - hostnamectl set-hostname fuwa-$${domain%%.*}
+  - hostnamectl set-hostname ${domain}
 
   # Configure firewall
   - ufw allow ssh

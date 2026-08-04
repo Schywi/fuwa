@@ -6,6 +6,12 @@
   args:
     creates: /usr/bin/docker
 
+- name: Install Docker Compose plugin
+  ansible.builtin.apt:
+    name: docker-compose-plugin
+    state: present
+    update_cache: yes
+
 - name: Enable and start Docker
   ansible.builtin.systemd:
     name: docker
@@ -14,4 +20,8 @@
 
 - name: Verify Docker is running
   ansible.builtin.command: docker info
+  changed_when: false
+
+- name: Verify Docker Compose is available
+  ansible.builtin.command: docker compose version
   changed_when: false

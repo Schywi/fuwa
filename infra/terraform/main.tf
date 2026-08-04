@@ -13,7 +13,7 @@ terraform {
     }
   }
 
-  backend "local" {}   # replace with "s3" or "cloudflare_r2" for team use
+  backend "local" {} # replace with "s3" or "cloudflare_r2" for team use
 }
 
 provider "digitalocean" {

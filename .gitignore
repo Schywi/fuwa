@@ -9,6 +9,7 @@ docs/refactoring/*
 .fuwa-dev/
 .env
 .agent
+docs/
 AGENTS.md
 .beads
 CLAUDE.md
@@ -23,3 +24,10 @@ CLAUDE.md
 
 # Python cache
 __pycache__/
+
+# Terraform local state
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
+infra/terraform/terraform.tfstate
+infra/terraform/terraform.tfstate.backup
+infra/terraform/terraform.tfvars
