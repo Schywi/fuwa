@@ -1,0 +1,17 @@
+---
+# role: docker — install Docker and Docker Compose
+
+- name: Install Docker via official script
+  ansible.builtin.shell: curl -fsSL https://get.docker.com | sh
+  args:
+    creates: /usr/bin/docker
+
+- name: Enable and start Docker
+  ansible.builtin.systemd:
+    name: docker
+    enabled: yes
+    state: started
+
+- name: Verify Docker is running
+  ansible.builtin.command: docker info
+  changed_when: false

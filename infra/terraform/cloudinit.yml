@@ -1,0 +1,51 @@
+#cloud-config
+# Fuwa bootstrap — minimal cloud-init.
+# Ansible handles everything else after first boot.
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - curl
+  - wget
+  - git
+  - ufw
+  - ca-certificates
+  - gnupg
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+
+runcmd:
+  # Install Docker via official script (idempotent)
+  - curl -fsSL https://get.docker.com | sh
+
+  # Mount ClickHouse volume
+  - |
+    mkdir -p /mnt/clickhouse
+    VOLUME_DEVICE=$(readlink -f /dev/disk/by-id/scsi-0DO_Volume_fuwa-clickhouse-* 2>/dev/null | head -1)
+    if [ -n "$VOLUME_DEVICE" ] && ! mountpoint -q /mnt/clickhouse; then
+      mount "$VOLUME_DEVICE" /mnt/clickhouse
+      echo "$VOLUME_DEVICE /mnt/clickhouse ext4 defaults,nofail 0 2" >> /etc/fstab
+    fi
+
+  # Set hostname
+  - hostnamectl set-hostname fuwa-${domain%%.*}
+
+  # Enable firewall
+  - ufw --force enable
+
+  # Clone repo (Ansible will handle branch checkout and deploy)
+  - git clone https://github.com/Schywi/fuwa.git /opt/fuwa
+
+power_state:
+  mode: reboot
+  timeout: 120

@@ -1,0 +1,5 @@
+all:
+  hosts:
+    fuwa:
+      ansible_host: "{{ lookup('env', 'FUWA_HOST') | default('127.0.0.1', true) }}"
+      ansible_user: root

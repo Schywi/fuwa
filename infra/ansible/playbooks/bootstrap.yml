@@ -1,0 +1,19 @@
+---
+# playbooks/bootstrap.yml — initial setup after terraform provisions the droplet
+#
+# Usage:
+#   export FUWA_HOST=<droplet-ip> FUWA_DOMAIN=fuwa.example.com
+#   ansible-playbook -i ../inventory.yml playbooks/bootstrap.yml
+
+- name: Bootstrap fuwa on fresh droplet
+  hosts: fuwa
+  become: yes
+  vars:
+    fuwa_branch: "ui-redesign-sqlite-implementation-infra-merge"
+    fuwa_domain: "{{ lookup('env', 'FUWA_DOMAIN') }}"
+    fuwa_email: "{{ lookup('env', 'FUWA_EMAIL') | default('admin@fuwa.local', true) }}"
+
+  roles:
+    - docker
+    - firewall
+    - fuwa

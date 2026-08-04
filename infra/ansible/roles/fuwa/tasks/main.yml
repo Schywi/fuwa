@@ -1,0 +1,61 @@
+---
+# role: fuwa — clone, configure, deploy, cron
+
+- name: Clone fuwa repo
+  ansible.builtin.git:
+    repo: https://github.com/Schywi/fuwa.git
+    dest: /opt/fuwa
+    version: "{{ fuwa_branch }}"
+    force: yes
+    update: yes
+
+- name: Mount ClickHouse volume
+  ansible.builtin.shell: |
+    mkdir -p /mnt/clickhouse
+    VOLUME_DEVICE=$(readlink -f /dev/disk/by-id/scsi-0DO_Volume_* 2>/dev/null | head -1)
+    if [ -n "$VOLUME_DEVICE" ] && ! mountpoint -q /mnt/clickhouse; then
+      mount "$VOLUME_DEVICE" /mnt/clickhouse
+      echo "$VOLUME_DEVICE /mnt/clickhouse ext4 defaults,nofail 0 2" >> /etc/fstab
+    fi
+  changed_when: false
+
+- name: Create env file
+  ansible.builtin.copy:
+    dest: /opt/fuwa/.env
+    content: |
+      PORT=8080
+
+- name: Start services
+  ansible.builtin.shell: |
+    cd /opt/fuwa/infra
+    docker compose up -d --build --remove-orphans
+  environment:
+    PORT: "8080"
+
+- name: Wait for OpenResty to be healthy
+  ansible.builtin.shell: |
+    for i in $(seq 1 30); do
+      curl -sf http://localhost:8080/ > /dev/null 2>&1 && exit 0
+      sleep 3
+    done
+    exit 1
+  changed_when: false
+
+- name: Obtain TLS certificate
+  ansible.builtin.shell: |
+    cd /opt/fuwa
+    FUWA_DOMAIN="{{ fuwa_domain }}" FUWA_EMAIL="{{ fuwa_email }}" infra/certs.fuwa obtain
+  ignore_errors: yes
+
+- name: Setup deploy cron (every 5 min)
+  ansible.builtin.cron:
+    name: "fuwa-deploy"
+    minute: "*/5"
+    job: "cd /opt/fuwa && infra/deploy.fuwa deploy >> /var/log/fuwa-deploy.log 2>&1"
+
+- name: Setup cert renewal cron (daily at 3am)
+  ansible.builtin.cron:
+    name: "fuwa-certs"
+    minute: "0"
+    hour: "3"
+    job: "cd /opt/fuwa && FUWA_DOMAIN='{{ fuwa_domain }}' FUWA_EMAIL='{{ fuwa_email }}' infra/certs.fuwa renew >> /var/log/fuwa-certs.log 2>&1"
