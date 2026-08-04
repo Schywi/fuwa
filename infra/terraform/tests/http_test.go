@@ -11,13 +11,14 @@ import (
 )
 
 func TestEndpointsReachable(t *testing.T) {
-	t.Parallel()
+	opts := terraformOptions()
+	defer terraform.Destroy(t, opts)
+	terraform.InitAndApply(t, opts)
 
-	opts := &terraform.Options{
-		TerraformDir: "../",
-	}
 	ip := terraform.Output(t, opts, "droplet_ip")
 	base := fmt.Sprintf("http://%s:8080", ip)
+
+	waitForHTTP(t, base+"/", 200)
 
 	tests := []struct {
 		name       string

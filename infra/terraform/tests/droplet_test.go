@@ -11,11 +11,7 @@ import (
 )
 
 func TestDropletHealthy(t *testing.T) {
-	t.Parallel()
-
-	opts := &terraform.Options{
-		TerraformDir: "../",
-	}
+	opts := terraformOptions()
 
 	defer terraform.Destroy(t, opts)
 	terraform.InitAndApply(t, opts)

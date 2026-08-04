@@ -10,11 +10,10 @@ import (
 )
 
 func TestDNSPropagated(t *testing.T) {
-	t.Parallel()
+	opts := terraformOptions()
+	defer terraform.Destroy(t, opts)
+	terraform.InitAndApply(t, opts)
 
-	opts := &terraform.Options{
-		TerraformDir: "../",
-	}
 	dropletIP := terraform.Output(t, opts, "droplet_ip")
 	fqdn := terraform.Output(t, opts, "fqdn")
 
@@ -24,8 +23,8 @@ func TestDNSPropagated(t *testing.T) {
 	assert.Contains(t, ips, dropletIP, "%s should resolve to %s", fqdn, dropletIP)
 
 	// Wildcard record
-	wildcard := "*." + fqdn
-	wildIPs, err := net.LookupHost(wildcard)
-	assert.NoError(t, err, "DNS lookup for %s", wildcard)
-	assert.Contains(t, wildIPs, dropletIP, "%s should resolve to %s", wildcard, dropletIP)
+	wildcardHost := "preview." + fqdn
+	wildIPs, err := net.LookupHost(wildcardHost)
+	assert.NoError(t, err, "DNS lookup for %s", wildcardHost)
+	assert.Contains(t, wildIPs, dropletIP, "%s should resolve to %s", wildcardHost, dropletIP)
 }
