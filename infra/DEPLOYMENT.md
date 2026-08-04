@@ -73,9 +73,9 @@ background_merges_mutations_concurrency_ratio: 0
 .
 ├── terraform/
 │   ├── main.tf              # providers
-│   ├── variables.tf          # domain, region, tokens
-│   ├── droplet.tf            # digitalocean_droplet + volume
-│   ├── firewall.tf           # digitalocean_firewall
+│   ├── variables.tf         # domain, region, tokens
+│   ├── droplet.tf           # digitalocean_droplet + SSH key
+│   ├── firewall.tf          # digitalocean_firewall
 │   ├── dns.tf               # cloudflare_record
 │   ├── cloudinit.yml         # boot script
 │   ├── outputs.tf
@@ -114,13 +114,6 @@ resource "digitalocean_droplet" "fuwa" {
   size     = "s-2vcpu-4gb"        # 2 vCPU, 4GB RAM
   ssh_keys = [data.digitalocean_ssh_key.fuwa.id]
   user_data = file("cloudinit.yml")
-}
-
-resource "digitalocean_volume" "clickhouse" {
-  name              = "fuwa-clickhouse"
-  region            = "nyc3"
-  size              = 10                # 10GB volume
-  description       = "ClickHouse persistent data"
 }
 ```
 
@@ -204,21 +197,6 @@ resource "digitalocean_firewall" "fuwa" {
         dest: /opt/fuwa
         version: "{{ fuwa_branch }}"
         force: yes
-
-    - name: Mount ClickHouse volume
-      ansible.builtin.shell: |
-        mkdir -p /mnt/clickhouse
-        if ! mountpoint -q /mnt/clickhouse; then
-          mkfs.ext4 -F /dev/disk/by-id/scsi-0DO_Volume_* 2>/dev/null || true
-          mount /dev/disk/by-id/scsi-0DO_Volume_* /mnt/clickhouse
-        fi
-
-    - name: Create systemd override for ClickHouse volume
-      ansible.builtin.copy:
-        dest: /etc/systemd/system/docker-compose-fuwa.service.d/volume.conf
-        content: |
-          [Service]
-          ExecStartPre=/bin/mountpoint -q /mnt/clickhouse || exit 1
 
     - name: Start services
       ansible.builtin.shell: |
@@ -342,7 +320,7 @@ func TestDNSPropagated(t *testing.T) {
 ## Deployment order
 
 ```
-1. terraform apply     → droplet + volume + DNS + firewall
+1. terraform apply     → droplet + DNS + firewall
 2. Wait 30s for boot
 3. ansible-playbook bootstrap.yml   → Docker + clone + start + certs
 4. go test ./tests/terraform/...     → verify everything
@@ -353,6 +331,7 @@ func TestDNSPropagated(t *testing.T) {
 
 - No Coolify. OpenResty is the proxy.
 - No Traefik/Caddy sidecar. OpenResty terminates TLS directly.
+- No extra block storage mount. ClickHouse stays on the droplet disk through Docker named volumes.
 - No ClickHouse merges. Parts accumulate → TTL drops them.
 - No more than 4GB RAM. ClickHouse starved to 2GB, others fit in 1.5GB, 500MB buffer.
 - No Kubernetes. Docker Compose on a single droplet.

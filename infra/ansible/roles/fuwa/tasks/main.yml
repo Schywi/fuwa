@@ -9,16 +9,6 @@
     force: yes
     update: yes
 
-- name: Mount ClickHouse volume
-  ansible.builtin.shell: |
-    mkdir -p /mnt/clickhouse
-    VOLUME_DEVICE=$(readlink -f /dev/disk/by-id/scsi-0DO_Volume_* 2>/dev/null | head -1)
-    if [ -n "$VOLUME_DEVICE" ] && ! mountpoint -q /mnt/clickhouse; then
-      mount "$VOLUME_DEVICE" /mnt/clickhouse
-      echo "$VOLUME_DEVICE /mnt/clickhouse ext4 defaults,nofail 0 2" >> /etc/fstab
-    fi
-  changed_when: false
-
 - name: Create env file
   ansible.builtin.copy:
     dest: /opt/fuwa/.env
