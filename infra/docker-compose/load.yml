@@ -5,13 +5,15 @@ services:
     command:
       - traces
       - --otlp-endpoint=vector-router:4318
+      - --otlp-http
       - --otlp-insecure
       - --duration=5m
       - --rate=20
       - --workers=1
       - --child-spans=2
       - --service=loadtest
-      - --otlp-attributes=source=\"loadtest\"
+      - --otlp-attributes
+      - 'source="loadtest"'
     depends_on:
       vector-router:
         condition: service_started
@@ -26,12 +28,12 @@ services:
       - |
         while true; do
           for i in $$(seq 1 10); do
-            curl -s -o /dev/null http://openresty:8080/?_src=loadtest &
+            curl -s -o /dev/null http://openresty:${PORT:-8080}/?_src=loadtest &
           done
           wait
           sleep 3
         done
     depends_on:
       openresty:
-        condition: service_started
+        condition: service_healthy
     restart: unless-stopped

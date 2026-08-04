@@ -12,6 +12,10 @@ interserver_http_port: 9009
 latency_log:
   ttl: event_date + INTERVAL 1 DAY DELETE
 listen_host: 0.0.0.0
+max_server_memory_usage_to_ram_ratio: 0.95
+merge_tree:
+  max_suspicious_broken_parts: 100
+  max_parts_in_total: 100000
 logger:
   console: 1
   count: 10

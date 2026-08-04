@@ -14,4 +14,10 @@ services:
       FUWA_VECTOR_URL: http://vector-router:8687/
       PORT: ${PORT:-8080}
     working_dir: /app
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:${PORT:-8080}/"]
+      interval: 5s
+      retries: 6
+      start_period: 5s
+      timeout: 3s
     restart: unless-stopped

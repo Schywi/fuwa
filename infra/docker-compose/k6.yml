@@ -10,12 +10,14 @@ services:
       - run
       - --env
       - SCENARIO=ramp
+      - --env
+      - BASE_URL=http://openresty:${PORT:-8080}
       - /scripts/fuwa-stress.js
     volumes:
       - ../../infra/k6:/scripts:ro
     depends_on:
       openresty:
-        condition: service_started
+        condition: service_healthy
 
   k6-spike:
     image: grafana/k6:latest
@@ -23,12 +25,14 @@ services:
       - run
       - --env
       - SCENARIO=spike
+      - --env
+      - BASE_URL=http://openresty:${PORT:-8080}
       - /scripts/fuwa-stress.js
     volumes:
       - ../../infra/k6:/scripts:ro
     depends_on:
       openresty:
-        condition: service_started
+        condition: service_healthy
 
   k6-soak:
     image: grafana/k6:latest
@@ -36,12 +40,14 @@ services:
       - run
       - --env
       - SCENARIO=soak
+      - --env
+      - BASE_URL=http://openresty:${PORT:-8080}
       - /scripts/fuwa-stress.js
     volumes:
       - ../../infra/k6:/scripts:ro
     depends_on:
       openresty:
-        condition: service_started
+        condition: service_healthy
 
   k6-edges:
     image: grafana/k6:latest
@@ -49,9 +55,11 @@ services:
       - run
       - --env
       - SCENARIO=edges
+      - --env
+      - BASE_URL=http://openresty:${PORT:-8080}
       - /scripts/fuwa-stress.js
     volumes:
       - ../../infra/k6:/scripts:ro
     depends_on:
       openresty:
-        condition: service_started
+        condition: service_healthy

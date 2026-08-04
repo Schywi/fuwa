@@ -15,7 +15,7 @@ address = "0.0.0.0:8687"
   [sources.fuwa_http.framing]
   method = "bytes"
 
-# ── Traces source: OTLP over HTTP from OpenResty ───────────────────
+# ── OTLP source: traces + logs from OpenResty ───────────────────────
 [sources.otlp]
 type = "opentelemetry"
 
@@ -76,8 +76,8 @@ inputs = ["otlp.traces"]
   type = "http"
   uri = "http://signoz-ingester:4318/v1/traces"
 
-  [sinks.signoz.protocol.encoding]
-  codec = "otlp"
+    [sinks.signoz.protocol.encoding]
+    codec = "otlp"
 
 # ── Sink: logs → SigNoz ingester ───────────────────────────────────
 [sinks.signoz_logs]
@@ -88,5 +88,5 @@ inputs = ["otlp.logs"]
   type = "http"
   uri = "http://signoz-ingester:4318/v1/logs"
 
-  [sinks.signoz_logs.protocol.encoding]
-  codec = "otlp"
+    [sinks.signoz_logs.protocol.encoding]
+    codec = "otlp"
