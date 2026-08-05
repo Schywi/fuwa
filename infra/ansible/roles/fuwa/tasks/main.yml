@@ -21,20 +21,32 @@
     docker compose up -d --build --remove-orphans
   environment:
     PORT: "8080"
+  async: 600
+  poll: 0
 
-- name: Verify compose include resolves services
+- name: Wait for OpenResty (TLS)
   ansible.builtin.shell: |
-    cd /opt/fuwa/infra
-    docker compose -f docker-compose.yml config --services
+    curl -sf http://localhost:8080/ > /dev/null 2>&1
+  register: openresty_ready
+  retries: 15
+  delay: 2
+  until: openresty_ready is success
   changed_when: false
 
-- name: Wait for OpenResty to be healthy
+- name: Obtain TLS certificate
   ansible.builtin.shell: |
-    for i in $(seq 1 30); do
-      curl -sf http://localhost:8080/ > /dev/null 2>&1 && exit 0
-      sleep 3
-    done
-    exit 1
+    cd /opt/fuwa
+    FUWA_DOMAIN="{{ fuwa_domain }}" FUWA_EMAIL="{{ fuwa_email }}" infra/certs.fuwa obtain
+  ignore_errors: yes
+
+- name: Wait for full stack health
+  ansible.builtin.shell: |
+    docker ps --filter name=signoz --filter status=running --format '{{ "{{.Names}}" }}' | grep -q signoz && \
+    docker ps --filter name=signoz-clickhouse --filter health=healthy --format '{{ "{{.Names}}" }}' | grep -q clickhouse
+  register: full_stack
+  retries: 30
+  delay: 10
+  until: full_stack is success
   changed_when: false
 
 - name: Obtain TLS certificate

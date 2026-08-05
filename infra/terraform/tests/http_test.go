@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/gruntwork-io/terratest/modules/terraform"
 	"github.com/stretchr/testify/assert"
@@ -32,6 +33,7 @@ func TestEndpointsReachable(t *testing.T) {
 		{"vector api", "/dash/vector/", 200},
 		{"traces endpoint", "/__dev/traces", 200},
 		{"health", "/", 200},
+		{"fuwa app (public)", fmt.Sprintf("http://%s:8080/", terraform.Output(t, terraformOptions(), "fqdn")), 200},
 	}
 
 	for _, tt := range tests {
@@ -51,4 +53,29 @@ func TestEndpointsReachable(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPublicReachable(t *testing.T) {
+	t.Parallel()
+
+	fqdn := terraform.Output(t, terraformOptions(), "fqdn")
+	publicURL := fmt.Sprintf("http://%s:8080/", fqdn)
+
+	client := &http.Client{Timeout: 10 * time.Second}
+
+	var lastErr error
+	for i := 0; i < 12; i++ {
+		resp, err := client.Get(publicURL)
+		if err == nil && resp != nil && resp.StatusCode == 200 {
+			resp.Body.Close()
+			return
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+		lastErr = err
+		time.Sleep(15 * time.Second)
+	}
+
+	t.Fatalf("Public URL %s not reachable after 3 minutes. Last error: %v", publicURL, lastErr)
 }

@@ -12,18 +12,9 @@ interserver_http_port: 9009
 latency_log:
   ttl: event_date + INTERVAL 1 DAY DELETE
 listen_host: 0.0.0.0
-max_server_memory_usage: 1073741824
-max_server_memory_usage_to_ram_ratio: 0.25
-background_pool_size: 1
-background_merges_mutations_concurrency_ratio: 1
 merge_tree:
   max_suspicious_broken_parts: 10000
   max_parts_in_total: 100000
-  parts_to_delay_insert: 2000
-  parts_to_throw_insert: 5000
-  max_bytes_to_merge_at_max_space_in_pool: 1
-  number_of_free_entries_in_pool_to_lower_max_size_of_merge: 2
-  number_of_free_entries_in_pool_to_execute_mutation: 1
 logger:
   console: 1
   count: 10
@@ -48,9 +39,6 @@ profiles:
     allow_simdjson: 0
     load_balancing: random
     log_queries: 1
-    max_memory_usage: 536870912
-    max_bytes_before_external_group_by: 500000000
-    max_threads: 1
 query_log:
   flush_interval_milliseconds: 30000
   partition_by: toYYYYMM(event_date)

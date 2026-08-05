@@ -89,6 +89,7 @@ services:
 
   signoz-clickhouse:
     image: clickhouse/clickhouse-server:25.12.5
+    mem_limit: 1g
     environment:
       CLICKHOUSE_SKIP_USER_SETUP: "1"
       CLICKHOUSE_CONFIG: /etc/clickhouse-server/config-0-0.yaml

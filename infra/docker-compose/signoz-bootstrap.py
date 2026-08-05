@@ -20,11 +20,6 @@ MARKER_FILE = Path(os.getenv("MARKER_FILE", "/var/lib/signoz-bootstrap/.seeded")
 
 HEALTH_URL = f"{SIGNOZ_URL}/api/v1/health"
 DASHBOARDS_URL = f"{SIGNOZ_URL}/api/v1/dashboards"
-SEEDED_TITLES = {
-    "Fuwa Errors",
-    "Fuwa Overview",
-    "Fuwa Request Latency",
-}
 
 
 def log(msg):
@@ -102,53 +97,21 @@ def create_dashboard(payload):
     return None
 
 
-def update_dashboard(dashboard_id, payload):
-    status, data = fetch_json(f"{DASHBOARDS_URL}/{dashboard_id}", method="PUT", data=payload)
-    title = payload.get("title", "?")
-    if status == 200:
-        log(f"updated dashboard: {title}")
-        return data
-    log(f"failed to update dashboard '{title}': HTTP {status} {data}")
-    return None
+def delete_dashboard(dashboard_id):
+    status, _ = fetch_json(f"{DASHBOARDS_URL}/{dashboard_id}", method="DELETE")
+    if status in (200, 204):
+        return True
+    log(f"failed to delete dashboard {dashboard_id}: HTTP {status}")
+    return False
 
 
-def extract_dashboard_body(dashboard):
+def extract_dashboard_id(dashboard):
     if not isinstance(dashboard, dict):
-        return {}
+        return None
     body = dashboard.get("data", {})
-    return body if isinstance(body, dict) else {}
-
-
-def extract_dashboard_title(dashboard):
-    body = extract_dashboard_body(dashboard)
-    title = body.get("title")
-    if isinstance(title, str) and title:
-        return title
-    nested = body.get("data")
-    if isinstance(nested, dict):
-        title = nested.get("title")
-        if isinstance(title, str) and title:
-            return title
-    return None
-
-
-def dashboard_needs_repair(dashboard):
-    body = extract_dashboard_body(dashboard)
-    if not body:
-        return True
-    if isinstance(body.get("data"), dict):
-        return True
-    return not isinstance(body.get("title"), str)
-
-
-def map_existing_dashboards(existing):
-    dashboards_by_title = {}
-    for dashboard in existing:
-        title = extract_dashboard_title(dashboard)
-        if title:
-            dashboards_by_title[title] = dashboard
-    log(f"existing dashboards: {set(dashboards_by_title.keys())}")
-    return dashboards_by_title
+    if not isinstance(body, dict):
+        return None
+    return body.get("id")
 
 
 def qualify_payload(payload):
@@ -330,11 +293,8 @@ def main():
         return 0
 
     if not wait_for_health():
-        log("sigNoz not healthy, aborting")
+        log("signoz not healthy, aborting")
         return 1
-
-    existing = list_dashboards()
-    log(f"found {len(existing)} existing dashboards")
 
     seeds = load_seed_dashboards()
     if not seeds:
@@ -342,37 +302,27 @@ def main():
         mark_seeded()
         return 0
 
-    dashboards_by_title = map_existing_dashboards(existing)
+    # Nuke-and-repave: delete everything first, then create from seed.
+    existing = list_dashboards()
+    log(f"found {len(existing)} existing dashboards")
+
+    deleted = 0
+    for dashboard in existing:
+        dashboard_id = extract_dashboard_id(dashboard)
+        if dashboard_id and delete_dashboard(dashboard_id):
+            deleted += 1
+    log(f"deleted {deleted} existing dashboard(s)")
+
     created = 0
-    repaired = 0
     failed = 0
     for seed in seeds:
-        payload = qualify_payload(seed)
-        title = payload.get("title", "?")
-        existing_dashboard = dashboards_by_title.get(title)
-
-        if existing_dashboard is None:
-            created_dashboard = create_dashboard(build_create_payload(payload))
-            if created_dashboard is None:
-                failed += 1
-                continue
-            existing_dashboard = created_dashboard.get("data", created_dashboard)
+        payload = build_create_payload(qualify_payload(seed))
+        if create_dashboard(payload) is not None:
             created += 1
-
-        dashboard_id = existing_dashboard.get("id")
-        if not dashboard_id:
-            log(f"dashboard '{title}' is missing an id, skipping")
+        else:
             failed += 1
-            continue
 
-        if update_dashboard(dashboard_id, payload) is None:
-            failed += 1
-            continue
-
-        if dashboard_needs_repair(existing_dashboard) or title in SEEDED_TITLES:
-            repaired += 1
-
-    log(f"created {created} dashboard(s), repaired {repaired} dashboard(s), failed {failed}")
+    log(f"created {created} dashboard(s), failed {failed}")
     if failed > 0:
         log("one or more dashboards failed to seed; leaving marker unset")
         return 1
