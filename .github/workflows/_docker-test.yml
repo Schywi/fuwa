@@ -1,0 +1,54 @@
+name: _docker-test
+
+# Reusable workflow — build the OpenResty image, boot it, verify it
+# responds on :8080, capture logs on failure, always tear down.
+# Called by the orchestrator (ci.yml) after gatekeeper passes.
+#
+# No image push — this is a verification gate, not a delivery step.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build OpenResty image
+        run: docker build -t fuwa-openresty -f infra/Dockerfile.openresty .
+
+      - name: Start container
+        run: |
+          docker run -d --name fuwa-ci \
+            -p 8080:8080 \
+            -e PORT=8080 \
+            -e FUWA_DB_PATH=/tmp/fuwa-ci-test.db \
+            -e FUWA_DOMAIN=localhost \
+            -e FUWA_SIGNOZ_OTLP_URL="" \
+            -e FUWA_VECTOR_URL="" \
+            fuwa-openresty
+
+      - name: Wait for healthy response
+        run: |
+          for i in $(seq 1 12); do
+            if curl -fsS -o /dev/null http://localhost:8080/; then
+              echo "OpenResty healthy after $((i * 5))s"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "::error::OpenResty never became healthy after 60s"
+          docker logs fuwa-ci --tail 100
+          exit 1
+
+      - name: Capture logs on failure
+        if: failure()
+        run: docker logs fuwa-ci --tail 200
+
+      - name: Teardown
+        if: always()
+        run: docker rm -f fuwa-ci

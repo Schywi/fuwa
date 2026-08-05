@@ -1,102 +1,59 @@
-name: CI
+name: CI Pipeline
 
-# Runs on every push (regression gate for working branches) and every PR.
+# Orchestrator — wires reusable workflows into a staged pipeline.
+#
+# Flow:
+#   push to ui-redesign-sqlite-implementation-infra-merge
+#     │
+#     ├── gatekeeper (gitleaks, merge markers, whitespace, markdown lint)
+#     │
+#     ├── ci ─────────────────────┐  (parallel)
+#     │   ├── compile-check       │
+#     │   ├── lint                │
+#     │   ├── unit                │
+#     │   └── integration         │
+#     │                          │
+#     └── docker ─────────────────┘
+#         ├── build image
+#         ├── boot container
+#         └── health smoke
+#               │
+#               └── infra (only if docker passes)
+#                   ├── tfsec
+#                   ├── terraform apply
+#                   ├── ansible bootstrap
+#                   ├── terratest
+#                   └── terraform destroy (always)
+
 on:
   push:
+    branches: [ui-redesign-sqlite-implementation-infra-merge]
   pull_request:
+    branches: [ui-redesign-sqlite-implementation-infra-merge]
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  # ── STAGE 0 · GATEKEEPER ──────────────────────────────────────────────
-  # Cheap rejects that run first: leaked secrets, conflict markers, docs.
+  # ── STAGE 0 · GATEKEEPER ──────────────────────────────────────────
   gatekeeper:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0 # full history so the secret scan sees every commit
+    uses: ./.github/workflows/_gatekeeper.yml
 
-      - name: Scan for committed secrets (gitleaks)
-        run: |
-          VERSION=8.18.4
-          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
-            | tar -xz gitleaks
-          ./gitleaks detect --source . --redact --exit-code 1
-
-      - name: Reject merge-conflict markers
-        run: |
-          if git grep -nE '^(<<<<<<<|=======|>>>>>>>)' -- . ':!.github/workflows/ci.yml'; then
-            echo "::error::merge-conflict markers found"; exit 1
-          fi
-
-      - name: Validate whitespace / diff formatting
-        run: |
-          if git rev-parse HEAD~1 >/dev/null 2>&1; then
-            git diff --check HEAD~1 HEAD
-          else
-            git diff --check
-          fi
-
-      - name: Lint Markdown
-        run: npx --yes markdownlint-cli@0.39.0 README.md docs/**/*.md
-
-  # ── STAGE 1 · BUILD ───────────────────────────────────────────────────
-  # "Does it even parse?" — fails in seconds if the Lua is malformed.
-  build:
+  # ── STAGE 1 · CI + DOCKER (parallel) ──────────────────────────────
+  ci:
     needs: gatekeeper
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Lua
-        run: sudo apt-get update && sudo apt-get install -y lua5.4
-      - name: Compile-check every Lua file
-        run: make compile-check
+    uses: ./.github/workflows/_ci.yml
 
-  # ── STAGE 2 · LINT ────────────────────────────────────────────────────
-  # Static analysis. ADVISORY for now (continue-on-error) — flip to a hard
-  # gate once the tree is luacheck-clean.
-  lint:
-    needs: build
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install luacheck
-        run: sudo apt-get update && sudo apt-get install -y lua5.4 luarocks && sudo luarocks install luacheck
-      - name: Static analysis
-        run: make lint
+  docker:
+    needs: gatekeeper
+    uses: ./.github/workflows/_docker-test.yml
 
-  # ── STAGE 3 · UNIT + SMOKE + ACCEPTANCE ───────────────────────────────
-  # The regression gate. Fast, isolated. python3 is preinstalled and backs
-  # the sqlite_local provider used by the db suite.
-  unit:
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Lua
-        run: sudo apt-get update && sudo apt-get install -y lua5.4
-      - name: Unit suites
-        run: make test-unit
-      - name: Smoke checks
-        run: make test-smoke
-      - name: Acceptance suites
-        run: make test-acceptance
-
-  # ── STAGE 5 · INTEGRATION ─────────────────────────────────────────────
-  # Boots the dev server end-to-end. Heavier, so it runs after unit passes.
-  integration:
-    needs: unit
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Install Lua
-        run: sudo apt-get update && sudo apt-get install -y lua5.4
-      - name: Integration smoke
-        run: make test-integration
+  # ── STAGE 2 · INFRA GATE (only if docker passes) ──────────────────
+  infra:
+    needs: docker
+    uses: ./.github/workflows/_infra-test.yml
+    secrets: inherit
