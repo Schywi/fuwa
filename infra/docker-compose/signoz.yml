@@ -1,6 +1,6 @@
 services:
   signoz:
-    image: signoz/signoz-community:latest
+    image: signoz/signoz-community@sha256:831b17f31452dccd5a6884f108b00bd1a4a7880caeb239899a6c57e072a48e87
     environment:
       SIGNOZ_SQLSTORE_PROVIDER: sqlite
       SIGNOZ_SQLSTORE_SQLITE_PATH: /var/lib/signoz/signoz.db
