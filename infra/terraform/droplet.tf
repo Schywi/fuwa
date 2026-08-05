@@ -20,6 +20,7 @@ resource "digitalocean_droplet" "fuwa" {
   name     = "fuwa-${var.subdomain}"
   region   = var.droplet_region
   size     = var.droplet_size
+  monitoring = true
   ssh_keys = [local.ssh_key_id]
   user_data = templatefile("${path.module}/cloudinit.yml", {
     domain      = "${var.subdomain}.${var.domain}"

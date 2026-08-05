@@ -40,6 +40,12 @@ deploy() {
   cd "$REPO_DIR/infra"
   docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans
 
+  echo "[deploy] minimal smoke test..."
+  docker compose -f "$COMPOSE_FILE" exec -T signoz-clickhouse clickhouse-client --query "SELECT 1" || exit 1
+  curl -sf http://localhost:8080/dash/signoz/ > /dev/null || exit 1
+  curl -sf http://localhost:8080/dash/vmetrics/ > /dev/null || exit 1
+  echo "[deploy] smoke test passed ✓"
+
   echo "[deploy] waiting for health check..."
   for i in $(seq 1 30); do
     if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then

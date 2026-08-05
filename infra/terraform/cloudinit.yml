@@ -1,5 +1,5 @@
 #cloud-config
-# Fuwa bootstrap — minimal cloud-init.
+# Fuwa bootstrap -- minimal cloud-init.
 # Ansible handles everything else after first boot.
 
 package_update: true
@@ -43,7 +43,7 @@ runcmd:
   - ufw --force enable
 
   # Clone repo (Ansible will handle branch checkout and deploy)
-  - git clone https://github.com/Schywi/fuwa.git /opt/fuwa
+  - git clone -b ${fuwa_branch} https://github.com/Schywi/fuwa.git /opt/fuwa
 
 power_state:
   mode: reboot

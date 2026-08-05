@@ -17,3 +17,6 @@
     - docker
     - firewall
     - fuwa
+
+- name: Run post-deploy verification
+  ansible.builtin.import_playbook: verify.yml

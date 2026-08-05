@@ -56,6 +56,23 @@ export const options = {
       exec: "hitEdges",
       startTime: "0s",
     },
+    stress: {
+      executor: "ramping-arrival-rate",
+      startRate: 10,
+      timeUnit: "1s",
+      preAllocatedVUs: 20,
+      maxVUs: 500,
+      stages: [
+        { duration: "1m", target: 50 },
+        { duration: "1m", target: 100 },
+        { duration: "1m", target: 200 },
+        { duration: "1m", target: 400 },
+        { duration: "1m", target: 600 },
+        { duration: "30s", target: 0 },
+      ],
+      exec: "hitFuwa",
+      startTime: "0s",
+    },
   },
   thresholds: {
     "http_req_duration{name:fuwa}": ["p(95) < 500"],

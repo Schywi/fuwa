@@ -25,12 +25,20 @@ func loadKeyPair(t *testing.T) *ssh.KeyPair {
 		keyPath = filepath.Join(home, ".ssh", "id_rsa")
 	}
 
-	keyPair, err := ssh.LoadKeyPair(keyPath, "")
+	pubKey, err := os.ReadFile(keyPath + ".pub")
 	if err != nil {
-		t.Fatalf("cannot load SSH key from %s: %v", keyPath, err)
+		t.Fatalf("cannot read public key from %s: %v", keyPath+".pub", err)
 	}
 
-	return keyPair
+	privKey, err := os.ReadFile(keyPath)
+	if err != nil {
+		t.Fatalf("cannot read private key from %s: %v", keyPath, err)
+	}
+
+	return &ssh.KeyPair{
+		PublicKey:  string(pubKey),
+		PrivateKey: string(privKey),
+	}
 }
 
 func terraformOptions() *terraform.Options {
