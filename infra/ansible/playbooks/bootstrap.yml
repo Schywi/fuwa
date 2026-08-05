@@ -11,7 +11,7 @@
   vars:
     fuwa_branch: "ui-redesign-sqlite-implementation-infra-merge"
     fuwa_domain: "{{ lookup('env', 'FUWA_DOMAIN') }}"
-    fuwa_email: "{{ lookup('env', 'FUWA_EMAIL') | default('admin@fuwa.local', true) }}"
+    fuwa_email: "{{ lookup('env', 'FUWA_EMAIL') }}"
 
   roles:
     - docker

@@ -34,3 +34,6 @@ infra/terraform/terraform.tfvars
 
 # Commit helper script (local use only)
 infra/commit.sh
+
+# Agent-generated analysis docs (read-only analyst output)
+infra/docs/

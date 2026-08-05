@@ -30,13 +30,13 @@ obtain() {
     -v "$CERTS_DIR:/certs" \
     -v "$ACME_DIR:/acme" \
     "$LEGO_IMAGE" \
+    run \
+    --accept-tos \
     --email "$EMAIL" \
     --domains "$DOMAIN" \
     --http \
     --http.webroot /acme \
-    --path /certs \
-    --accept-tos \
-    run
+    --path /certs
 
   # lego creates certs in /certs/certificates/
   # OpenResty expects: fullchain.pem, privkey.pem
@@ -53,12 +53,13 @@ renew() {
     -v "$CERTS_DIR:/certs" \
     -v "$ACME_DIR:/acme" \
     "$LEGO_IMAGE" \
+    --path /certs \
+    renew \
     --email "$EMAIL" \
     --domains "$DOMAIN" \
     --http \
     --http.webroot /acme \
-    --path /certs \
-    renew --days 30
+    --days 30
 
   cp "$CERTS_DIR/certificates/${DOMAIN}.crt" "$CERTS_DIR/fullchain.pem"
   cp "$CERTS_DIR/certificates/${DOMAIN}.key" "$CERTS_DIR/privkey.pem"

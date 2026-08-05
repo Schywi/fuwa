@@ -9,6 +9,9 @@ local package_web = require("runtime.stdlib.compiler.package_web")
 local diagnostics = require("runtime.stdlib.compiler.diagnostics")
 local trace = require("runtime.trace")
 
+-- Seed math.random with high-entropy per-request values
+math.randomseed(ngx.now() * 1000000 + ngx.worker.pid())
+
 local method = ngx.req.get_method()
 local slug, entry, files
 
@@ -45,7 +48,16 @@ if not ok then
 	return
 end
 
-slug = payload.slug or (pick() .. "-" .. pick() .. "-" .. pick())
+-- Use existing deploy_slug cookie if present (stable route per session),
+-- otherwise generate a new random slug and persist it as a cookie.
+local deploy_slug = ngx.var.cookie_deploy_slug
+if deploy_slug and deploy_slug:match("^[A-Za-z0-9_%-]+$") then
+    slug = payload.slug or deploy_slug
+else
+    slug = payload.slug or (pick() .. "-" .. pick() .. "-" .. pick())
+    ngx.header["Set-Cookie"] = (ngx.header["Set-Cookie"] and (ngx.header["Set-Cookie"] .. "; ") or "")
+        .. "deploy_slug=" .. slug .. "; Path=/; SameSite=Lax; Max-Age=2592000"
+end
 entry = payload.entry
 files = payload.files
 

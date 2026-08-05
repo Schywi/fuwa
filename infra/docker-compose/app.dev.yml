@@ -4,6 +4,8 @@ services:
       context: ../..
       dockerfile: infra/Dockerfile.openresty
     ports:
+      - "80:${PORT:-8080}"
+      - "443:443"
       - "${PORT:-8080}:${PORT:-8080}"
     volumes:
       - ../..:/app
