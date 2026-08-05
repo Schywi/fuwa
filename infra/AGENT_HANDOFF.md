@@ -1,6 +1,6 @@
 # Terraform + Ansible + Terratest — agent handoff
 
-You are provisionig the fuwa stack on a fresh DigitalOcean droplet. Work
+You are provisioning the fuwa stack on a fresh DigitalOcean droplet. Work
 through each section in order. Do not skip verification steps.
 
 ## Prerequisites (obtain from the user before starting)
@@ -156,8 +156,7 @@ From the repo root:
 
 ```
 cd infra/terraform/tests
-go mod init fuwa-terratest
-go mod tidy   # pulls terratest, testify, etc.
+go test ./...
 go test -v -run TestDNSPropagated
 go test -v -run TestEndpointsReachable
 ```
