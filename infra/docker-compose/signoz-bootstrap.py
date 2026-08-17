@@ -132,11 +132,19 @@ def qualify_payload(payload):
 
 
 def build_create_payload(payload):
+    # SigNoz create API expects the full dashboard object (widgets, layout,
+    # panelMap, variables) directly in the body — no "data" wrapper, no stripping.
     return {
         "title": payload.get("title", ""),
         "description": payload.get("description", ""),
         "uploadedGrafana": False,
         "version": payload.get("version", "v5"),
+        "widgets": payload.get("widgets", []),
+        "layout": payload.get("layout", []),
+        "panelMap": payload.get("panelMap", {}),
+        "variables": payload.get("variables", {}),
+        "dotMigrated": payload.get("dotMigrated", True),
+        "uuid": payload.get("uuid", str(uuid4())),
     }
 
 
