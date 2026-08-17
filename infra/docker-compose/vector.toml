@@ -1,0 +1,92 @@
+data_dir = "/var/lib/vector"
+
+[api]
+enabled = true
+address = "0.0.0.0:8686"
+
+# ── Metrics source: Fuwa custom JSON via HTTP ──────────────────────
+[sources.fuwa_http]
+type = "http_server"
+address = "0.0.0.0:8687"
+
+  [sources.fuwa_http.decoding]
+  codec = "json"
+
+  [sources.fuwa_http.framing]
+  method = "bytes"
+
+# ── OTLP source: traces + logs from OpenResty ───────────────────────
+[sources.otlp]
+type = "opentelemetry"
+
+  [sources.otlp.use_otlp_decoding]
+  logs = true
+  traces = true
+
+  [sources.otlp.grpc]
+  address = "0.0.0.0:4317"
+
+  [sources.otlp.http]
+  address = "0.0.0.0:4318"
+
+# ── Self-monitoring ────────────────────────────────────────────────
+[sources.internal_metrics]
+type = "internal_metrics"
+scrape_interval_secs = 30
+
+# ── Metrics transform: extract counters + gauges from fuwa events ──
+[transforms.fuwa_request_metrics]
+type = "log_to_metric"
+inputs = ["fuwa_http"]
+
+  [[transforms.fuwa_request_metrics.metrics]]
+  type = "counter"
+  field = "request_total"
+  name = "http_requests_total"
+  increment_by_value = true
+
+  [[transforms.fuwa_request_metrics.metrics]]
+  type = "counter"
+  field = "error_total"
+  name = "http_request_errors_total"
+  increment_by_value = true
+
+  [[transforms.fuwa_request_metrics.metrics]]
+  type = "gauge"
+  field = "duration_ms"
+  name = "http_request_duration_ms"
+
+# ── Sink: metrics → VictoriaMetrics ────────────────────────────────
+[sinks.metrics_victoriametrics]
+type = "prometheus_remote_write"
+inputs = ["fuwa_request_metrics", "internal_metrics"]
+endpoint = "http://victoriametrics:8428/api/v1/write"
+compression = "snappy"
+default_namespace = "fuwa"
+
+  [sinks.metrics_victoriametrics.healthcheck]
+  enabled = false
+
+# ── Sink: traces → SigNoz ingester ─────────────────────────────────
+[sinks.signoz]
+type = "opentelemetry"
+inputs = ["otlp.traces"]
+
+  [sinks.signoz.protocol]
+  type = "http"
+  uri = "http://signoz-ingester:4318/v1/traces"
+
+    [sinks.signoz.protocol.encoding]
+    codec = "otlp"
+
+# ── Sink: logs → SigNoz ingester ───────────────────────────────────
+[sinks.signoz_logs]
+type = "opentelemetry"
+inputs = ["otlp.logs"]
+
+  [sinks.signoz_logs.protocol]
+  type = "http"
+  uri = "http://signoz-ingester:4318/v1/logs"
+
+    [sinks.signoz_logs.protocol.encoding]
+    codec = "otlp"

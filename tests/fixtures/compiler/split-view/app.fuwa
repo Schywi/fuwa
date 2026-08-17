@@ -1,0 +1,9 @@
+module App
+
+import
+  Home "pages/home"
+end
+
+routes do
+  GET "/" Home.index
+end

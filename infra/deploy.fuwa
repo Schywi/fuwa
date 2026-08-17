@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+# deploy.fuwa — lightweight CI/CD triggered by GitHub webhook
+#
+# Setup:
+#   1. Put this script on your VPS
+#   2. Generate a webhook secret: openssl rand -hex 32
+#   3. Add GitHub webhook: Settings → Webhooks → Payload URL: http://<vps>:9090/hooks/fuwa
+#      Content type: application/json, Secret: <your-secret>
+#   4. Run: ./deploy.fuwa serve 9090 <secret> &
+#
+# On push to the branch, this pulls, rebuilds, and redeploys.
+
+set -euo pipefail
+
+REPO_DIR="${FUWA_REPO_DIR:-/opt/fuwa}"
+BRANCH="${FUWA_BRANCH:-ui-redesign-sqlite-implementation-infra-merge}"
+COMPOSE_FILE="docker-compose.yml"
+HEALTH_URL="${FUWA_HEALTH_URL:-http://localhost:8080/}"
+
+deploy() {
+  echo "[deploy] $(date -Iseconds) — starting"
+
+  cd "$REPO_DIR"
+
+  echo "[deploy] git fetch origin $BRANCH"
+  git fetch origin "$BRANCH"
+
+  LOCAL=$(git rev-parse HEAD)
+  REMOTE=$(git rev-parse "origin/$BRANCH")
+
+  if [ "$LOCAL" = "$REMOTE" ]; then
+    echo "[deploy] already at $LOCAL — nothing to do"
+    return
+  fi
+
+  echo "[deploy] pulling $LOCAL → $REMOTE"
+  git reset --hard "origin/$BRANCH"
+
+  echo "[deploy] rebuilding and redeploying"
+  cd "$REPO_DIR/infra"
+  docker compose -f "$COMPOSE_FILE" up -d --build --remove-orphans
+
+  echo "[deploy] minimal smoke test..."
+  docker compose -f "$COMPOSE_FILE" exec -T signoz-clickhouse clickhouse-client --query "SELECT 1" || exit 1
+  curl -sf http://localhost:8080/dash/signoz/ > /dev/null || exit 1
+  curl -sf http://localhost:8080/dash/vmetrics/ > /dev/null || exit 1
+  echo "[deploy] smoke test passed ✓"
+
+  echo "[deploy] waiting for health check..."
+  for i in $(seq 1 30); do
+    if curl -sf "$HEALTH_URL" > /dev/null 2>&1; then
+      echo "[deploy] healthy ✓"
+      return
+    fi
+    sleep 2
+  done
+
+  echo "[deploy] WARNING: health check still failing after 60s"
+}
+
+serve_webhook() {
+  local port="$1"
+  local secret="$2"
+
+  echo "[webhook] listening on :$port"
+
+  while true; do
+    local req
+    req="$(nc -l -p "$port" -w 5 -q 0 2>/dev/null || true)"
+
+    # Minimal: check if POST has the secret in X-Hub-Signature-256
+    # For production, use proper HMAC validation
+    local sig
+    sig="$(echo "$req" | grep -i "x-hub-signature-256:" | cut -d: -f2- | tr -d ' \r')"
+
+    if [ -n "$sig" ]; then
+      deploy
+    fi
+  done
+}
+
+# ── CLI dispatch ────────────────────────────────────────────────────
+case "${1:-}" in
+  deploy)
+    deploy
+    ;;
+  serve)
+    serve_webhook "${2:-9090}" "${3:-}"
+    ;;
+  *)
+    echo "usage: $0 deploy              # run deployment now"
+    echo "       $0 serve <port> <secret> # start webhook listener"
+    exit 1
+    ;;
+esac

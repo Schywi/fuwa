@@ -1,0 +1,50 @@
+#cloud-config
+# Fuwa bootstrap -- minimal cloud-init.
+# Ansible handles everything else after first boot.
+
+package_update: true
+package_upgrade: false
+
+packages:
+  - curl
+  - wget
+  - git
+  - ufw
+  - ca-certificates
+  - gnupg
+
+write_files:
+  - path: /etc/docker/daemon.json
+    content: |
+      {
+        "log-driver": "json-file",
+        "log-opts": {
+          "max-size": "10m",
+          "max-file": "3"
+        }
+      }
+
+runcmd:
+  # Install Docker via official script (idempotent)
+  - curl -fsSL https://get.docker.com | sh
+  - apt-get update
+  - apt-get install -y docker-compose-plugin
+  - systemctl enable docker --now
+  - systemctl restart docker
+
+  # Set hostname
+  - hostnamectl set-hostname ${domain}
+
+  # Configure firewall
+  - ufw allow ssh
+  - ufw allow http
+  - ufw allow https
+  - ufw allow 8080/tcp
+  - ufw --force enable
+
+  # Clone repo (Ansible will handle branch checkout and deploy)
+  - git clone -b ${fuwa_branch} https://github.com/Schywi/fuwa.git /opt/fuwa
+
+power_state:
+  mode: reboot
+  timeout: 120

@@ -1,0 +1,5 @@
+module Home
+
+action index(req) do
+  render "home/index", title: "hello"
+end

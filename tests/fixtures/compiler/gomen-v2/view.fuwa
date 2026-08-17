@@ -1,0 +1,100 @@
+<main class="phone-screen" data-phone-title="Gomen v2">
+  <div
+    id="gomen"
+    v-scope="GomenV2.createScope()"
+    v-cloak
+    data-sound="&sound_enabled"
+    data-plays="&plays"
+    data-best="&best_score"
+  >
+    <div class="gv-screen gv-trigger" data-ref="screen-trigger" v-show="screen === 'trigger'">
+      <div class="t-face">( ˘ᴗ˘ )♡</div>
+      <div class="t-title">Mama-san's Errand</div>
+      <div class="t-sub">She gave you ¥1,000 for groceries.<br>You... got distracted by cute things.</div>
+
+      <div class="t-cart">
+        <div class="t-cart-h">🧺 Your Basket</div>
+        <div class="t-row" v-for="item in basketItems" :key="item.name">
+          <span>{{ item.icon }}</span>
+          <span class="t-name">{{ item.name }}</span>
+          <span class="t-price">{{ item.price }}</span>
+        </div>
+        <div class="t-total"><span class="t-tot-l">Total</span><span class="t-tot-v">¥3,510 💀</span></div>
+      </div>
+
+      <div class="t-sub">♡ {{ plays }} apologies won · best resolve {{ best }}%</div>
+
+      <div class="gv-controls">
+        <button type="button" class="gv-go-btn" @click="start()">⚡ Face Mama-san ⚡</button>
+        <button type="button" class="gv-sound" @click="toggleSound()">{{ soundEnabled ? '🔔' : '🔕' }}</button>
+      </div>
+    </div>
+
+    <div class="gv-screen gv-scene" data-ref="screen-scene" v-show="screen !== 'trigger'">
+      <div class="gv-sbg" data-ref="scene-bg"></div>
+      <div class="gv-slines" data-ref="scene-lines"></div>
+      <div class="gv-glow" data-ref="glow"></div>
+
+      <div class="mama-zone">
+        <div class="resist-wrap">
+          <div class="resist-labels">
+            <span class="resist-l" data-ref="resist-label">💢 Mama's Fury</span>
+            <span class="resist-v" data-ref="resist-value">100%</span>
+          </div>
+          <div class="resist-track" data-ref="resist-track"><div class="resist-fill" data-ref="resist-fill"></div></div>
+        </div>
+
+        <div class="mama-portrait">
+          <div class="mama-face" data-ref="mama-face">( ◣_◢ )💢</div>
+          <div class="anger" data-ref="anger" style="top:-2px;right:-12px;transform:rotate(12deg)">💢</div>
+          <div class="anger" data-ref="anger" style="top:14px;left:-14px;transform:rotate(-10deg)">💢</div>
+          <div class="anger" data-ref="anger" style="bottom:4px;right:-10px;transform:rotate(20deg)">💢</div>
+        </div>
+        <div class="mama-name" data-ref="mama-name">ママさん</div>
+
+        <div class="mama-bub" data-ref="mama-bubble">
+          <div class="mb-jp" data-ref="bubble-japanese">もう！知らない！</div>
+          <div class="mb-rm" data-ref="bubble-romaji">mou! shiranai!</div>
+          <div class="mb-en" data-ref="bubble-english">Hmph! I don't care!</div>
+        </div>
+      </div>
+
+      <div class="zone-div" data-ref="zone-divider"></div>
+
+      <div class="player-zone" data-ref="hold-zone">
+        <div class="cute-wrap">
+          <div class="cute-labels">
+            <span class="cute-l" data-ref="cute-label">⚡ Resolve</span>
+            <span class="cute-v" data-ref="cute-value">0%</span>
+          </div>
+          <div class="cute-track" data-ref="cute-track"><div class="cute-fill" data-ref="cute-fill"></div></div>
+        </div>
+
+        <div class="player-char" data-ref="player-char">
+          <div class="shy-face" data-ref="shy-face">(´,,•ω•,,)</div>
+          <div class="fingers">
+            <span class="finger-l" data-ref="finger-left">👉</span>
+            <div class="contact-pt" data-ref="contact-point"></div>
+            <span class="finger-r" data-ref="finger-right">👈</span>
+          </div>
+        </div>
+
+        <div class="tap-hint gv-pulse" data-ref="hint">♡ 長押しして謝る ♡<br>Press and hold to apologize</div>
+      </div>
+
+      <div class="gv-screen gv-forgive" data-ref="screen-forgive" v-show="screen === 'forgive'">
+        <div class="fg-mama" data-ref="forgive-mama">(｡♥‿♥｡)♡</div>
+        <div class="fg-you" data-ref="forgive-you">( ˶ˆ꒳ˆ˵ )♡</div>
+        <div class="fg-card" data-ref="forgive-card">
+          <div class="fg-stamp">♡ 許された！♡</div>
+          <div class="fg-jp">…もう、しょうがないわね♡</div>
+          <div class="fg-rm">...mou, shouganai wa ne♡</div>
+          <div class="fg-en">...fine, can't be helped♡</div>
+        </div>
+        <button type="button" class="fg-btn" data-ref="forgive-button" @click="again()">やった！(Yatta!)</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="__BROWSER_JS__"></script>
+</main>

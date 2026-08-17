@@ -1,0 +1,8 @@
+module State
+
+schema "gomen_v2_state" do
+  field key: string required unique
+  field sound_enabled: boolean default true
+  field plays: integer default 0
+  field best_score: integer default 0
+end

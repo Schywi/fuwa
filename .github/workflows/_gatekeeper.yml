@@ -1,0 +1,42 @@
+name: _gatekeeper
+
+# Reusable workflow — fast, cheap security + hygiene checks.
+# Called by the orchestrator (ci.yml) as the first gate.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  gatekeeper:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # full history so the secret scan sees every commit
+
+      - name: Scan for committed secrets (gitleaks)
+        run: |
+          VERSION=8.18.4
+          curl -sSL "https://github.com/gitleaks/gitleaks/releases/download/v${VERSION}/gitleaks_${VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          ./gitleaks detect --source . --redact --exit-code 1
+
+      - name: Reject merge-conflict markers
+        run: |
+          if git grep -nE '^(<<<<<<<|=======|>>>>>>>)' -- . ':!.github/workflows/_gatekeeper.yml'; then
+            echo "::error::merge-conflict markers found"; exit 1
+          fi
+
+      - name: Validate whitespace / diff formatting
+        run: |
+          if git rev-parse HEAD~1 >/dev/null 2>&1; then
+            git diff --check HEAD~1 HEAD
+          else
+            git diff --check
+          fi
+
+      - name: Lint Markdown
+        run: npx --yes markdownlint-cli@0.39.0 README.md docs/**/*.md

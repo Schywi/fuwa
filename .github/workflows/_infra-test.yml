@@ -1,0 +1,110 @@
+name: _infra-test
+
+# Reusable workflow — full infrastructure gate.
+# Provisions an ephemeral DO droplet, bootstraps with Ansible, validates
+# with Terratest, and ALWAYS destroys. Called by the orchestrator (ci.yml)
+# after _docker-test passes.
+#
+# Order:
+#   1. tfsec (security)
+#   2. terraform init → validate → apply (droplet + DNS)
+#   3. SSH key setup
+#   4. ansible-playbook bootstrap.yml (install Docker, start services)
+#   5. go test (Terratest: DNS, HTTP, droplet health)
+#   6. terraform destroy (ALWAYS, even if tests fail)
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+env:
+  TF_VAR_do_token: ${{ secrets.DIGITALOCEAN_TOKEN }}
+  TF_VAR_cf_api_token: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+  TF_VAR_cf_zone_id: ${{ secrets.TF_VAR_cf_zone_id }}
+  TF_VAR_domain: ${{ secrets.TF_VAR_domain }}
+  TF_VAR_subdomain: ci-test
+  TF_VAR_fuwa_branch: ${{ github.ref_name }}
+  FUWA_HOST: "" # filled by terraform output step below
+
+jobs:
+  infra:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: infra/terraform
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # ── Security: static analysis on Terraform ──────────────────
+      - name: tfsec
+        uses: aquasecurity/tfsec-action@v1
+        with:
+          working_directory: infra/terraform
+
+      # ── Terraform init + validate ──────────────────────────────
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: "1.9"
+
+      - name: Terraform init
+        run: terraform init
+
+      - name: Terraform validate
+        run: terraform validate
+
+      # ── Terraform apply (provision droplet + DNS) ──────────────
+      - name: Terraform apply
+        run: terraform apply -auto-approve
+
+      - name: Export droplet IP
+        id: ip
+        run: echo "FUWA_HOST=$(terraform output -raw droplet_ip)" >> $GITHUB_ENV
+
+      # ── SSH key setup for Ansible ─────────────────────────────
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H $FUWA_HOST >> ~/.ssh/known_hosts
+
+      # ── Ansible ───────────────────────────────────────────────
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Run bootstrap
+        working-directory: infra/ansible
+        env:
+          FUWA_DOMAIN: ${{ secrets.TF_VAR_domain }}
+          FUWA_EMAIL: ${{ secrets.TF_VAR_fuwa_email }}
+        run: |
+          # Write inline inventory with the ephemeral droplet IP
+          cat > /tmp/inventory.yml << INVEOF
+          all:
+            hosts:
+              fuwa:
+                ansible_host: $FUWA_HOST
+                ansible_user: root
+          INVEOF
+          ansible-playbook -i /tmp/inventory.yml playbooks/bootstrap.yml
+
+      # ── Terratest ──────────────────────────────────────────────
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.23"
+
+      - name: Run Terratest
+        working-directory: infra/terraform/tests
+        env:
+          FUWA_HOST: ${{ env.FUWA_HOST }}
+        run: |
+          go mod tidy
+          go test -v -timeout 15m -count=1 ./...
+
+      # ── Destroy (always, even if tests fail) ───────────────────
+      - name: Terraform destroy
+        if: always()
+        run: terraform destroy -auto-approve

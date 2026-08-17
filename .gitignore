@@ -1,2 +1,49 @@
 # Local refactoring notes that should stay out of the public repo
-docs/refactoring/htmx-rewrite-notes.local.md
+docs/refactoring/*
+!docs/refactoring/ide-port-one-shot/
+!docs/refactoring/ide-port-one-shot/**
+!docs/refactoring/ide-port-skeptical-review/
+!docs/refactoring/ide-port-skeptical-review/**
+!docs/refactoring/editor-live-update-loop/
+!docs/refactoring/editor-live-update-loop/**
+.fuwa-dev/
+.env
+.agent
+docs/
+# Blog field notes and content drafts — local only, never committed
+docs/blog/
+docs/content/
+AGENTS.md
+.beads
+CLAUDE.md
+.git
+.agents
+# Dolt database files (added by bd init)
+.dolt/
+*.db
+
+# Git worktrees
+.worktrees/
+
+# Python cache
+__pycache__/
+
+# Terraform local state
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
+infra/terraform/terraform.tfstate
+infra/terraform/terraform.tfstate.backup
+infra/terraform/terraform.tfvars
+
+# Commit helper script (local use only)
+infra/commit.sh
+
+# Agent-generated analysis docs (read-only analyst output)
+infra/docs/
+
+# Local-only agent/tooling state (purged from git history)
+.agent/rules/
+.beads/
+.reasonix/
+commit_message.txt
+PURGE_GIT_HISTORY.md

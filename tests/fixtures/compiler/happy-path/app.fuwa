@@ -1,0 +1,10 @@
+module App
+
+import
+  Home "pages/home"
+end
+
+routes do
+  GET "/" Home.index
+  GET "/bounce" Home.bounce
+end

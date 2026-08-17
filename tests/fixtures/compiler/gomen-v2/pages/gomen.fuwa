@@ -1,0 +1,16 @@
+module Gomen
+
+import
+  State "models/state"
+end
+
+-- Real DB read on initial render. The singleton row (key = "main") holds the
+-- player's persisted preferences/stats; if it is missing we create it once.
+-- Gameplay itself stays client-side (see hooks/*.js, generated into browser.js)
+-- — this action only bootstraps the page with model-backed initial state.
+action index(req) do
+  row = State.find_by({ key = "main" })
+  row = row or State.create({ key = "main", sound_enabled = true, plays = 0, best_score = 0 })?
+
+  render "gomen", sound_enabled: row.sound_enabled, plays: row.plays, best_score: row.best_score
+end

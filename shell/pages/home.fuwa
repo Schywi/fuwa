@@ -1,0 +1,25 @@
+module Home
+
+use host
+
+import
+  Dashboard "runtime/host/dashboard"
+  ShellViews "runtime/host/shell_views"
+end
+
+action index(req) do
+  dashboard = Dashboard.build(host, "fuwa-gomen", req.query.file)
+  render "home", doctype: "<!DOCTYPE html>", title: dashboard.title, dashboard: dashboard
+end
+
+action inspect(req) do
+  dashboard = Dashboard.build(host, req.params.payload_id, req.query.file)
+  workspace = ShellViews.render_fragment("workspace", { dashboard = dashboard })
+  oob = ShellViews.render_fragment("workspace-oob", { dashboard = dashboard })
+  return workspace .. oob
+end
+
+action switch(req) do
+  dashboard = Dashboard.build(host, req.params.payload_id)
+  return ShellViews.render_fragment("home", { dashboard = dashboard })
+end

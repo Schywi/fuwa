@@ -1,0 +1,30 @@
+---
+# playbooks/deploy.yml — pull + rebuild + redeploy (what the cron runs)
+#
+# Usage (manual):
+#   ansible-playbook -i ../inventory.yml playbooks/deploy.yml
+
+- name: Deploy latest fuwa
+  hosts: fuwa
+  become: yes
+
+  tasks:
+    - name: Pull latest code
+      ansible.builtin.git:
+        repo: https://github.com/Schywi/fuwa.git
+        dest: /opt/fuwa
+        version: "{{ fuwa_branch | default('ui-redesign-sqlite-implementation-infra-merge') }}"
+        force: yes
+
+    - name: Rebuild and redeploy
+      ansible.builtin.shell: |
+        cd /opt/fuwa/infra
+        docker compose up -d --build --remove-orphans
+      environment:
+        PORT: "8080"
+
+    - name: Reload nginx if certs changed
+      ansible.builtin.shell: |
+        cd /opt/fuwa/infra
+        docker compose exec -T openresty nginx -s reload 2>/dev/null || true
+      changed_when: false

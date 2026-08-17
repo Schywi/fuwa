@@ -1,0 +1,5 @@
+name: docker-compose
+
+include:
+  - docker-compose/app.dev.yml
+  - docker-compose/dev.yml

@@ -1,0 +1,8 @@
+{
+  "title": "Fuwa Errors",
+  "description": "HTTP errors by route and service over time",
+  "spec": {
+    "panels": []
+  },
+  "tags": ["fuwa", "errors"]
+}

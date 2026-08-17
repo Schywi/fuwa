@@ -1,0 +1,7 @@
+module Wallet
+
+schema "gomen_wallet" do
+  field key: string required unique
+  field balance: integer default 1000
+  field spent: integer default 0
+end

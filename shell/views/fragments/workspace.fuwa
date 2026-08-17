@@ -1,0 +1,74 @@
+<section
+  id="ide-workspace"
+  class="ide-island ide-workspace"
+  data-workspace
+  data-payload-id="&dashboard.active.id"
+  data-selected-file="&dashboard.active.selected_file"
+>
+  <header class="code-shell-header" data-popover-scope>
+    <button
+      type="button"
+      class="shell-command-trigger"
+      data-popover-toggle="files"
+      :data-open="open_popover === 'files' ? 'true' : null"
+      :aria-expanded="open_popover === 'files' ? 'true' : 'false'"
+      @click.stop="togglePopover('files', $event)"
+      aria-label="Open file launcher"
+      aria-haspopup="true"
+    >
+      <iconify-icon class="shell-icon" icon="lucide:search"></iconify-icon>
+      <span class="shell-command-trigger-label">Open file…</span>
+      <span class="shell-command-trigger-kbd">⌘K</span>
+    </button>
+
+    <nav class="breadcrumb-nav" aria-label="Workspace context">
+      <span f-for="segment in dashboard.breadcrumb" class="breadcrumb-segment" data-active="&segment.active">&segment.label</span>
+    </nav>
+    <div class="popover-v2 command-popover" data-popover="files" v-show="open_popover === 'files'" v-cloak @click.stop>
+      <div class="popover-header">
+        <span class="label">Search files</span>
+        <span class="count">⌘K</span>
+      </div>
+      <div class="search-input-wrap search-input-wrap--command">
+        <iconify-icon class="shell-icon shell-icon--sm" icon="lucide:search"></iconify-icon>
+        <input type="text" data-popover-search placeholder="Jump to file…" aria-label="Filter files" />
+      </div>
+      <div class="popover-list" role="listbox">
+        <div
+          f-for="file in dashboard.active.files"
+          f-if="file.is_folder_header"
+          class="popover-folder-header"
+          style="padding-left: calc(10px + &file.indent_level * 14px)"
+          data-folder-header
+        >
+          <span class="popover-folder-header-label">&file.label</span>
+        </div>
+        <button
+          f-for="file in dashboard.active.files"
+          f-if="not file.is_folder_header"
+          type="button"
+          class="popover-row-command"
+          data-selected="&file.selected"
+          data-file-path="&file.path"
+          style="padding-left: calc(10px + &file.indent_level * 14px)"
+          @click="closePopover()"
+          hx-get="&file.inspect_url"
+          hx-target="#ide-workspace"
+          hx-swap="outerHTML"
+        >
+          <span class="popover-row-command-main">
+            <span class="popover-row-command-title">&file.name</span>
+          </span>
+          <span class="popover-row-command-kind">&file.kind_label</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+    <form id="ide-editor-form" class="ide-editor">
+      <input type="hidden" name="path" value="&dashboard.active.selected_file" />
+      <input type="hidden" data-editor-source name="contents" value="&dashboard.active.selected_file_source" />
+
+      <div class="shell-widget-shell" data-editor-root data-file-path="&dashboard.active.selected_file" aria-label="CodeMirror editor"></div>
+    </form>
+</section>

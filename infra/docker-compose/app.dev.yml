@@ -1,0 +1,29 @@
+services:
+  openresty:
+    build:
+      context: ../..
+      dockerfile: infra/Dockerfile.openresty
+    ports:
+      - "80:${PORT:-8080}"
+      - "443:443"
+      - "${PORT:-8080}:${PORT:-8080}"
+    volumes:
+      - ../..:/app
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${FUWA_CERTS_DIR:-/etc/fuwa/certs}:/etc/fuwa/certs
+      - ${FUWA_ACME_DIR:-/var/www/acme}:/var/www/acme
+    environment:
+      FUWA_DB_PATH: /app/.fuwa-dev/sqlite-local.db
+      FUWA_SIGNOZ_OTLP_URL: http://vector-router:4318/v1/traces
+      FUWA_VECTOR_URL: http://vector-router:8687/
+      FUWA_DOMAIN: ${FUWA_DOMAIN:-localhost}
+      FUWA_SSL: ${FUWA_SSL:-false}
+      PORT: ${PORT:-8080}
+    working_dir: /app
+    healthcheck:
+      test: ["CMD", "wget", "--spider", "-q", "http://localhost:${PORT:-8080}/"]
+      interval: 5s
+      retries: 6
+      start_period: 5s
+      timeout: 3s
+    restart: unless-stopped

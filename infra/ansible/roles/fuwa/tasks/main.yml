@@ -1,0 +1,69 @@
+---
+# role: fuwa — clone, configure, deploy, cron
+
+- name: Clone fuwa repo
+  ansible.builtin.git:
+    repo: https://github.com/Schywi/fuwa.git
+    dest: /opt/fuwa
+    version: "{{ fuwa_branch }}"
+    force: yes
+    update: yes
+
+- name: Create env file
+  ansible.builtin.copy:
+    dest: /opt/fuwa/.env
+    content: |
+      PORT=8080
+
+- name: Start services
+  ansible.builtin.shell: |
+    cd /opt/fuwa/infra
+    docker compose up -d --build --remove-orphans
+  environment:
+    PORT: "8080"
+  async: 600
+  poll: 0
+
+- name: Wait for OpenResty (TLS)
+  ansible.builtin.shell: |
+    curl -sf http://localhost:8080/ > /dev/null 2>&1
+  register: openresty_ready
+  retries: 15
+  delay: 2
+  until: openresty_ready is success
+  changed_when: false
+
+- name: Obtain TLS certificate
+  ansible.builtin.shell: |
+    cd /opt/fuwa
+    FUWA_DOMAIN="{{ fuwa_domain }}" FUWA_EMAIL="{{ fuwa_email }}" infra/certs.fuwa obtain
+  ignore_errors: yes
+
+- name: Wait for full stack health
+  ansible.builtin.shell: |
+    docker ps --filter name=signoz --filter status=running --format '{{ "{{.Names}}" }}' | grep -q signoz && \
+    docker ps --filter name=signoz-clickhouse --filter health=healthy --format '{{ "{{.Names}}" }}' | grep -q clickhouse
+  register: full_stack
+  retries: 30
+  delay: 10
+  until: full_stack is success
+  changed_when: false
+
+- name: Obtain TLS certificate
+  ansible.builtin.shell: |
+    cd /opt/fuwa
+    FUWA_DOMAIN="{{ fuwa_domain }}" FUWA_EMAIL="{{ fuwa_email }}" infra/certs.fuwa obtain
+  ignore_errors: yes
+
+- name: Setup deploy cron (every 5 min)
+  ansible.builtin.cron:
+    name: "fuwa-deploy"
+    minute: "*/5"
+    job: "cd /opt/fuwa && infra/deploy.fuwa deploy >> /var/log/fuwa-deploy.log 2>&1"
+
+- name: Setup cert renewal cron (daily at 3am)
+  ansible.builtin.cron:
+    name: "fuwa-certs"
+    minute: "0"
+    hour: "3"
+    job: "cd /opt/fuwa && FUWA_DOMAIN='{{ fuwa_domain }}' FUWA_EMAIL='{{ fuwa_email }}' infra/certs.fuwa renew >> /var/log/fuwa-certs.log 2>&1"

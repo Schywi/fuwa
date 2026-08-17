@@ -1,0 +1,8 @@
+{
+  "title": "Fuwa Overview",
+  "description": "Request count, error rate, and status breakdown across all services",
+  "spec": {
+    "panels": []
+  },
+  "tags": ["fuwa", "overview"]
+}

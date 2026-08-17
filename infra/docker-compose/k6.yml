@@ -1,0 +1,85 @@
+services:
+  # ── k6 stress testing ────────────────────────────────────────────────
+  # Scenarios: ramp, spike, soak, edges
+  # Script: infra/k6/fuwa-stress.js
+  # Tag: all requests carry ?_src=k6_{scenario} for filtering in Signoz
+
+  k6-ramp:
+    profiles: [loadtest]
+    image: grafana/k6:latest
+    command:
+      - run
+      - --env
+      - SCENARIO=ramp
+      - --env
+      - BASE_URL=http://openresty:${PORT:-8080}
+      - /scripts/fuwa-stress.js
+    volumes:
+      - ../../infra/k6:/scripts:ro
+    depends_on:
+      openresty:
+        condition: service_healthy
+
+  k6-spike:
+    profiles: [loadtest]
+    image: grafana/k6:latest
+    command:
+      - run
+      - --env
+      - SCENARIO=spike
+      - --env
+      - BASE_URL=http://openresty:${PORT:-8080}
+      - /scripts/fuwa-stress.js
+    volumes:
+      - ../../infra/k6:/scripts:ro
+    depends_on:
+      openresty:
+        condition: service_healthy
+
+  k6-soak:
+    profiles: [loadtest]
+    image: grafana/k6:latest
+    command:
+      - run
+      - --env
+      - SCENARIO=soak
+      - --env
+      - BASE_URL=http://openresty:${PORT:-8080}
+      - /scripts/fuwa-stress.js
+    volumes:
+      - ../../infra/k6:/scripts:ro
+    depends_on:
+      openresty:
+        condition: service_healthy
+
+  k6-edges:
+    profiles: [loadtest]
+    image: grafana/k6:latest
+    command:
+      - run
+      - --env
+      - SCENARIO=edges
+      - --env
+      - BASE_URL=http://openresty:${PORT:-8080}
+      - /scripts/fuwa-stress.js
+    volumes:
+      - ../../infra/k6:/scripts:ro
+    depends_on:
+      openresty:
+        condition: service_healthy
+
+  k6-stress:
+    profiles: [loadtest]
+    image: grafana/k6:latest
+    command:
+      - run
+      - --env
+      - SCENARIO=stress
+      - --env
+      - BASE_URL=http://openresty:${PORT:-8080}
+      - /scripts/fuwa-stress.js
+    volumes:
+      - ../../infra/k6:/scripts:ro
+    depends_on:
+      openresty:
+        condition: service_healthy

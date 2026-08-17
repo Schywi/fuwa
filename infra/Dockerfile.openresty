@@ -1,0 +1,14 @@
+FROM openresty/openresty:latest
+
+# Python 3 needed by sqlite_local DB provider (io.popen("python3 runtime/sqlite_local.py"))
+RUN apt-get update && apt-get install -y --no-install-recommends python3 docker.io wget && \
+    rm -rf /var/lib/apt/lists/*
+
+# nginx.conf is copied at build time; code is volume-mounted
+COPY nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
+
+WORKDIR /app
+
+EXPOSE 8080
+
+CMD ["/bin/sh", "-c", "sed \"s/\\${PORT}/$PORT/g; s/\\${LUA_CODE_CACHE}/${LUA_CODE_CACHE:-on}/g\" /app/nginx.conf > /usr/local/openresty/nginx/conf/nginx.conf && if [ \"${FUWA_SSL:-false}\" != \"true\" ]; then sed -i '/# --ssl-start/,/# --ssl-end/d' /usr/local/openresty/nginx/conf/nginx.conf; fi && exec /usr/local/openresty/bin/openresty -g 'daemon off;'"]

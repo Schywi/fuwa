@@ -1,0 +1,22 @@
+---
+# role: firewall — ufw rules for production
+
+- name: Allow SSH
+  ansible.builtin.command: ufw limit 22/tcp
+  changed_when: false
+
+- name: Allow HTTP
+  ansible.builtin.command: ufw allow 80/tcp
+  changed_when: false
+
+- name: Allow HTTPS
+  ansible.builtin.command: ufw allow 443/tcp
+  changed_when: false
+
+- name: Allow OpenResty app port
+  ansible.builtin.command: ufw allow 8080/tcp
+  changed_when: false
+
+- name: Enable ufw
+  ansible.builtin.command: ufw --force enable
+  changed_when: false

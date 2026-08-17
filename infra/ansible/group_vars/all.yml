@@ -1,0 +1,5 @@
+---
+# group_vars/all.yml — shared variables for all plays
+fuwa_branch: "ui-redesign-sqlite-implementation-infra-merge"
+fuwa_email: "{{ lookup('env', 'FUWA_EMAIL') | default('admin@fuwa.local', true) }}"
+fuwa_domain: "{{ lookup('env', 'FUWA_DOMAIN') | default('fuwa.local', true) }}"

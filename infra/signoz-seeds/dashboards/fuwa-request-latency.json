@@ -1,0 +1,8 @@
+{
+  "title": "Fuwa Request Latency",
+  "description": "p50/p95/p99 latency by route and service",
+  "spec": {
+    "panels": []
+  },
+  "tags": ["fuwa", "latency"]
+}

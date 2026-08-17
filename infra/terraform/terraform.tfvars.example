@@ -1,0 +1,18 @@
+# Rename this file to terraform.tfvars and fill in your values.
+# Never commit terraform.tfvars — it contains secrets.
+#
+# Alternatively, source .env-example and use environment variables:
+#   source ../.env-example
+#   terraform apply
+
+do_token        = ""
+cf_api_token    = ""
+cf_zone_id      = ""
+domain          = ""
+subdomain       = "fuwa"
+
+# Optional overrides:
+# droplet_region = "nyc3"
+# droplet_size   = "s-2vcpu-4gb"
+# fuwa_branch    = "ui-redesign-sqlite-implementation-infra-merge"
+# fuwa_email     = "you@example.com"

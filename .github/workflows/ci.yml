@@ -1,46 +1,59 @@
-name: CI
+name: CI Pipeline
+
+# Orchestrator — wires reusable workflows into a staged pipeline.
+#
+# Flow:
+#   push to ui-redesign-sqlite-implementation-infra-merge
+#     │
+#     ├── gatekeeper (gitleaks, merge markers, whitespace, markdown lint)
+#     │
+#     ├── ci ─────────────────────┐  (parallel)
+#     │   ├── compile-check       │
+#     │   ├── lint                │
+#     │   ├── unit                │
+#     │   └── integration         │
+#     │                          │
+#     └── docker ─────────────────┘
+#         ├── build image
+#         ├── boot container
+#         └── health smoke
+#               │
+#               └── infra (only if docker passes)
+#                   ├── tfsec
+#                   ├── terraform apply
+#                   ├── ansible bootstrap
+#                   ├── terratest
+#                   └── terraform destroy (always)
 
 on:
   push:
-    branches:
-      - main
+    branches: [ui-redesign-sqlite-implementation-infra-merge]
   pull_request:
+    branches: [ui-redesign-sqlite-implementation-infra-merge]
+
+concurrency:
+  group: pipeline-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
-concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 jobs:
-  docs-and-tests:
-    runs-on: ubuntu-latest
+  # ── STAGE 0 · GATEKEEPER ──────────────────────────────────────────
+  gatekeeper:
+    uses: ./.github/workflows/_gatekeeper.yml
 
-    steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+  # ── STAGE 1 · CI + DOCKER (parallel) ──────────────────────────────
+  ci:
+    needs: gatekeeper
+    uses: ./.github/workflows/_ci.yml
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
+  docker:
+    needs: gatekeeper
+    uses: ./.github/workflows/_docker-test.yml
 
-      - name: Lint Markdown
-        run: npx --yes markdownlint-cli@0.39.0 README.md docs/**/*.md
-
-      - name: Run npm tests when a package manifest exists
-        run: |
-          if [ -f package.json ]; then
-            if [ -f package-lock.json ]; then
-              npm ci
-            else
-              npm install
-            fi
-            npm test
-          else
-            echo "No package.json found yet; skipping npm-based tests."
-          fi
-
-      - name: Validate diff formatting
-        run: git diff --check
+  # ── STAGE 2 · INFRA GATE (only if docker passes) ──────────────────
+  infra:
+    needs: docker
+    uses: ./.github/workflows/_infra-test.yml
+    secrets: inherit

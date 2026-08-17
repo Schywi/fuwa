@@ -1,0 +1,311 @@
+---
+# playbooks/verify.yml — post-deploy health verification
+#
+# 4-phase health check. Runs after bootstrap. Idempotent. Fails loudly.
+#
+# Phase 1: DNS propagation
+# Phase 2: Container health
+# Phase 3: HTTP endpoints
+# Phase 4: End-to-end observability (loadtest-driven)
+#
+# Usage:
+#   export FUWA_HOST=<droplet-ip> FUWA_DOMAIN=fuwa.example.com
+#   ansible-playbook -i ../inventory.yml playbooks/verify.yml
+
+- name: Verify fuwa deployment
+  hosts: fuwa
+  become: yes
+  vars:
+    fuwa_domain: "{{ lookup('env', 'FUWA_DOMAIN') }}"
+    droplet_ip: "{{ ansible_host }}"
+    compose_dir: /opt/fuwa/infra
+
+  tasks:
+    # ═══════════════════════════════════════════════════════════════════
+    # Phase 1: DNS propagation
+    # ═══════════════════════════════════════════════════════════════════
+    - name: "Phase 1 — DNS A record resolves to droplet IP"
+      ansible.builtin.shell: |
+        set -o pipefail
+        resolved=$(dig +short "fuwa.{{ fuwa_domain }}" A | tail -1)
+        if [ "$resolved" != "{{ droplet_ip }}" ]; then
+          echo "FAIL: expected {{ droplet_ip }}, got $resolved"
+          exit 1
+        fi
+      register: dns_a
+      retries: 12
+      delay: 10
+      until: dns_a is success
+      changed_when: false
+      tags: [phase1, dns]
+
+    - name: "Phase 1 — DNS wildcard record resolves"
+      ansible.builtin.shell: |
+        set -o pipefail
+        resolved=$(dig +short "test.fuwa.{{ fuwa_domain }}" A | tail -1)
+        if [ "$resolved" != "{{ droplet_ip }}" ]; then
+          echo "FAIL: expected {{ droplet_ip }}, got $resolved"
+          exit 1
+        fi
+      register: dns_wild
+      retries: 12
+      delay: 10
+      until: dns_wild is success
+      changed_when: false
+      tags: [phase1, dns]
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Phase 2: Container health
+    # ═══════════════════════════════════════════════════════════════════
+    - name: "Phase 2 — Docker compose ps"
+      ansible.builtin.shell: |
+        cd {{ compose_dir }}
+        docker compose ps -a --format '{{ "{{.Service}}" }} {{ "{{.State}}" }} {{ "{{.Health}}" }}'
+      register: docker_ps
+      retries: 5
+      delay: 10
+      until: docker_ps is success
+      changed_when: false
+      tags: [phase2, containers]
+
+    - name: "Phase 2 — signoz-clickhouse healthy"
+      ansible.builtin.assert:
+        that: "'signoz-clickhouse' in docker_ps.stdout and 'healthy' in docker_ps.stdout"
+        fail_msg: "signoz-clickhouse is not healthy"
+      tags: [phase2, containers]
+
+    - name: "Phase 2 — signoz-keeper healthy"
+      ansible.builtin.assert:
+        that: "'signoz-keeper' in docker_ps.stdout and 'healthy' in docker_ps.stdout"
+        fail_msg: "signoz-keeper is not healthy"
+      tags: [phase2, containers]
+
+    - name: "Phase 2 — signoz healthy"
+      ansible.builtin.assert:
+        that: "'signoz' in docker_ps.stdout and 'healthy' in docker_ps.stdout"
+        fail_msg: "signoz is not healthy"
+      tags: [phase2, containers]
+
+    - name: "Phase 2 — signoz-ingester running"
+      ansible.builtin.assert:
+        that: "'signoz-ingester' in docker_ps.stdout and 'running' in docker_ps.stdout"
+        fail_msg: "signoz-ingester is not running"
+      tags: [phase2, containers]
+
+    - name: "Phase 2 — victoriametrics running"
+      ansible.builtin.assert:
+        that: "'victoriametrics' in docker_ps.stdout and 'running' in docker_ps.stdout"
+        fail_msg: "victoriametrics is not running"
+      tags: [phase2, containers]
+
+    - name: "Phase 2 — vector-router running"
+      ansible.builtin.assert:
+        that: "'vector-router' in docker_ps.stdout and 'running' in docker_ps.stdout"
+        fail_msg: "vector-router is not running"
+      tags: [phase2, containers]
+
+    - name: "Phase 2 — signoz-migrator exited 0"
+      ansible.builtin.shell: |
+        cd {{ compose_dir }}
+        docker compose ps -a signoz-migrator --format '{{ "{{.ExitCode}}" }}'
+      register: migrator_exit
+      changed_when: false
+      failed_when: migrator_exit.stdout | int != 0
+      tags: [phase2, containers]
+
+    - name: "Phase 2 — signoz-bootstrap exited 0"
+      ansible.builtin.shell: |
+        cd {{ compose_dir }}
+        docker compose ps -a signoz-bootstrap --format '{{ "{{.ExitCode}}" }}'
+      register: bootstrap_exit
+      changed_when: false
+      failed_when: bootstrap_exit.stdout | int != 0
+      tags: [phase2, containers]
+
+    - name: "Phase 2 — ClickHouse memory under 2.1 GB"
+      ansible.builtin.shell: |
+        set -o pipefail
+        docker stats --no-stream --format '{{ "{{.MemUsage}}" }}' \
+          $(docker ps -q -f name=signoz-clickhouse) \
+          | awk -F' / ' '{print $1}' \
+          | sed 's/GiB//'
+      register: ch_mem
+      changed_when: false
+      failed_when: ch_mem.stdout | float > 2.1
+      tags: [phase2, clickhouse]
+
+    - name: "Phase 2 — ClickHouse accepting queries"
+      ansible.builtin.shell: |
+        cd {{ compose_dir }}
+        docker compose exec -T signoz-clickhouse clickhouse-client --query "SELECT 1"
+      register: ch_query
+      changed_when: false
+      failed_when: "'1' not in ch_query.stdout"
+      tags: [phase2, clickhouse]
+
+    - name: "Phase 2 — No MEMORY_LIMIT_EXCEEDED in logs"
+      ansible.builtin.shell: |
+        docker logs signoz-clickhouse --since 5m 2>&1 | grep -c "MEMORY_LIMIT_EXCEEDED" || true
+      register: ch_limit
+      changed_when: false
+      failed_when: ch_limit.stdout | int > 0
+      tags: [phase2, clickhouse]
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Phase 3: HTTP endpoints
+    # ═══════════════════════════════════════════════════════════════════
+    - name: "Phase 3 — Fuwa app returns 200"
+      ansible.builtin.uri:
+        url: "http://localhost:8080/"
+        status_code: 200
+      retries: 10
+      delay: 5
+      tags: [phase3, http]
+
+    - name: "Phase 3 — SigNoz proxy returns 302"
+      ansible.builtin.uri:
+        url: "http://localhost:8080/dash/signoz/"
+        status_code: 302
+        follow_redirects: none
+      retries: 20
+      delay: 5
+      tags: [phase3, http, signoz]
+
+    - name: "Phase 3 — VictoriaMetrics proxy returns 200"
+      ansible.builtin.uri:
+        url: "http://localhost:8080/dash/vmetrics/"
+        status_code: 200
+      tags: [phase3, http]
+
+    - name: "Phase 3 — ClickHouse Play proxy returns 200"
+      ansible.builtin.uri:
+        url: "http://localhost:8080/dash/clickhouse/"
+        status_code: 200
+      tags: [phase3, http]
+
+    - name: "Phase 3 — Vector API proxy returns 200"
+      ansible.builtin.uri:
+        url: "http://localhost:8080/dash/vector/"
+        status_code: 200
+      tags: [phase3, http]
+
+    - name: "Phase 3 — Trace endpoint returns 200"
+      ansible.builtin.uri:
+        url: "http://localhost:8080/__dev/traces"
+        status_code: 200
+      tags: [phase3, http]
+
+    # ═══════════════════════════════════════════════════════════════════
+    # Phase 4: End-to-end observability (loadtest-driven)
+    # ═══════════════════════════════════════════════════════════════════
+
+    # 4a. Record baseline trace count
+    - name: "Phase 4 — Baseline trace count"
+      ansible.builtin.shell: |
+        cd {{ compose_dir }}
+        docker compose exec -T signoz-clickhouse clickhouse-client --query \
+          "SELECT count() FROM signoz_traces.distributed_signoz_index_v2"
+      register: baseline_count
+      changed_when: false
+      tags: [phase4, traces]
+
+    # 4b. Start loadtest generators via profiles
+    - name: "Phase 4 — Start loadtest"
+      ansible.builtin.shell: |
+        cd {{ compose_dir }}
+        docker compose \
+          -f docker-compose.yml \
+          -f docker-compose/load.yml \
+          -f docker-compose/k6.yml \
+          --profile loadtest \
+          up -d k6-edges loadtest-fuwa
+      tags: [phase4, loadtest]
+
+    # 4c. Wait for k6-edges completion (exits after ~2 min)
+    - name: "Phase 4 — Wait for k6-edges"
+      ansible.builtin.shell: |
+        for i in $(seq 1 30); do
+          if docker ps --filter name=k6-edges --filter status=exited --format '{{ "{{.Names}}" }}' | grep -q k6-edges; then
+            echo "k6-edges completed"
+            exit 0
+          fi
+          sleep 5
+        done
+        echo "FAIL: k6-edges did not complete within 150s"
+        exit 1
+      tags: [phase4, loadtest]
+
+    # 4d. Wait for batch processor flush (5s timeout)
+    - name: "Phase 4 — Wait for batch flush"
+      ansible.builtin.pause:
+        seconds: 15
+      tags: [phase4]
+
+    # 4e. Verify trace increase
+    - name: "Phase 4 — Trace count increased"
+      ansible.builtin.shell: |
+        cd {{ compose_dir }}
+        docker compose exec -T signoz-clickhouse clickhouse-client --query \
+          "SELECT count() FROM signoz_traces.distributed_signoz_index_v2"
+      register: final_count
+      changed_when: false
+      failed_when: final_count.stdout | int <= baseline_count.stdout | int
+      tags: [phase4, traces]
+
+    # 4f. Verify k6-specific traces exist
+    - name: "Phase 4 — k6 traces in ClickHouse"
+      ansible.builtin.shell: |
+        cd {{ compose_dir }}
+        docker compose exec -T signoz-clickhouse clickhouse-client --query "
+          SELECT count() FROM signoz_traces.distributed_signoz_index_v2
+          WHERE timestamp > now() - INTERVAL 5 MINUTE
+          AND httpRoute LIKE '%_src=k6%'"
+      register: k6_traces
+      changed_when: false
+      failed_when: k6_traces.stdout | int == 0
+      tags: [phase4, traces]
+
+    # 4g. Verify logs flowing
+    - name: "Phase 4 — Logs in ClickHouse"
+      ansible.builtin.shell: |
+        cd {{ compose_dir }}
+        docker compose exec -T signoz-clickhouse clickhouse-client --query "
+          SELECT count() FROM signoz_logs.logs_v2
+          WHERE timestamp > toUnixTimestamp(now() - INTERVAL 5 MINUTE) * 1000000000"
+      register: log_count
+      changed_when: false
+      failed_when: log_count.stdout | int == 0
+      tags: [phase4, logs]
+
+    # 4h. Signoz dashboards seeded
+    - name: "Phase 4 — Signoz dashboards exist"
+      ansible.builtin.uri:
+        url: "http://localhost:8080/api/v1/dashboards"
+        return_content: yes
+      register: dashboards_resp
+      failed_when: >
+        'Fuwa Overview' not in dashboards_resp.content
+        or 'Fuwa Errors' not in dashboards_resp.content
+        or 'Fuwa Request Latency' not in dashboards_resp.content
+      tags: [phase4, signoz]
+
+    # 4i. Clean up loadtest
+    - name: "Phase 4 — Stop loadtest"
+      ansible.builtin.shell: |
+        cd {{ compose_dir }}
+        docker compose \
+          -f docker-compose.yml \
+          -f docker-compose/load.yml \
+          -f docker-compose/k6.yml \
+          --profile loadtest \
+          down
+      changed_when: false
+      tags: [phase4, loadtest]
+
+    # ── Success marker ────────────────────────────────────────────────
+    - name: "Mark deployment as verified"
+      ansible.builtin.file:
+        path: /var/lib/fuwa/.verified
+        state: touch
+        mode: "0644"
+      tags: [marker]

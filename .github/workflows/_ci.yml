@@ -1,0 +1,55 @@
+name: _ci
+
+# Reusable workflow — Lua compile, lint, unit, integration.
+# Called by the orchestrator (ci.yml) after gatekeeper passes.
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  compile-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Compile-check every Lua file
+        run: make compile-check
+
+  lint:
+    needs: compile-check
+    runs-on: ubuntu-latest
+    continue-on-error: true # advisory until the tree is luacheck-clean
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install luacheck
+        run: sudo apt-get update && sudo apt-get install -y lua5.4 luarocks && sudo luarocks install luacheck
+      - name: Static analysis
+        run: make lint
+
+  unit:
+    needs: compile-check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Unit suites
+        run: make test-unit
+      - name: Smoke checks
+        run: make test-smoke
+      - name: Acceptance suites
+        run: make test-acceptance
+
+  integration:
+    needs: unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua
+        run: sudo apt-get update && sudo apt-get install -y lua5.4
+      - name: Integration smoke
+        run: make test-integration

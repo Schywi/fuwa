@@ -1,0 +1,87 @@
+#!/usr/bin/env bash
+# certs.fuwa — Let's Encrypt certificate management via lego
+#
+# Setup:
+#   1. Set DOMAIN and EMAIL below
+#   2. Run: ./certs.fuwa obtain
+#   3. Add cron: 0 3 * * * /opt/fuwa/certs.fuwa renew
+#
+# Certs land in: /etc/fuwa/certs/
+# OpenResty reads them from that path (mount in docker-compose)
+
+set -euo pipefail
+
+DOMAIN="${FUWA_DOMAIN:-}"
+EMAIL="${FUWA_EMAIL:-admin@fuwa.local}"
+CERTS_DIR="${FUWA_CERTS_DIR:-/etc/fuwa/certs}"
+ACME_DIR="${FUWA_ACME_DIR:-/var/www/acme}"
+LEGO_IMAGE="goacme/lego:latest"
+
+if [ -z "$DOMAIN" ]; then
+  echo "Set FUWA_DOMAIN environment variable"
+  exit 1
+fi
+
+mkdir -p "$CERTS_DIR" "$ACME_DIR"
+
+obtain() {
+  echo "[certs] obtaining certificate for $DOMAIN"
+  docker run --rm \
+    -v "$CERTS_DIR:/certs" \
+    -v "$ACME_DIR:/acme" \
+    "$LEGO_IMAGE" \
+    run \
+    --accept-tos \
+    --email "$EMAIL" \
+    --domains "$DOMAIN" \
+    --http \
+    --http.webroot /acme \
+    --path /certs
+
+  # lego creates certs in /certs/certificates/
+  # OpenResty expects: fullchain.pem, privkey.pem
+  cp "$CERTS_DIR/certificates/${DOMAIN}.crt" "$CERTS_DIR/fullchain.pem"
+  cp "$CERTS_DIR/certificates/${DOMAIN}.key" "$CERTS_DIR/privkey.pem"
+  chmod 600 "$CERTS_DIR/privkey.pem"
+
+  echo "[certs] done — certs in $CERTS_DIR"
+}
+
+renew() {
+  echo "[certs] renewing $DOMAIN"
+  docker run --rm \
+    -v "$CERTS_DIR:/certs" \
+    -v "$ACME_DIR:/acme" \
+    "$LEGO_IMAGE" \
+    --path /certs \
+    renew \
+    --email "$EMAIL" \
+    --domains "$DOMAIN" \
+    --http \
+    --http.webroot /acme \
+    --days 30
+
+  cp "$CERTS_DIR/certificates/${DOMAIN}.crt" "$CERTS_DIR/fullchain.pem"
+  cp "$CERTS_DIR/certificates/${DOMAIN}.key" "$CERTS_DIR/privkey.pem"
+  chmod 600 "$CERTS_DIR/privkey.pem"
+
+  # Reload OpenResty to pick up new certs
+  docker compose -f "$(dirname "$0")/docker-compose.yml" exec openresty nginx -s reload 2>/dev/null || true
+
+  echo "[certs] renewed"
+}
+
+case "${1:-}" in
+  obtain) obtain ;;
+  renew)  renew ;;
+  *)
+    echo "usage: $0 obtain           # get initial cert"
+    echo "       $0 renew            # renew if expiring in <30 days"
+    echo ""
+    echo "env vars:"
+    echo "  FUWA_DOMAIN=<your-domain>    (required)"
+    echo "  FUWA_EMAIL=<your-email>      (default: admin@fuwa.local)"
+    echo "  FUWA_CERTS_DIR=/etc/fuwa/certs"
+    exit 1
+    ;;
+esac

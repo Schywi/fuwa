@@ -1,0 +1,19 @@
+# Tiltfile — dev workflow for fuwa OpenResty dev server.
+# Start with:  tilt up --file infra/Tiltfile
+# Or via:      ./dev.sh
+#
+# The repo is bind-mounted into /app. OpenResty owns the actual browser reload
+# signal, but Tilt still watches the whole worktree so file edits show up in the UI.
+
+docker_compose('./docker-compose.yml', project_name='docker-compose')
+
+dc_resource('openresty')
+
+local_resource(
+  'repo-watch',
+  cmd='true',
+  deps=['..'],
+  trigger_mode=TRIGGER_MODE_AUTO,
+  auto_init=False,
+  labels=['dev'],
+)

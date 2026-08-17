@@ -1,0 +1,6 @@
+module Ledger
+
+schema "gomen_ledger" do
+  field item: string
+  field price: integer default 0
+end
