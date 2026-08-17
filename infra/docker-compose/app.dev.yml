@@ -17,6 +17,7 @@ services:
       FUWA_SIGNOZ_OTLP_URL: http://vector-router:4318/v1/traces
       FUWA_VECTOR_URL: http://vector-router:8687/
       FUWA_DOMAIN: ${FUWA_DOMAIN:-localhost}
+      FUWA_SSL: ${FUWA_SSL:-false}
       PORT: ${PORT:-8080}
     working_dir: /app
     healthcheck:

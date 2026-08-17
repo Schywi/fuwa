@@ -74,11 +74,7 @@ hooks/*.js         # bootstrap, style, fx glue around the compiled Lua
 - Any tenant billing, auth, or private content pipeline
 
 This repo is the DSL surface only.
-
-## Status
-
-Experimental and actively refactored. Expect churn between example
-payloads as the `.fuwa` → petite-vue/htmx/UnoCSS pattern gets settled.
+ 
 
 ## How to install
 

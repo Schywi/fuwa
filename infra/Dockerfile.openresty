@@ -11,4 +11,4 @@ WORKDIR /app
 
 EXPOSE 8080
 
-CMD ["/bin/sh", "-c", "sed \"s/\\${PORT}/$PORT/g; s/\\${LUA_CODE_CACHE}/${LUA_CODE_CACHE:-on}/g\" /app/nginx.conf > /usr/local/openresty/nginx/conf/nginx.conf && exec /usr/local/openresty/bin/openresty -g 'daemon off;'"]
+CMD ["/bin/sh", "-c", "sed \"s/\\${PORT}/$PORT/g; s/\\${LUA_CODE_CACHE}/${LUA_CODE_CACHE:-on}/g\" /app/nginx.conf > /usr/local/openresty/nginx/conf/nginx.conf && if [ \"${FUWA_SSL:-false}\" != \"true\" ]; then sed -i '/# --ssl-start/,/# --ssl-end/d' /usr/local/openresty/nginx/conf/nginx.conf; fi && exec /usr/local/openresty/bin/openresty -g 'daemon off;'"]

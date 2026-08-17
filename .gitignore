@@ -10,6 +10,9 @@ docs/refactoring/*
 .env
 .agent
 docs/
+# Blog field notes and content drafts — local only, never committed
+docs/blog/
+docs/content/
 AGENTS.md
 .beads
 CLAUDE.md
