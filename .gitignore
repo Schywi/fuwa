@@ -40,3 +40,10 @@ infra/commit.sh
 
 # Agent-generated analysis docs (read-only analyst output)
 infra/docs/
+
+# Local-only agent/tooling state (purged from git history)
+.agent/rules/
+.beads/
+.reasonix/
+commit_message.txt
+PURGE_GIT_HISTORY.md
