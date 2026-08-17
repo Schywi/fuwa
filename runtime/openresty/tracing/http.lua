@@ -21,9 +21,9 @@ function M.parse_target(url)
 	}
 end
 
-local function post_json_now(premature, target, payload_json, log_label)
-	if premature or not target or not payload_json then
-		return
+local function post_json(target, payload_json, log_label)
+	if not target or not payload_json then
+		return false, "missing target or payload"
 	end
 
 	local sock = ngx.socket.tcp()
@@ -32,7 +32,7 @@ local function post_json_now(premature, target, payload_json, log_label)
 	local ok, err = sock:connect(target.host, target.port)
 	if not ok then
 		ngx.log(ngx.WARN, log_label, " connect failed: ", tostring(err))
-		return
+		return false, "connect failed: " .. tostring(err)
 	end
 
 	local request_data = table.concat({
@@ -48,7 +48,7 @@ local function post_json_now(premature, target, payload_json, log_label)
 	if not bytes then
 		ngx.log(ngx.WARN, log_label, " send failed: ", tostring(send_err))
 		sock:close()
-		return
+		return false, "send failed: " .. tostring(send_err)
 	end
 
 	-- Read HTTP status line so we can log delivery failures
@@ -63,6 +63,7 @@ local function post_json_now(premature, target, payload_json, log_label)
 	end
 
 	sock:close()
+	return true
 end
 
 function M.schedule_json(target, payload_json, log_label)
@@ -70,11 +71,9 @@ function M.schedule_json(target, payload_json, log_label)
 		return false, "missing target or payload"
 	end
 
-	local scheduled, err = ngx.timer.at(0, post_json_now, target, payload_json, log_label or "http sink")
-	if not scheduled then
-		return false, err
-	end
-	return true
+	-- Send synchronously (no ngx.timer): under lua_code_cache on, timer-based
+	-- exports silently no-op. A few ms of blocking per request is fine here.
+	return post_json(target, payload_json, log_label or "http sink")
 end
 
 return M

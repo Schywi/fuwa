@@ -51,7 +51,7 @@ variable "droplet_region" {
 }
 
 variable "droplet_size" {
-  description = "Droplet size (4GB RAM minimum for ClickHouse)"
+  description = "Droplet size"
   type        = string
   default     = "s-2vcpu-4gb"
 }

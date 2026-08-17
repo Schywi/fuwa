@@ -75,7 +75,7 @@
     </section>
 
     <div class="grafana-panel signoz-panel">
-      <iframe class="grafana-frame" src="/dash/signoz/dashboard/019fa5ba-921e-757c-a3d4-115d8d52e1e4?relativeTime=1month" sandbox="allow-scripts allow-same-origin allow-forms" title="SigNoz dashboard"></iframe>
+      <iframe class="grafana-frame" src="/dash/signoz/dashboard" sandbox="allow-scripts allow-same-origin allow-forms" title="SigNoz dashboard"></iframe>
       <button class="grafana-back-btn" @click="closeSignoz()">← Back to code</button>
     </div>
 

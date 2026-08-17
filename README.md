@@ -74,7 +74,6 @@ hooks/*.js         # bootstrap, style, fx glue around the compiled Lua
 - Any tenant billing, auth, or private content pipeline
 
 This repo is the DSL surface only.
- 
 
 ## How to install
 

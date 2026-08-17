@@ -35,8 +35,8 @@ local function request_span_payload(event, service_name)
 				spans = {{
 					name = method .. " " .. path,
 					kind = 2,
-					startTimeUnixNano = tostring(start_time_unix_nano),
-					endTimeUnixNano = tostring(start_time_unix_nano + duration_nano),
+					startTimeUnixNano = string.format("%.0f", start_time_unix_nano),
+					endTimeUnixNano = string.format("%.0f", start_time_unix_nano + duration_nano),
 					status = { code = status >= 400 and 2 or 1 },
 					attributes = {
 						{ key = "http.method", value = { stringValue = method } },
@@ -80,8 +80,8 @@ local function request_log_payload(event, service_name)
 			},
 			scopeLogs = {{
 				logRecords = {{
-					timeUnixNano = tostring(now_ns),
-					observedTimeUnixNano = tostring(now_ns),
+					timeUnixNano = string.format("%.0f", now_ns),
+					observedTimeUnixNano = string.format("%.0f", now_ns),
 					severityNumber = 9,
 					severityText = "INFO",
 					body = { stringValue = tostring(event.message or "event") },
