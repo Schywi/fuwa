@@ -49,6 +49,7 @@
         <div class="stage-header">
           <span class="stage-title">Observability</span>
           <button class="grafana-trigger" @click="openSignoz()">Grafana ↗</button>
+          <a class="grafana-trigger" style="text-decoration:none" href="http://hubble.home.arpa/" target="_blank" rel="noopener">Cilium ↗</a>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
           <div v-for="request in requests" class="obs-request-group">
@@ -75,7 +76,7 @@
     </section>
 
     <div class="grafana-panel signoz-panel">
-      <iframe class="grafana-frame" src="/dash/signoz/dashboard" sandbox="allow-scripts allow-same-origin allow-forms" title="SigNoz dashboard"></iframe>
+      <iframe class="grafana-frame" src="http://grafana.home.arpa/" sandbox="allow-scripts allow-same-origin allow-forms" title="Grafana dashboard"></iframe>
       <button class="grafana-back-btn" @click="closeSignoz()">← Back to code</button>
     </div>
 
@@ -84,13 +85,13 @@
       <button class="grafana-back-btn" @click="toggleTmux()">← Back to code</button>
       <button class="grafana-back-btn tmux-filter-btn" data-tmux-filter-btn style="right: auto; left: 14px;">Errors only</button>
       <div class="tmux-grid">
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-openresty-1" data-tmux-label="openresty"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-1" data-tmux-label="signoz"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-ingester-1" data-tmux-label="ingester"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-clickhouse-1" data-tmux-label="clickhouse"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-keeper-1" data-tmux-label="keeper"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-vector-router-1" data-tmux-label="vector"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-victoriametrics-1" data-tmux-label="victoria"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="fuwa" data-tmux-selector="app.kubernetes.io/name=fuwa" data-tmux-label="fuwa"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="grafana" data-tmux-selector="app.kubernetes.io/name=grafana" data-tmux-label="grafana"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="victoriametrics" data-tmux-selector="app.kubernetes.io/name=victoriametrics" data-tmux-label="victoria"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="otel" data-tmux-selector="app.kubernetes.io/name=otel-collector" data-tmux-label="otel"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="tempo" data-tmux-selector="app.kubernetes.io/name=tempo" data-tmux-label="tempo"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="hubble" data-tmux-selector="k8s-app=hubble-relay" data-tmux-label="hubble"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="cilium" data-tmux-selector="k8s-app=cilium" data-tmux-label="cilium"></div>
       </div>
     </div>
 
