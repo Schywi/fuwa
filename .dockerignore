@@ -1,0 +1,7 @@
+.git
+.github
+.fuwa-dev
+node_modules
+tests
+docs
+infra
