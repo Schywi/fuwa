@@ -6,16 +6,14 @@ LoadBalancer IP: **http://192.168.0.244/**.
 
 ## Build the image
 
-The image is built in-cluster by Kaniko — no docker, no host root. It clones
-`Schywi/fuwa` at a branch, builds `infra/Dockerfile.openresty`, and pushes to
-the in-cluster registry.
+The image is built in-cluster by Kaniko — no docker, no host root — from the
+**current working tree**. Kaniko runs as a pod and can't see this checkout, so
+the build script uploads the repo into a builder pod and builds from
+`dir:///workspace`. No GitHub remote or branch involved.
 
 ```bash
-infra/k8s/build.sh k3s-integration local
+infra/k8s/build.sh local
 ```
-
-> Precondition: the branch must exist on GitHub (`Schywi/fuwa`). Kaniko clones
-> the remote branch, so push `k3s-integration` first.
 
 Update loop: re-run `build.sh`, then `kubectl -n fuwa rollout restart deployment/fuwa`.
 
