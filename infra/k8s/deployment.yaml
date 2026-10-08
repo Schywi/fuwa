@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fuwa
+  namespace: fuwa
+  labels:
+    app.kubernetes.io/name: fuwa
+spec:
+  # The runtime owns a single SQLite file and a file watcher, so it is a
+  # single-writer service.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fuwa
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fuwa
+    spec:
+      serviceAccountName: fuwa
+      containers:
+        - name: fuwa
+          # Built by kaniko and pushed to the in-cluster registry (see build.sh).
+          image: 127.0.0.1:5000/fuwa:local
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: PORT
+              value: "8080"
+            # Enable the cluster-only nginx block (SA CA for API TLS) and drop
+            # the TLS listener; Cilium / the LoadBalancer own TLS.
+            - name: FUWA_K8S
+              value: "true"
+            - name: FUWA_SSL
+              value: "false"
+            - name: LUA_CODE_CACHE
+              value: "on"
+            - name: FUWA_DB_PATH
+              value: /app/.fuwa-dev/sqlite-local.db
+            # Traces go to the cluster OTel collector (see observability/).
+            - name: FUWA_SIGNOZ_OTLP_URL
+              value: http://otel-collector.observability.svc.cluster.local:4318/v1/traces
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            periodSeconds: 20

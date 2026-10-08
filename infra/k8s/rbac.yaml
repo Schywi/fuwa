@@ -1,0 +1,40 @@
+# Namespace-scoped read access to pod logs only. Nothing cluster-wide, so the
+# fuwa workload cannot touch any other namespace's state.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fuwa
+  namespace: fuwa
+  labels:
+    app.kubernetes.io/name: fuwa
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: fuwa-pod-logs
+  namespace: fuwa
+  labels:
+    app.kubernetes.io/name: fuwa
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: fuwa-pod-logs
+  namespace: fuwa
+  labels:
+    app.kubernetes.io/name: fuwa
+subjects:
+  - kind: ServiceAccount
+    name: fuwa
+    namespace: fuwa
+roleRef:
+  kind: Role
+  name: fuwa-pod-logs
+  apiGroup: rbac.authorization.k8s.io
