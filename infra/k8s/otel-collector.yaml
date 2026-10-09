@@ -1,10 +1,13 @@
-# OpenTelemetry collector for fuwa traces. Deployed into the cluster's
-# `observability` namespace, beside Grafana and VictoriaMetrics.
+# OpenTelemetry collector for the fuwa namespace. Receives OTLP from the fuwa
+# runtime and fans out: traces -> Tempo, logs -> Loki, metrics -> VictoriaMetrics
+# (in the shared observability namespace).
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: otel-collector-config
-  namespace: observability
+  namespace: fuwa
+  labels:
+    app.kubernetes.io/name: otel-collector
 data:
   config.yaml: |
     receivers:
@@ -18,7 +21,13 @@ data:
       batch: {}
     exporters:
       otlp/tempo:
-        endpoint: tempo.observability.svc.cluster.local:4317
+        endpoint: tempo:4317
+        tls:
+          insecure: true
+      otlphttp/loki:
+        endpoint: http://loki:3100/otlp
+      prometheusremotewrite/vm:
+        endpoint: http://victoriametrics.observability.svc.cluster.local:8428/api/v1/write
         tls:
           insecure: true
     service:
@@ -27,12 +36,20 @@ data:
           receivers: [otlp]
           processors: [batch]
           exporters: [otlp/tempo]
+        logs:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [otlphttp/loki]
+        metrics:
+          receivers: [otlp]
+          processors: [batch]
+          exporters: [prometheusremotewrite/vm]
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: otel-collector
-  namespace: observability
+  namespace: fuwa
   labels:
     app.kubernetes.io/name: otel-collector
 spec:
@@ -47,7 +64,7 @@ spec:
     spec:
       containers:
         - name: otel-collector
-          image: otel/opentelemetry-collector:0.110.0
+          image: otel/opentelemetry-collector-contrib:0.110.0
           args: ["--config=/etc/otel/config.yaml"]
           ports:
             - name: otlp-grpc
@@ -66,7 +83,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: otel-collector
-  namespace: observability
+  namespace: fuwa
   labels:
     app.kubernetes.io/name: otel-collector
 spec:
