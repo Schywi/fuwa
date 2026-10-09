@@ -143,6 +143,16 @@
 		workspace_state = {
 			open_popover: null,
 			root: null,
+			panelOpen: false,
+			panelUrl: '',
+			openPanel: function (url) {
+				this.panelUrl = url;
+				this.panelOpen = true;
+			},
+			closePanel: function () {
+				this.panelUrl = '';
+				this.panelOpen = false;
+			},
 			tmuxOpen: false,
 			archOpen: false,
 			toggleArch: function () {

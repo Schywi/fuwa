@@ -1,5 +1,5 @@
 <section id="shell-content" class="shell-content">
-  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()">
+  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()" :class="{ 'is-dash': panelOpen }">
     <section class="ide-island ide-preview-island">
       <div
         class="ide-preview-stage"
@@ -48,8 +48,8 @@
       <div class="ide-preview-block ide-preview-block--obs">
         <div class="stage-header">
           <span class="stage-title">Observability</span>
-          <a class="grafana-trigger" style="text-decoration:none" href="http://192.168.0.245/" target="_blank" rel="noopener">Grafana ↗</a>
-          <a class="grafana-trigger" style="text-decoration:none" href="http://192.168.0.241/" target="_blank" rel="noopener">Cilium ↗</a>
+          <button class="grafana-trigger" @click="openPanel('http://192.168.0.245/')">Grafana ↗</button>
+          <button class="grafana-trigger" @click="openPanel('http://192.168.0.241/')">Cilium ↗</button>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
           <div v-for="request in requests" class="obs-request-group">
@@ -74,6 +74,11 @@
         </div>
       </div>
     </section>
+
+    <div class="grafana-panel dash-panel">
+      <iframe class="grafana-frame" :src="panelUrl" sandbox="allow-scripts allow-same-origin allow-forms" title="dashboard"></iframe>
+      <button class="grafana-back-btn" @click="closePanel()">← Back to code</button>
+    </div>
 
     <div class="tmux-panel">
       <button class="grafana-back-btn" @click="toggleTmux()">← Back to code</button>

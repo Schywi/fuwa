@@ -1174,6 +1174,26 @@
         50%      { box-shadow: 0 0 32px rgba(180, 140, 255, 0.3); }
       }
 
+      /* ── Dashboard panel ───────────────────────────────────────── */
+      .grafana-panel {
+        display: none;
+        flex: 1;
+        min-width: 0;
+        flex-direction: column;
+        position: relative;
+      }
+
+      .ide-shell.is-dash .dash-panel {
+        display: flex;
+      }
+
+      .grafana-frame {
+        flex: 1;
+        width: 100%;
+        border: 0;
+        background: #0b0f14;
+      }
+
       .grafana-back-btn {
         position: absolute;
         top: 10px;
@@ -1227,6 +1247,8 @@
 
       .ide-shell.is-grafana .ide-panel,
       .ide-shell.is-grafana .ide-preview-island--right,
+      .ide-shell.is-dash .ide-panel,
+      .ide-shell.is-dash .ide-preview-island--right,
       .ide-shell.is-tmux .ide-panel,
       .ide-shell.is-tmux .ide-preview-island--right,
       .ide-shell.is-arch .ide-panel,

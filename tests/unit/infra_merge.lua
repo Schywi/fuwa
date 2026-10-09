@@ -77,8 +77,8 @@ t.test("shell tmux pane streams cluster pods and links cluster dashboards", func
 
 	t.contains(home, 'data-tmux-slot="fuwa"', "expected a fuwa pod slot")
 	t.contains(home, 'data-tmux-selector="app.kubernetes.io/name=fuwa"', "expected slots to select pods by label")
-	t.contains(home, 'href="http://192.168.0.245/"', "expected the Grafana button to point at the Grafana LoadBalancer IP")
-	t.contains(home, 'href="http://192.168.0.241/"', "expected the Cilium button to point at the Hubble UI LoadBalancer IP")
+	t.contains(home, "openPanel('http://192.168.0.245/')", "expected the Grafana button to embed the Grafana LoadBalancer IP in the panel")
+	t.contains(home, "openPanel('http://192.168.0.241/')", "expected the Cilium button to embed the Hubble UI LoadBalancer IP in the panel")
 	t.not_contains(home, "openSignoz", "expected the dead SigNoz panel handler to be removed")
 	t.not_contains(home, "home.arpa", "expected no home.arpa hosts in the shell")
 end)
