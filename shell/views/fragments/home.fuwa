@@ -1,5 +1,5 @@
 <section id="shell-content" class="shell-content">
-  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()" :class="{ 'is-signoz': signozOpen }">
+  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()">
     <section class="ide-island ide-preview-island">
       <div
         class="ide-preview-stage"
@@ -48,8 +48,8 @@
       <div class="ide-preview-block ide-preview-block--obs">
         <div class="stage-header">
           <span class="stage-title">Observability</span>
-          <button class="grafana-trigger" @click="openSignoz()">Grafana ↗</button>
-          <a class="grafana-trigger" style="text-decoration:none" href="http://hubble.home.arpa/" target="_blank" rel="noopener">Cilium ↗</a>
+          <a class="grafana-trigger" style="text-decoration:none" href="http://192.168.0.245/" target="_blank" rel="noopener">Grafana ↗</a>
+          <a class="grafana-trigger" style="text-decoration:none" href="http://192.168.0.241/" target="_blank" rel="noopener">Cilium ↗</a>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
           <div v-for="request in requests" class="obs-request-group">
@@ -74,12 +74,6 @@
         </div>
       </div>
     </section>
-
-    <div class="grafana-panel signoz-panel">
-      <iframe class="grafana-frame" src="http://grafana.home.arpa/" sandbox="allow-scripts allow-same-origin allow-forms" title="Grafana dashboard"></iframe>
-      <button class="grafana-back-btn" @click="closeSignoz()">← Back to code</button>
-    </div>
-
 
     <div class="tmux-panel">
       <button class="grafana-back-btn" @click="toggleTmux()">← Back to code</button>
