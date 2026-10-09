@@ -9,7 +9,7 @@ local sse = require("runtime.openresty.sse")
 local cjson = require("cjson")
 
 local SA_DIR = os.getenv("FUWA_K8S_SA_DIR") or "/var/run/secrets/kubernetes.io/serviceaccount"
-local API_HOST = os.getenv("FUWA_K8S_API_HOST") or "kubernetes.default.svc"
+local API_HOST = os.getenv("FUWA_K8S_API_HOST") or "kubernetes.default.svc.cluster.local"
 local API_PORT = tonumber(os.getenv("FUWA_K8S_API_PORT") or "") or 443
 local TAIL_LINES = tonumber(os.getenv("FUWA_POD_LOG_TAIL") or "") or 200
 local POLL_SECONDS = 0.5

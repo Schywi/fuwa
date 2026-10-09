@@ -2,9 +2,9 @@ local otlp_adapter = require("runtime.openresty.tracing.adapters.otlp")
 
 local M = {}
 
--- OTLP endpoint for traces, logs, and metrics. In k8s the collector runs in the
--- same namespace, so the short service name resolves.
-local otlp_base = os.getenv("FUWA_OTLP_URL") or "http://otel-collector:4318"
+-- OTLP endpoint for traces, logs, and metrics. nginx's resolver does not apply
+-- Kubernetes search domains, so the service must be addressed by FQDN.
+local otlp_base = os.getenv("FUWA_OTLP_URL") or "http://otel-collector.fuwa.svc.cluster.local:4318"
 
 local adapters = {
 	metrics = otlp_adapter.new(otlp_base .. "/v1/metrics", "fuwa", "otlp metrics"),

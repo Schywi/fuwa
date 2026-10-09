@@ -42,8 +42,9 @@ spec:
             - name: FUWA_DB_PATH
               value: /app/.fuwa-dev/sqlite-local.db
             # OTLP endpoint for traces, logs, and metrics (in-namespace collector).
+            # FQDN: nginx's resolver does not apply the pod search domains.
             - name: FUWA_OTLP_URL
-              value: http://otel-collector:4318
+              value: http://otel-collector.fuwa.svc.cluster.local:4318
           readinessProbe:
             httpGet:
               path: /
