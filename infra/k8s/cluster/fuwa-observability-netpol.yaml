@@ -1,0 +1,55 @@
+# TEMPORARY — should be moved to the experiments repo.
+#
+# Grafana and VictoriaMetrics are Argo CD-managed (config/grafana,
+# config/victoriametrics) with selfHeal, so their own CiliumNetworkPolicies
+# cannot be edited out-of-band from here. These are ADDITIONAL policies that
+# Cilium unions with the existing ones (policies selecting the same endpoint add
+# up), which is why they are safe to apply from the fuwa repo without fighting
+# Argo.
+#
+# Move to: config/victoriametrics (ingress from fuwa) and config/grafana
+# (egress to fuwa) when the experiments repo is being edited.
+---
+# Let the fuwa OTel collector remote-write metrics to VictoriaMetrics.
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: fuwa-metrics-remote-write
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: fuwa-lab
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app.kubernetes.io/name: victoriametrics
+  ingress:
+    - fromEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: fuwa
+      toPorts:
+        - ports:
+            - port: "8428"
+              protocol: TCP
+---
+# Let Grafana read fuwa's Tempo (traces) and Loki (logs).
+apiVersion: cilium.io/v2
+kind: CiliumNetworkPolicy
+metadata:
+  name: fuwa-observability-read
+  namespace: observability
+  labels:
+    app.kubernetes.io/part-of: fuwa-lab
+spec:
+  endpointSelector:
+    matchLabels:
+      k8s:app.kubernetes.io/name: grafana
+  egress:
+    - toEndpoints:
+        - matchLabels:
+            k8s:io.kubernetes.pod.namespace: fuwa
+      toPorts:
+        - ports:
+            - port: "3200"
+              protocol: TCP
+            - port: "3100"
+              protocol: TCP
