@@ -41,9 +41,9 @@ spec:
               value: "on"
             - name: FUWA_DB_PATH
               value: /app/.fuwa-dev/sqlite-local.db
-            # Traces go to the cluster OTel collector (see observability/).
-            - name: FUWA_SIGNOZ_OTLP_URL
-              value: http://otel-collector.observability.svc.cluster.local:4318/v1/traces
+            # OTLP endpoint for traces, logs, and metrics (in-namespace collector).
+            - name: FUWA_OTLP_URL
+              value: http://otel-collector:4318
           readinessProbe:
             httpGet:
               path: /

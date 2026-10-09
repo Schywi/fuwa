@@ -31,7 +31,8 @@ spec:
               protocol: TCP
     - toEndpoints:
         - matchLabels:
-            io.kubernetes.pod.namespace: observability
+            io.kubernetes.pod.namespace: fuwa
+            app.kubernetes.io/name: otel-collector
       toPorts:
         - ports:
             - port: "4318"
