@@ -1201,7 +1201,7 @@
         top: 0;
         right: 0;
         bottom: 0;
-        width: 420px;
+        width: 483px; /* 420px + 15% */
         max-width: 82vw;
         display: flex;
         flex-direction: column;
@@ -1209,7 +1209,22 @@
         border-left: 1px solid rgba(255, 255, 255, 0.12);
         box-shadow: -10px 0 28px rgba(0, 0, 0, 0.45);
         z-index: 30;
+        overflow: hidden;
       }
+
+      /* ── Scrollbars (thin, themed) ─────────────────────────────── */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(180, 140, 255, 0.35) transparent;
+      }
+
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(180, 140, 255, 0.35);
+        border-radius: 8px;
+      }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(180, 140, 255, 0.6); }
 
       .grafana-back-btn {
         position: absolute;
