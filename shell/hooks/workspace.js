@@ -153,6 +153,16 @@
 				this.panelUrl = '';
 				this.panelOpen = false;
 			},
+			drawerOpen: false,
+			drawerUrl: '',
+			openDrawer: function (url) {
+				this.drawerUrl = url;
+				this.drawerOpen = true;
+			},
+			closeDrawer: function () {
+				this.drawerUrl = '';
+				this.drawerOpen = false;
+			},
 			tmuxOpen: false,
 			archOpen: false,
 			toggleArch: function () {

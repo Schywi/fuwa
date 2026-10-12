@@ -170,6 +170,7 @@
         gap: 5px;
         align-items: stretch;
         height: 100%;
+        position: relative;
       }
 
       .ide-island {
@@ -1192,6 +1193,22 @@
         width: 100%;
         border: 0;
         background: #0b0f14;
+      }
+
+      /* ── Assistant drawer (right-docked chat) ──────────────────── */
+      .assistant-drawer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 420px;
+        max-width: 82vw;
+        display: flex;
+        flex-direction: column;
+        background: #0b0f14;
+        border-left: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: -10px 0 28px rgba(0, 0, 0, 0.45);
+        z-index: 30;
       }
 
       .grafana-back-btn {

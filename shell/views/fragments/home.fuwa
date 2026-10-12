@@ -19,6 +19,8 @@
         <div class="owner-sub typewriter-line"></div>
         <button class="grafana-trigger" @click="toggleArch()">architecture ↗</button>
         <button type="button" class="grafana-trigger" data-deploy-trigger style="margin-left:4px">Deploy</button>
+        <button class="grafana-trigger" style="margin-left:4px" @click="openDrawer('http://192.168.0.243/')">Assistant ⌘</button>
+        <button class="grafana-trigger" style="margin-left:4px" @click="openPanel('http://192.168.0.242/')">Neo4j ◈</button>
       </header>
 
       <include src="views/fragments/workspace.fuwa" />
@@ -79,6 +81,11 @@
       <iframe class="grafana-frame" :src="panelUrl" sandbox="allow-scripts allow-same-origin allow-forms" title="dashboard"></iframe>
       <button class="grafana-back-btn" @click="closePanel()">← Back to code</button>
     </div>
+
+    <aside class="assistant-drawer" v-show="drawerOpen">
+      <button class="grafana-back-btn" @click="closeDrawer()">✕ Close</button>
+      <iframe class="grafana-frame" :src="drawerUrl" sandbox="allow-scripts allow-same-origin allow-forms" title="assistant"></iframe>
+    </aside>
 
     <div class="tmux-panel">
       <button class="grafana-back-btn" @click="toggleTmux()">← Back to code</button>
