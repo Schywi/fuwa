@@ -53,3 +53,26 @@ Grafana datasources `Tempo` and `Loki` were added through the Grafana API
 
 Once those land, delete `fuwa-observability-netpol.yaml` (except the fuwa-side
 `networkpolicy.yaml`, which stays).
+
+## Argo CD (applied live; not Argo-managed)
+
+- `argocd-server` got a LoadBalancer IP (**192.168.0.247**) by applying
+  `config/argocd/argocd-service.yaml`.
+- Anonymous access is now **read-only**:
+  - `argocd-cmd-params-cm`: `server.disable.auth: "false"`
+  - `argocd-cm`: `users.anonymous.enabled: "true"`
+  - `argocd-rbac-cm`: `policy.default: role:readonly` and
+    `policy.csv: g, system:unauthenticated, role:readonly`
+  - Verified: anonymous `GET /api/v1/applications` = 200; `POST .../sync` = 403.
+
+  Move to experiments: set these in `config/argocd/values.yaml` (or a dedicated
+  rbac ConfigMap) so a reinstall keeps read-only. The previous
+  `server.disable.auth: true` made every anonymous caller an **admin**.
+
+## TODO — Argo CD embedding (deferred; remind owner)
+
+Argo CD cannot be iframed cross-origin: it sends `X-Frame-Options: sameorigin`
+and `CSP: frame-ancestors 'self'`. To embed it in a fuwa panel, fuwa's nginx must
+reverse-proxy it same-origin and hide both headers — which requires Argo CD
+`server.rootpath: /argocd` (a global base-path change). Not implemented.
+
