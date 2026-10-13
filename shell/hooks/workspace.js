@@ -15,7 +15,6 @@
 
 	const ASSISTANT_URL = 'http://192.168.0.243';
 	const ASSISTANT_SESSION_KEY = 'fuwa-assistant-session';
-	const NEO4J_BROWSER_URL = 'http://192.168.0.242/browser/?dbms=bolt%3A%2F%2F192.168.0.242%3A7687&db=neo4j&preselectAuthMethod=NO_AUTH';
 
 	function assistantSessionId() {
 		try {
@@ -165,9 +164,6 @@
 				this.panelUrl = url;
 				this.panelOpen = true;
 			},
-			openNeo4jBrowser: function () {
-				window.open(NEO4J_BROWSER_URL, '_blank', 'noopener,noreferrer');
-			},
 			closePanel: function () {
 				this.panelUrl = '';
 				this.panelOpen = false;
@@ -229,10 +225,6 @@
 			},
 			openAssistantLink: function (url) {
 				if (url) {
-					if (url.indexOf('/browser/') !== -1) {
-						window.open(url, '_blank', 'noopener,noreferrer');
-						return;
-					}
 					this.openPanel(url);
 				}
 			},
