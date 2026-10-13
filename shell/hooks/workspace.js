@@ -13,6 +13,21 @@
 	let mounted_app = null;
 	const mounted_roots = new WeakSet();
 
+	const ASSISTANT_URL = 'http://192.168.0.243';
+	const ASSISTANT_SESSION_KEY = 'fuwa-assistant-session';
+
+	function assistantSessionId() {
+		try {
+			const existing = window.localStorage.getItem(ASSISTANT_SESSION_KEY);
+			if (existing) return existing;
+			const created = 'fuwa-' + Math.random().toString(36).slice(2, 10);
+			window.localStorage.setItem(ASSISTANT_SESSION_KEY, created);
+			return created;
+		} catch (err) {
+			return 'fuwa-anon';
+		}
+	}
+
 	function log(step, detail) {
 		if (detail === undefined) {
 			console.info(LOG_PREFIX + ' ' + step);
@@ -159,6 +174,59 @@
 			},
 			closeDrawer: function () {
 				this.drawerOpen = false;
+			},
+			// ── Assistant chat (native; shares this scope so a deep link can
+			// call openPanel directly, with no cross-scope global bridge) ──
+			assistantMessages: [],
+			assistantInput: '',
+			assistantBusy: false,
+			assistantSession: assistantSessionId(),
+			assistantLinkLabel: function (name) {
+				const text = String(name || '');
+				return text.charAt(0).toUpperCase() + text.slice(1);
+			},
+			sendAssistant: function () {
+				const self = this;
+				const text = (self.assistantInput || '').trim();
+				if (text === '' || self.assistantBusy) {
+					return;
+				}
+				self.assistantInput = '';
+				self.assistantMessages.push({ role: 'user', text: text });
+				self.assistantBusy = true;
+
+				window
+					.fetch(ASSISTANT_URL + '/investigate', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ message: text, session: self.assistantSession })
+					})
+					.then(function (response) {
+						if (!response.ok) {
+							throw new Error('assistant responded ' + response.status);
+						}
+						return response.json();
+					})
+					.then(function (data) {
+						self.assistantMessages.push({
+							role: 'assistant',
+							text: data.reply || data.screen_md || '',
+							facts: data.facts || [],
+							metrics: data.metrics || null
+						});
+					})
+					.catch(function (error) {
+						log('assistant failed', error.message);
+						self.assistantMessages.push({ role: 'assistant', text: 'error: ' + error.message, error: true });
+					})
+					.then(function () {
+						self.assistantBusy = false;
+					});
+			},
+			openAssistantLink: function (url) {
+				if (url) {
+					this.openPanel(url);
+				}
 			},
 			tmuxOpen: false,
 			archOpen: false,
@@ -481,15 +549,7 @@
 	window.FuwaShellWorkspace = {
 		createState,
 		state: workspace_state,
-		initialize,
-		// Open the dashboard panel at a URL. Exposed so hooks outside the
-		// workspace scope (e.g. the assistant chat) can route deep links into
-		// the panel instead of a new tab.
-		openPanel: function (url) {
-			if (!url) return;
-			workspace_state.panelUrl = url;
-			workspace_state.panelOpen = true;
-		}
+		initialize
 	};
 
 	if (document.readyState === 'loading') {

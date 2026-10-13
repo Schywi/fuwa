@@ -84,9 +84,9 @@
 
     <aside class="assistant-drawer" v-show="drawerOpen">
       <button class="grafana-back-btn" @click="closeDrawer()">✕ Close</button>
-      <div class="assistant-chat" v-scope="FuwaAssistant.createState()">
+      <div class="assistant-chat">
         <div class="assistant-thread">
-          <div v-for="m in messages" class="assistant-msg" :class="[m.role, m.error ? 'err' : '']">
+          <div v-for="m in assistantMessages" class="assistant-msg" :class="[m.role, m.error ? 'err' : '']">
             <div class="assistant-bubble" v-text="m.text"></div>
             <div v-if="m.facts && m.facts.length" class="assistant-facts">
               <div v-for="f in m.facts" class="assistant-fact">
@@ -95,17 +95,17 @@
                   v-for="(url, name) in (f.links || {})"
                   class="assistant-link"
                   :title="url"
-                  @click="openLink(url)"
-                  v-text="linkLabel(name)"
+                  @click="openAssistantLink(url)"
+                  v-text="assistantLinkLabel(name)"
                 ></button>
               </div>
             </div>
           </div>
-          <div v-if="busy" class="assistant-msg assistant pending"><div class="assistant-bubble">thinking…</div></div>
+          <div v-if="assistantBusy" class="assistant-msg assistant pending"><div class="assistant-bubble">thinking…</div></div>
         </div>
-        <form class="assistant-input" @submit.prevent="send()">
-          <input type="text" v-model="input" placeholder="Ask the cluster assistant…" />
-          <button type="submit" :disabled="busy">➤</button>
+        <form class="assistant-input" @submit.prevent="sendAssistant()">
+          <input type="text" v-model="assistantInput" placeholder="Ask the cluster assistant…" />
+          <button type="submit" :disabled="assistantBusy">➤</button>
         </form>
       </div>
     </aside>

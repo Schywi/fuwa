@@ -2,7 +2,8 @@
 
 > Status: **Implemented (fuwa side).** API surface grounded against the running
 > assistant (namespace `assistant`, `http://192.168.0.243`). The chat is native
-> now (`shell/hooks/assistant.js` + the `.assistant-drawer` fragment).
+> now: state in `shell/hooks/workspace.js` (same scope as `openPanel`), markup in
+> the `.assistant-drawer` fragment.
 > Intended home: `experiments/research/features/`.
 
 ## Problem
@@ -125,12 +126,17 @@ Click flow (the whole point):
 
 | Piece | Where |
 |---|---|
-| Chat drawer (already exists) | `shell/views/fragments/home.fuwa` `.assistant-drawer` |
-| Chat state + submit | `shell/hooks/workspace.js` (`openDrawer`, add messages/send) |
-| POST `/investigate` (own origin) | new small hook, e.g. `shell/hooks/assistant.js` |
-| Render `facts[].links.*` → `openPanel(url)` | assistant hook |
-| CORS or proxy | `server.py` middleware **or** fuwa `nginx.conf` location |
-| TTS | `<audio src="/assistant/audio/{id}">` via the proxy |
+| Chat drawer + markup | `shell/views/fragments/home.fuwa` `.assistant-drawer` |
+| Chat state + submit + deep links | `shell/hooks/workspace.js` (`sendAssistant`, `openAssistantLink`) |
+| POST `/investigate` | `workspace.js` `sendAssistant` (same origin not needed — CORS) |
+| Deep links → panel | `openAssistantLink(url)` → `openPanel(url)` |
+| TTS | not wired (v1) |
+
+> **Load-order note (a real trap):** `workspace.js` mounts petite-vue as soon as
+> it runs. Any `v-scope` expression resolves at mount, so it must reference only
+> globals defined **in or before** `workspace.js`. Referencing a global from a
+> later-loaded hook throws and fails the whole mount silently. This is why the
+> chat state lives in `workspace.js` and not a separate hook.
 
 ## How to verify
 
