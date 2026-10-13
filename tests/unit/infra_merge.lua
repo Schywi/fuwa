@@ -79,7 +79,7 @@ t.test("shell tmux pane streams cluster pods and links cluster dashboards", func
 	t.contains(home, 'data-tmux-selector="app.kubernetes.io/name=fuwa"', "expected slots to select pods by label")
 	t.contains(home, "openPanel('http://192.168.0.245/')", "expected the Grafana button to embed the Grafana LoadBalancer IP in the panel")
 	t.contains(home, "openPanel('http://192.168.0.241/')", "expected the Cilium button to embed the Hubble UI LoadBalancer IP in the panel")
-	t.contains(home, "openPanel('http://192.168.0.242/browser/?dbms=bolt%3A%2F%2F192.168.0.242%3A7687&amp;db=neo4j&amp;preselectAuthMethod=NO_AUTH')", "expected the Neo4j button to open Browser with Bolt prefilled and no-auth selected")
+	t.contains(home, "@click=\"openNeo4jBrowser()\"", "expected the Neo4j button to open Browser outside the dashboard iframe")
 	t.contains(home, "openDrawer()", "expected the Assistant button to open the chat drawer")
 	t.contains(home, '@submit.prevent="sendAssistant()"', "expected the drawer to host the native assistant chat")
 	t.not_contains(home, "openSignoz", "expected the dead SigNoz panel handler to be removed")
