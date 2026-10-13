@@ -154,13 +154,10 @@
 				this.panelOpen = false;
 			},
 			drawerOpen: false,
-			drawerUrl: '',
-			openDrawer: function (url) {
-				this.drawerUrl = url;
+			openDrawer: function () {
 				this.drawerOpen = true;
 			},
 			closeDrawer: function () {
-				this.drawerUrl = '';
 				this.drawerOpen = false;
 			},
 			tmuxOpen: false,
@@ -484,7 +481,15 @@
 	window.FuwaShellWorkspace = {
 		createState,
 		state: workspace_state,
-		initialize
+		initialize,
+		// Open the dashboard panel at a URL. Exposed so hooks outside the
+		// workspace scope (e.g. the assistant chat) can route deep links into
+		// the panel instead of a new tab.
+		openPanel: function (url) {
+			if (!url) return;
+			workspace_state.panelUrl = url;
+			workspace_state.panelOpen = true;
+		}
 	};
 
 	if (document.readyState === 'loading') {

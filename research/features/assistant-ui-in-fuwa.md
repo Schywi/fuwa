@@ -1,7 +1,8 @@
 # Feature: Assistant chat inside fuwa (in-panel deep links)
 
-> Status: **Proposed** — API surface grounded against the running assistant
-> (namespace `assistant`, `http://192.168.0.243`); nothing implemented yet.
+> Status: **Implemented (fuwa side).** API surface grounded against the running
+> assistant (namespace `assistant`, `http://192.168.0.243`). The chat is native
+> now (`shell/hooks/assistant.js` + the `.assistant-drawer` fragment).
 > Intended home: `experiments/research/features/`.
 
 ## Problem
@@ -69,8 +70,10 @@ Markdown link rendering) — that is the new-tab behaviour to replace.
 
 ## Blocker — CORS / transport
 
-The assistant sends **no `Access-Control-Allow-Origin`**. fuwa (`192.168.0.244`)
-cannot `fetch()` it (`192.168.0.243`). Two ways to resolve:
+**Resolved** — the assistant now returns `Access-Control-Allow-Origin: *` (owner
+updated it; the wildcard is intentional for now). fuwa (`192.168.0.244`) can
+`fetch()` it (`192.168.0.243`) directly. The two options that would have
+resolved it:
 
 1. add `CORSMiddleware` to `server.py` (allow the fuwa origin), or
 2. put the assistant behind a **same-origin fuwa nginx proxy**.

@@ -19,7 +19,7 @@
         <div class="owner-sub typewriter-line"></div>
         <button class="grafana-trigger" @click="toggleArch()">architecture ↗</button>
         <button type="button" class="grafana-trigger" data-deploy-trigger style="margin-left:4px">Deploy</button>
-        <button class="grafana-trigger" style="margin-left:4px" @click="openDrawer('http://192.168.0.243/')">Assistant ⌘</button>
+        <button class="grafana-trigger" style="margin-left:4px" @click="openDrawer()">Assistant ⌘</button>
         <button class="grafana-trigger" style="margin-left:4px" @click="openPanel('http://192.168.0.242/')">Neo4j ◈</button>
       </header>
 
@@ -84,7 +84,30 @@
 
     <aside class="assistant-drawer" v-show="drawerOpen">
       <button class="grafana-back-btn" @click="closeDrawer()">✕ Close</button>
-      <iframe class="grafana-frame" :src="drawerUrl" sandbox="allow-scripts allow-same-origin allow-forms" title="assistant"></iframe>
+      <div class="assistant-chat" v-scope="FuwaAssistant.createState()">
+        <div class="assistant-thread">
+          <div v-for="m in messages" class="assistant-msg" :class="[m.role, m.error ? 'err' : '']">
+            <div class="assistant-bubble" v-text="m.text"></div>
+            <div v-if="m.facts && m.facts.length" class="assistant-facts">
+              <div v-for="f in m.facts" class="assistant-fact">
+                <span class="assistant-fact-tool" v-text="f.tool"></span>
+                <button
+                  v-for="(url, name) in (f.links || {})"
+                  class="assistant-link"
+                  :title="url"
+                  @click="openLink(url)"
+                  v-text="linkLabel(name)"
+                ></button>
+              </div>
+            </div>
+          </div>
+          <div v-if="busy" class="assistant-msg assistant pending"><div class="assistant-bubble">thinking…</div></div>
+        </div>
+        <form class="assistant-input" @submit.prevent="send()">
+          <input type="text" v-model="input" placeholder="Ask the cluster assistant…" />
+          <button type="submit" :disabled="busy">➤</button>
+        </form>
+      </div>
     </aside>
 
     <div class="tmux-panel">

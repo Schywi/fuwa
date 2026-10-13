@@ -32,6 +32,7 @@
     <script defer src="/shell/hooks/motion.js"></script>
     <script defer src="/shell/hooks/cursor.js"></script>
     <script defer src="/shell/hooks/tmux.js"></script>
+    <script defer src="/shell/hooks/assistant.js"></script>
     <style>
       :root {
         color-scheme: dark;
@@ -1211,6 +1212,112 @@
         z-index: 30;
         overflow: hidden;
       }
+
+      /* ── Assistant chat (native, in-drawer) ────────────────────── */
+      .assistant-chat {
+        flex: 1;
+        min-height: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 46px 10px 10px;
+      }
+
+      .assistant-thread {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        padding-right: 4px;
+      }
+
+      .assistant-msg {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        max-width: 100%;
+      }
+
+      .assistant-msg.user {
+        align-items: flex-end;
+      }
+
+      .assistant-bubble {
+        padding: 7px 11px;
+        border-radius: 10px;
+        font-size: 0.72rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .assistant-msg.user .assistant-bubble { background: #1f6feb; color: #fff; }
+      .assistant-msg.assistant .assistant-bubble { background: #161b22; border: 1px solid #21262d; color: #e6edf3; }
+      .assistant-msg.assistant.err .assistant-bubble { border-color: #f85149; color: #ffb4ad; }
+      .assistant-msg.pending .assistant-bubble { color: #7d8590; }
+
+      .assistant-facts {
+        margin-top: 6px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .assistant-fact {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+        font-size: 0.62rem;
+      }
+
+      .assistant-fact-tool { color: #7d8590; }
+
+      .assistant-link {
+        border: 1px solid rgba(180, 140, 255, 0.4);
+        background: rgba(180, 140, 255, 0.08);
+        color: var(--accent-strong);
+        border-radius: 4px;
+        padding: 1px 7px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.6rem;
+        font-weight: 700;
+      }
+
+      .assistant-link:hover { background: rgba(180, 140, 255, 0.18); }
+
+      .assistant-input {
+        display: flex;
+        gap: 6px;
+        flex-shrink: 0;
+      }
+
+      .assistant-input input {
+        flex: 1;
+        min-width: 0;
+        background: #0d1117;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 7px;
+        padding: 7px 10px;
+        font: inherit;
+        font-size: 0.72rem;
+      }
+
+      .assistant-input button {
+        border: 1px solid rgba(180, 140, 255, 0.4);
+        background: rgba(180, 140, 255, 0.12);
+        color: var(--accent-strong);
+        border-radius: 7px;
+        padding: 0 12px;
+        cursor: pointer;
+        font-weight: 700;
+      }
+
+      .assistant-input button:disabled { opacity: 0.4; cursor: default; }
 
       /* ── Scrollbars (thin, themed) ─────────────────────────────── */
       * {
