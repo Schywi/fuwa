@@ -91,6 +91,7 @@
           <button type="button" @click="openAssistantLink('http://192.168.0.241/')">Hubble UI</button>
           <button type="button" @click="openAssistantLink('http://192.168.0.246/')">VictoriaMetrics</button>
         </nav>
+        <button type="button" @click="newAssistantSession()" title="Start a fresh conversation">new session</button>
         <button type="button" @click="toggleAssistantMetrics()">metrics</button>
         <button type="button" class="assistant-close" @click="closeDrawer()">✕</button>
       </header>

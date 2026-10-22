@@ -21,16 +21,32 @@
 	const ASSISTANT_BASE = '/assistant';
 	const ASSISTANT_SESSION_KEY = 'fuwa-assistant-session';
 
+	function createAssistantSessionId() {
+		return 'fuwa-' + Math.random().toString(36).slice(2, 10);
+	}
+
 	function assistantSessionId() {
 		try {
 			const existing = window.localStorage.getItem(ASSISTANT_SESSION_KEY);
 			if (existing) return existing;
-			const created = 'fuwa-' + Math.random().toString(36).slice(2, 10);
+			const created = createAssistantSessionId();
 			window.localStorage.setItem(ASSISTANT_SESSION_KEY, created);
 			return created;
 		} catch (err) {
 			return 'fuwa-anon';
 		}
+	}
+
+	// Rotate the id the assistant threads conversations under, and remember it
+	// so a reload keeps the same (fresh) conversation.
+	function rotateAssistantSessionId() {
+		const created = createAssistantSessionId();
+		try {
+			window.localStorage.setItem(ASSISTANT_SESSION_KEY, created);
+		} catch (err) {
+			log('assistant:session-persist-failed', err && err.message);
+		}
+		return created;
 	}
 
 	function log(step, detail) {
@@ -510,6 +526,21 @@
 			assistantRecording: false,
 			assistantMode: 'investigate',
 			assistantSession: assistantSessionId(),
+			newAssistantSession: function () {
+				if (this.assistantBusy) {
+					assistantToast('Wait for the current answer first', true);
+					return;
+				}
+				this.assistantSession = rotateAssistantSessionId();
+				this.assistantMetrics = null;
+				this.assistantMetricsError = '';
+				const thread = document.querySelector('[data-assistant-thread]');
+				if (thread) {
+					thread.replaceChildren();
+				}
+				log('assistant:new-session', { session: this.assistantSession });
+				assistantToast('New session');
+			},
 			assistantMetrics: null,
 			assistantMetricsError: '',
 			toggleAssistantMetrics: function () {

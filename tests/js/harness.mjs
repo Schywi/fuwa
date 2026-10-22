@@ -11,6 +11,18 @@ export class Element {}
 
 const SHELL_JS = new URL('../../shell/hooks/workspace.js', import.meta.url);
 
+// A localStorage stub that records what the shell persists; `seed` lets a test
+// start with an existing session id.
+function storedSession(seed = null) {
+	const store = new Map();
+	if (seed !== null) store.set('fuwa-assistant-session', seed);
+	return {
+		store,
+		getItem: (key) => (store.has(key) ? store.get(key) : null),
+		setItem: (key, value) => store.set(key, value)
+	};
+}
+
 export function fakeNode({ href = null, in_drawer = true, drawer = null } = {}) {
 	const node = new Element();
 	node.href = href;
@@ -31,6 +43,9 @@ function fakeHost() {
 			children.push(child);
 			return child;
 		},
+		replaceChildren() {
+			children.length = 0;
+		},
 		text() {
 			return children.map((child) => child.textContent).join(' | ');
 		}
@@ -42,6 +57,7 @@ export function loadShell({ window: windowOverrides = {}, navigator: navigatorOv
 	const logs = [];
 	const drawer = new Element();
 	const toasts = fakeHost();
+	const thread = fakeHost();
 	const created = [];
 
 	const document = {
@@ -51,7 +67,9 @@ export function loadShell({ window: windowOverrides = {}, navigator: navigatorOv
 			listeners.push({ type, fn });
 		},
 		querySelector(selector) {
-			return selector === '[data-assistant-toast]' ? toasts : null;
+			if (selector === '[data-assistant-toast]') return toasts;
+			if (selector === '[data-assistant-thread]') return thread;
+			return null;
 		},
 		createElement() {
 			const node = new Element();
@@ -65,7 +83,7 @@ export function loadShell({ window: windowOverrides = {}, navigator: navigatorOv
 	};
 
 	const window = {
-		localStorage: { getItem: () => null, setItem: () => {} },
+		localStorage: storedSession(),
 		setTimeout: () => 0,
 		clearTimeout: () => {},
 		setInterval: () => 0,
@@ -117,6 +135,7 @@ export function loadShell({ window: windowOverrides = {}, navigator: navigatorOv
 		listeners,
 		logs,
 		toasts,
+		thread,
 		created,
 		node: (options) => fakeNode({ ...options, drawer }),
 		fire(type, event) {

@@ -242,6 +242,20 @@ t.test("the metrics fixture is real Prometheus text for the families the shell r
 	t.contains(metrics, "python_info{", "expected noise the parser must ignore")
 end)
 
+t.test("a new session rotates the id, persists it and clears the transcript", function()
+	t.contains(workspace_js, "function rotateAssistantSessionId() {", "expected a rotation helper")
+	t.contains(workspace_js, "window.localStorage.setItem(ASSISTANT_SESSION_KEY, created);", "expected the new id to persist")
+	t.contains(workspace_js, "this.assistantSession = rotateAssistantSessionId();", "expected the state to adopt it")
+	t.contains(workspace_js, "thread.replaceChildren();", "expected the transcript to be cleared")
+	t.contains(workspace_js, "log('assistant:new-session', { session: this.assistantSession });", "expected the rotation to be logged")
+	t.contains(home_fuwa, '@click="newAssistantSession()"', "expected the drawer control")
+end)
+
+t.test("rotating mid-request is refused instead of mixing two sessions", function()
+	t.contains(workspace_js, "assistantToast('Wait for the current answer first', true);", "expected a refusal with a reason")
+	t.contains(workspace_js, "if (this.assistantBusy) {", "expected the guard to key off the in-flight request")
+end)
+
 t.test("toasts from the assistant surface in the drawer", function()
 	t.contains(workspace_js, "function assistantToast(", "expected a toast helper")
 	t.contains(workspace_js, "document.querySelector('[data-assistant-toast]')", "expected the drawer toast host")
