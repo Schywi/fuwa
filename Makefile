@@ -11,7 +11,7 @@ ACCEPTANCE_TESTS = tests/acceptance.lua
 # Needs python3 (the sqlite_local provider shells out to a python helper).
 INTEGRATION_TESTS = tests/dev_server_smoke.lua
 
-.PHONY: help test test-unit test-smoke test-acceptance test-integration compile-check lint
+.PHONY: help test test-unit test-smoke test-acceptance test-integration test-js test-proxy compile-check lint
 
 help:
 	@echo "Targets:"
@@ -21,6 +21,8 @@ help:
 	@echo "  test-smoke        compiler + shell smoke checks"
 	@echo "  test-acceptance   acceptance suites"
 	@echo "  test-integration  dev server smoke (needs python3)"
+	@echo "  test-js           assistant link routing in a stubbed DOM (opt-in, needs node)"
+	@echo "  test-proxy        live /assistant/ proxy check (opt-in, needs a running fuwa)"
 	@echo "  test              everything, fail-fast, cheapest first"
 
 # Stage 1 — does every Lua file even parse? loadfile parse-checks without running.
@@ -45,6 +47,17 @@ test-smoke:
 
 test-acceptance:
 	@for f in $(ACCEPTANCE_TESTS); do echo ">> $$f"; $(LUA) $$f || exit 1; done
+
+# Opt-in — behavioural check of the shell's JS glue in a stubbed DOM (needs
+# node). Deliberately NOT part of `test`: Lua stays the test path.
+test-js:
+	@command -v node >/dev/null 2>&1 || { echo "node not installed; skipping"; exit 0; }
+	node tests/js/assistant_links.mjs
+
+# Opt-in — live check that nginx proxies every assistant route (needs a running
+# fuwa and a reachable assistant upstream).
+test-proxy:
+	./tests/assistant_proxy_smoke.sh
 
 # Stage 5 — integration (needs python3).
 test-integration:
