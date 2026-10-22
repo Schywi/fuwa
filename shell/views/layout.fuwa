@@ -1234,6 +1234,8 @@
 
       .assistant-head .muted { color: #7d8590; font-size: 12px; }
 
+      .assistant-head .muted.offline { color: #f85149; }
+
       .assistant-links { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
 
       .assistant-links button,

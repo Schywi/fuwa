@@ -85,7 +85,11 @@
     <aside class="assistant-drawer" v-show="drawerOpen">
       <header class="assistant-head">
         <h1>Cluster Assistant</h1>
-        <span class="muted">read-only · local LLM</span>
+        <span
+          class="muted"
+          :class="{ offline: assistantOnline === false }"
+          v-text="assistantOnline === null ? 'read-only · local LLM' : (assistantOnline ? 'online · read-only · local LLM' : 'unreachable — is the assistant up?')"
+        ></span>
         <nav class="assistant-links">
           <button type="button" @click="openAssistantLink('http://192.168.0.245/')">Grafana</button>
           <button type="button" @click="openAssistantLink('http://192.168.0.241/')">Hubble UI</button>
@@ -174,7 +178,8 @@
         <input
           name="message"
           v-model="assistantInput"
-          placeholder="Ask about the cluster…"
+          :placeholder="assistantOnline === false ? 'assistant unreachable' : 'Ask about the cluster…'"
+          :disabled="assistantOnline === false"
           autocomplete="off"
         />
         <button
@@ -182,10 +187,15 @@
           class="assistant-mic"
           :class="{ recording: assistantRecording }"
           :title="assistantRecording ? 'Stop and transcribe' : 'Speak instead of typing'"
+          :disabled="assistantOnline === false"
           @click="toggleAssistantRecording()"
           v-text="assistantRecording ? '■' : '🎤'"
         ></button>
-        <button class="send" type="submit" :disabled="assistantBusy || assistantRetryIn > 0">Send</button>
+        <button
+          class="send"
+          type="submit"
+          :disabled="assistantBusy || assistantRetryIn > 0 || assistantOnline === false"
+        >Send</button>
       </form>
       <div class="assistant-toast" data-assistant-toast></div>
     </aside>

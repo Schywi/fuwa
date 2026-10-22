@@ -513,6 +513,9 @@
 			drawerOpen: false,
 			openDrawer: function () {
 				this.drawerOpen = true;
+				// Cheap liveness check so the composer can say "unreachable"
+				// instead of letting the user type into a dead socket.
+				this.probeAssistantHealth();
 			},
 			closeDrawer: function () {
 				this.drawerOpen = false;
@@ -739,6 +742,25 @@
 					.catch(function (error) {
 						log('assistant:metrics-failed', error.message);
 						self.assistantMetricsError = 'metrics unavailable: ' + error.message;
+					});
+			},
+			probeAssistantHealth: function () {
+				const self = this;
+				window
+					.fetch(ASSISTANT_BASE + '/healthz')
+					.then(function (response) {
+						if (!response.ok) {
+							throw new Error('HTTP ' + response.status);
+						}
+						return response.json();
+					})
+					.then(function (payload) {
+						self.assistantOnline = true;
+						log('assistant:health-ok', payload && payload.status);
+					})
+					.catch(function (error) {
+						self.assistantOnline = false;
+						log('assistant:health-failed', error && error.message);
 					});
 			},
 			toggleAssistantRecording: function () {
