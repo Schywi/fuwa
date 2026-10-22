@@ -37,6 +37,10 @@ spec:
               value: "true"
             - name: FUWA_SSL
               value: "false"
+            # The assistant's LoadBalancer IP (192.168.0.243) is unreachable from
+            # inside the cluster (no hairpin), so nginx proxies to the Service.
+            - name: ASSISTANT_UPSTREAM
+              value: "assistant.assistant.svc.cluster.local:8080"
             - name: LUA_CODE_CACHE
               value: "on"
             - name: FUWA_DB_PATH

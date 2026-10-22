@@ -51,7 +51,16 @@ local fixture_investigate = read_file("tests/fixtures/assistant_fragment_investi
 
 t.test("nginx proxies /assistant/ to the Python assistant with the prefix stripped", function()
 	t.contains(nginx, "location /assistant/ {", "expected an /assistant/ location block")
-	t.contains(nginx, "proxy_pass http://192.168.0.243/;", "expected the trailing slash so /assistant/X maps to /X")
+	t.contains(nginx, 'set $assistant_upstream "${ASSISTANT_UPSTREAM}";', "expected a substitutable upstream")
+	t.contains(nginx, "proxy_pass http://$assistant_upstream/;", "expected the trailing slash so /assistant/X maps to /X")
+end)
+
+t.test("the assistant upstream is per-environment, defaulting to the LAN address", function()
+	local dockerfile = read_file("infra/Dockerfile.openresty")
+	local deployment = read_file("infra/k8s/deployment.yaml")
+	-- A pod cannot hairpin to a LoadBalancer IP, so the cluster uses Service DNS.
+	t.contains(dockerfile, "${ASSISTANT_UPSTREAM:-192.168.0.243}", "expected the LAN address as the dev default")
+	t.contains(deployment, 'value: "assistant.assistant.svc.cluster.local:8080"', "expected the Service FQDN in-cluster")
 end)
 
 t.test("nginx redirects the bare /assistant prefix", function()
