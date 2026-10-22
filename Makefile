@@ -52,7 +52,10 @@ test-acceptance:
 # node). Deliberately NOT part of `test`: Lua stays the test path.
 test-js:
 	@command -v node >/dev/null 2>&1 || { echo "node not installed; skipping"; exit 0; }
-	node tests/js/assistant_links.mjs
+	@for f in tests/js/*.mjs; do \
+		case "$$f" in *harness.mjs) continue;; esac; \
+		echo ">> $$f"; node "$$f" || exit 1; \
+	done
 
 # Opt-in — live check that nginx proxies every assistant route (needs a running
 # fuwa and a reachable assistant upstream).

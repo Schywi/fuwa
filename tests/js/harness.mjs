@@ -1,0 +1,132 @@
+// Shared bootstrap for the shell's JS behaviour checks.
+//
+// The shell's glue lives in an IIFE that expects a browser, so these checks run
+// the real `shell/hooks/workspace.js` inside node:vm against a stubbed DOM. No
+// browser, no jsdom — only the handful of globals that file touches.
+
+import fs from 'node:fs';
+import vm from 'node:vm';
+
+export class Element {}
+
+const SHELL_JS = new URL('../../shell/hooks/workspace.js', import.meta.url);
+
+export function fakeNode({ href = null, in_drawer = true, drawer = null } = {}) {
+	const node = new Element();
+	node.href = href;
+	node.getAttribute = (name) => (name === 'href' ? href : null);
+	node.closest = (selector) => {
+		if (selector === '.assistant-drawer') return in_drawer ? drawer : null;
+		if (selector === 'a[href]') return href ? node : null;
+		return null;
+	};
+	return node;
+}
+
+function fakeHost() {
+	const children = [];
+	return {
+		children,
+		appendChild(child) {
+			children.push(child);
+			return child;
+		},
+		text() {
+			return children.map((child) => child.textContent).join(' | ');
+		}
+	};
+}
+
+export function loadShell({ window: windowOverrides = {}, navigator: navigatorOverrides = {} } = {}) {
+	const listeners = [];
+	const logs = [];
+	const drawer = new Element();
+	const toasts = fakeHost();
+	const created = [];
+
+	const document = {
+		readyState: 'loading',
+		body: null,
+		addEventListener(type, fn) {
+			listeners.push({ type, fn });
+		},
+		querySelector(selector) {
+			return selector === '[data-assistant-toast]' ? toasts : null;
+		},
+		createElement() {
+			const node = new Element();
+			node.className = '';
+			node.textContent = '';
+			node.remove = () => {};
+			created.push(node);
+			return node;
+		},
+		contains: () => false
+	};
+
+	const window = {
+		localStorage: { getItem: () => null, setItem: () => {} },
+		setTimeout: () => 0,
+		clearTimeout: () => {},
+		setInterval: () => 0,
+		clearInterval: () => {},
+		fetch: () => Promise.reject(new Error('no network in this harness')),
+		...windowOverrides
+	};
+
+	const consoleSpy = {
+		info: (...args) => logs.push(args.join(' ')),
+		log: (...args) => logs.push(args.join(' ')),
+		warn: (...args) => logs.push(args.join(' ')),
+		error: (...args) => logs.push(args.join(' '))
+	};
+
+	const source = fs.readFileSync(SHELL_JS, 'utf8');
+	vm.runInNewContext(source, {
+		window,
+		document,
+		Element,
+		HTMLElement: Element,
+		HTMLInputElement: class extends Element {},
+		HTMLSelectElement: class extends Element {},
+		console: consoleSpy,
+		performance: { now: () => 0 },
+		navigator: navigatorOverrides,
+		URLSearchParams,
+		queueMicrotask,
+		setTimeout,
+		clearTimeout,
+		setInterval,
+		clearInterval,
+		WeakSet,
+		Promise,
+		Date,
+		Math,
+		String,
+		JSON
+	});
+
+	const state = window.FuwaShellWorkspace && window.FuwaShellWorkspace.state;
+	if (!state) {
+		throw new Error('shell did not expose FuwaShellWorkspace.state');
+	}
+
+	return {
+		window,
+		state,
+		listeners,
+		logs,
+		toasts,
+		created,
+		node: (options) => fakeNode({ ...options, drawer }),
+		fire(type, event) {
+			for (const listener of listeners) {
+				if (listener.type === type) listener.fn(event);
+			}
+		}
+	};
+}
+
+// Resolves once the microtask queue has drained, so `.then` chains started by
+// the shell have run before assertions.
+export const settle = () => new Promise((resolve) => setTimeout(resolve, 0));

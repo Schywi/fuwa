@@ -105,6 +105,14 @@
           placeholder="Ask about the cluster…"
           autocomplete="off"
         />
+        <button
+          type="button"
+          class="assistant-mic"
+          :class="{ recording: assistantRecording }"
+          :title="assistantRecording ? 'Stop and transcribe' : 'Speak instead of typing'"
+          @click="toggleAssistantRecording()"
+          v-text="assistantRecording ? '■' : '🎤'"
+        ></button>
         <button class="send" type="submit" :disabled="assistantBusy">Send</button>
       </form>
       <div class="assistant-toast" data-assistant-toast></div>
