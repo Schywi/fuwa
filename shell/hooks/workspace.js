@@ -807,6 +807,53 @@
 						self.assistantMetricsError = 'metrics unavailable: ' + error.message;
 					});
 			},
+			// ── Simple fallback ──────────────────────────────────
+			// Embed the assistant's own page same-origin and steal its links into
+			// the panel. No re-drawing at all: this is the Python UI itself.
+			assistantFallback: false,
+			assistantFallbackReason: '',
+			enableAssistantFallback: function (reason) {
+				if (this.assistantFallback) {
+					return;
+				}
+				this.assistantFallback = true;
+				this.assistantFallbackReason = reason || '';
+				log('assistant:fallback-on', { reason: reason });
+				assistantToast('Showing the assistant’s own page (' + (reason || 'manual') + ')');
+			},
+			useAssistantFallback: function () {
+				this.enableAssistantFallback('manual');
+			},
+			bindAssistantFrame: function () {
+				const frame = document.querySelector('[data-assistant-frame]');
+				const doc = frame && frame.contentDocument;
+				if (!doc) {
+					log('assistant:frame-cross-origin');
+					assistantToast('Embedded assistant is not same-origin — links will open tabs', true);
+					return;
+				}
+
+				for (const anchor of doc.querySelectorAll('a[target]')) {
+					anchor.removeAttribute('target');
+				}
+
+				doc.addEventListener(
+					'click',
+					function (event) {
+						const target = event.target instanceof Element ? event.target : null;
+						const link = target ? target.closest('a[href]') : null;
+						if (!link) {
+							return;
+						}
+						event.preventDefault();
+						event.stopPropagation();
+						workspace_state?.openAssistantLink(link.href || link.getAttribute('href'));
+					},
+					true
+				);
+
+				log('assistant:frame-bound');
+			},
 			probeAssistantHealth: function () {
 				const self = this;
 				window
@@ -1004,6 +1051,10 @@
 
 						window.clearInterval(tick);
 						log('assistant failed', error.message);
+						const status = /^HTTP (\d+)$/.exec(error.message);
+						if (status && ['404', '405', '501'].includes(status[1])) {
+							self.enableAssistantFallback('fragment endpoint unusable: ' + error.message);
+						}
 						pending.className = 'msg bot err';
 						pending.textContent = 'Request failed: ' + error.message;
 						rememberAssistantError('Request failed: ' + error.message);

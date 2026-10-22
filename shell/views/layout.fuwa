@@ -1374,6 +1374,14 @@
 
       .assistant-actions-preview { display: flex; flex-direction: column; gap: 4px; color: #e6edf3; }
 
+      .assistant-frame {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        border: 0;
+        background: #0d1117;
+      }
+
       .assistant-thread {
         flex: 1;
         min-height: 0;

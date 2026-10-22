@@ -102,6 +102,7 @@
             <button type="button" @click="toggleAssistantMetrics()">metrics</button>
             <button type="button" @click="toggleAssistantActions()">actions</button>
             <button type="button" @click="toggleAssistantPlan()">plan</button>
+            <button type="button" @click="useAssistantFallback()">python ui</button>
           </div>
         </details>
         <button type="button" class="assistant-close" @click="closeDrawer()">✕</button>
@@ -174,8 +175,16 @@
         <div v-if="assistantActionResult" class="assistant-actions-row" v-text="assistantActionResult"></div>
       </div>
       <div v-if="assistantActionsError" class="assistant-actions err" data-assistant-actions-error v-text="assistantActionsError"></div>
-      <main class="assistant-thread" data-assistant-thread></main>
-      <form class="assistant-composer" @submit.prevent="sendAssistant()">
+      <main v-show="!assistantFallback" class="assistant-thread" data-assistant-thread></main>
+      <iframe
+        v-if="assistantFallback"
+        class="assistant-frame"
+        src="/assistant/"
+        title="Cluster Assistant"
+        data-assistant-frame
+        @load="bindAssistantFrame()"
+      ></iframe>
+      <form v-show="!assistantFallback" class="assistant-composer" @submit.prevent="sendAssistant()">
         <select name="mode" v-model="assistantMode" :disabled="assistantBusy" title="investigate = multi-step tool loop; chat = one step">
           <option value="investigate">investigate</option>
           <option value="chat">chat</option>

@@ -58,7 +58,11 @@ function fakeHost() {
 	};
 }
 
-export function loadShell({ window: windowOverrides = {}, navigator: navigatorOverrides = {} } = {}) {
+export function loadShell({
+	window: windowOverrides = {},
+	navigator: navigatorOverrides = {},
+	frame: frameOverride = null
+} = {}) {
 	const listeners = [];
 	const logs = [];
 	const drawer = new Element();
@@ -75,6 +79,7 @@ export function loadShell({ window: windowOverrides = {}, navigator: navigatorOv
 		querySelector(selector) {
 			if (selector === '[data-assistant-toast]') return toasts;
 			if (selector === '[data-assistant-thread]') return thread;
+			if (selector === '[data-assistant-frame]') return frameOverride;
 			return null;
 		},
 		querySelectorAll: () => [],
