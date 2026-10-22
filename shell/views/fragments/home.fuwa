@@ -192,6 +192,12 @@
           v-text="assistantRecording ? '■' : '🎤'"
         ></button>
         <button
+          v-if="assistantBusy"
+          type="button"
+          class="assistant-stop"
+          @click="cancelAssistantQuestion()"
+        >stop</button>
+        <button
           class="send"
           type="submit"
           :disabled="assistantBusy || assistantRetryIn > 0 || assistantOnline === false"

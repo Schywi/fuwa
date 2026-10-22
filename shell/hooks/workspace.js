@@ -234,6 +234,9 @@
 	// The assistant answers 501 until STT_URL is configured; that is surfaced
 	// as a diagnostic, never swallowed.
 	let assistant_recorder = null;
+	// The assistant has no cancel route; aborting the fetch only stops waiting on
+	// this side (the server finishes its work regardless).
+	let assistant_abort = null;
 
 	function uploadAssistantVoice(blob, apply_transcript) {
 		const form = new window.FormData();
@@ -856,6 +859,13 @@
 				this.closeDrawer();
 				this.openPanel(url);
 			},
+			cancelAssistantQuestion: function () {
+				if (!assistant_abort) {
+					return;
+				}
+				assistant_abort.abort();
+				assistantToast('Stopped waiting — the assistant may still finish server-side');
+			},
 			sendAssistant: function () {
 				const text = (this.assistantInput || '').trim();
 				if (text === '' || this.assistantBusy) {
@@ -906,6 +916,7 @@
 
 				function settle() {
 					window.clearInterval(tick);
+					assistant_abort = null;
 					self.assistantBusy = false;
 					thread.scrollTop = thread.scrollHeight;
 				}
@@ -914,11 +925,14 @@
 					pending.textContent = 'assistant busy — retry in ' + seconds + 's';
 				}
 
+				assistant_abort = typeof window.AbortController === 'function' ? new window.AbortController() : null;
+
 				window
 					.fetch(ASSISTANT_BASE + '/ui/message', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-						body: body
+						body: body,
+						signal: assistant_abort ? assistant_abort.signal : undefined
 					})
 					.then(function (response) {
 						if (response.status === 429) {
@@ -948,6 +962,15 @@
 						self.assistantOnline = true;
 					})
 					.catch(function (error) {
+						if (error && error.name === 'AbortError') {
+							window.clearInterval(tick);
+							log('assistant:cancelled');
+							pending.className = 'msg bot pending';
+							pending.textContent = 'cancelled';
+							rememberAssistantError('cancelled');
+							settle();
+							return;
+						}
 						if (error && error.retry_after) {
 							window.clearInterval(tick);
 							self.assistantRetryIn = error.retry_after;
