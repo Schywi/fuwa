@@ -1,6 +1,6 @@
 # Allow-list for the fuwa pod. Ingress only from the LoadBalancer / cluster
-# ingress; egress only to the API server (pod logs), DNS, and the observability
-# namespace (OTLP traces).
+# ingress; egress only to the API server (pod logs), DNS, the observability
+# namespace (OTLP traces), and the cluster assistant the drawer proxies to.
 apiVersion: cilium.io/v2
 kind: CiliumNetworkPolicy
 metadata:
@@ -36,4 +36,13 @@ spec:
       toPorts:
         - ports:
             - port: "4318"
+              protocol: TCP
+    # /assistant/* is reverse-proxied by nginx to the assistant Service; without
+    # this the proxy connect times out (504) even though the pod can resolve it.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: assistant
+      toPorts:
+        - ports:
+            - port: "8080"
               protocol: TCP

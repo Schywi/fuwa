@@ -52,7 +52,8 @@ local fixture_investigate = read_file("tests/fixtures/assistant_fragment_investi
 t.test("nginx proxies /assistant/ to the Python assistant with the prefix stripped", function()
 	t.contains(nginx, "location /assistant/ {", "expected an /assistant/ location block")
 	t.contains(nginx, 'set $assistant_upstream "${ASSISTANT_UPSTREAM}";', "expected a substitutable upstream")
-	t.contains(nginx, "proxy_pass http://$assistant_upstream/;", "expected the trailing slash so /assistant/X maps to /X")
+	t.contains(nginx, "rewrite ^/assistant/?(.*)$ /$1 break;", "expected the prefix stripped despite the variable upstream")
+	t.contains(nginx, "proxy_pass http://$assistant_upstream;", "expected no URI in proxy_pass, so the rewrite decides the path")
 end)
 
 t.test("the assistant upstream is per-environment, defaulting to the LAN address", function()
