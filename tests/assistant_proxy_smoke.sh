@@ -74,7 +74,12 @@ expect "POST /actions/confirm" "200|400|404|422" -X POST "$A/actions/confirm" \
 # The fragment's own asset path, forwarded through the prefix.
 audio="$(grep -o 'data-audio="[^"]*"' "$TMP/fragment" | head -1 | cut -d'"' -f2)"
 if [[ -n "$audio" ]]; then
-	expect "GET ${audio%%/audio*}audio/{id}" "200|202" "$A$audio"
+	# The fragment may already carry the prefix (nginx sub_filter) or not.
+	case "$audio" in
+	/assistant/*) audio_url="$BASE$audio" ;;
+	*) audio_url="$A$audio" ;;
+	esac
+	expect "GET audio/{id}" "200|202" "$audio_url"
 else
 	printf '  FAIL %-22s fragment carried no data-audio\n' "GET audio/{id}"
 	fail=$((fail + 1))

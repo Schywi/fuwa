@@ -112,4 +112,18 @@ function fakeFrameDocument() {
 	await tick();
 }
 
+
+// ── 6. the proxy-URL rule never prefixes twice ───────────────────────────
+{
+	const shell = loadShell();
+	const proxied = shell.window.FuwaShellWorkspace.assistantProxyUrl;
+
+	assert.equal(proxied('/audio/abc'), '/assistant/audio/abc', 'root-relative assets go through the proxy');
+	assert.equal(proxied('/assistant/audio/abc'), '/assistant/audio/abc', 'an already-prefixed URL is left alone');
+	assert.equal(proxied('/assistant/x'), '/assistant/x', 'the prefix itself is idempotent');
+	assert.equal(proxied('http://192.168.0.245/explore'), 'http://192.168.0.245/explore', 'absolute URLs untouched');
+	assert.equal(proxied('//cdn.example/x.js'), '//cdn.example/x.js', 'protocol-relative untouched');
+	assert.equal(proxied(''), '', 'empty stays empty');
+}
+
 console.log('assistant fallback ok: embedded page, links stolen, dead fragment endpoint switches over');

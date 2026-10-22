@@ -78,14 +78,25 @@
 	}
 
 	// data-audio="/audio/{id}" targets the assistant's root, not the shell's.
+	// nginx's sub_filter may have prefixed it already; never prefix twice.
+	function assistantProxyUrl(value) {
+		if (!value || value.charAt(0) !== '/' || value.charAt(1) === '/') {
+			return value;
+		}
+		if (value === ASSISTANT_BASE || value.indexOf(ASSISTANT_BASE + '/') === 0) {
+			return value;
+		}
+		return ASSISTANT_BASE + value;
+	}
+
 	function rewriteAssistantUrls(root) {
 		for (const node of root.querySelectorAll('[href],[src],[data-audio]')) {
 			for (const attribute of ['href', 'src', 'data-audio']) {
 				const value = node.getAttribute(attribute);
-				if (!value || value.charAt(0) !== '/' || value.charAt(1) === '/') {
-					continue;
+				const proxied = assistantProxyUrl(value);
+				if (proxied !== value) {
+					node.setAttribute(attribute, proxied);
 				}
-				node.setAttribute(attribute, ASSISTANT_BASE + value);
 			}
 		}
 
@@ -1435,7 +1446,8 @@
 		createState,
 		state: workspace_state,
 		initialize,
-		parseAssistantMetrics
+		parseAssistantMetrics,
+		assistantProxyUrl
 	};
 
 	if (document.readyState === 'loading') {
