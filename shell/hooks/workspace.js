@@ -526,6 +526,179 @@
 			assistantRecording: false,
 			assistantMode: 'investigate',
 			assistantSession: assistantSessionId(),
+			// ── Planner debug ────────────────────────────────────
+			// POST /plan?kind=qwen|laya answers {planner, plan_ms, tools[]} without
+			// running anything. Debug only: it shows what the planner would call.
+			assistantPlan: null,
+			assistantPlanError: '',
+			assistantPlanKind: 'qwen',
+			toggleAssistantPlan: function () {
+				const self = this;
+				if (self.assistantPlan) {
+					self.assistantPlan = null;
+					return;
+				}
+				self.assistantPlanError = '';
+				self.previewAssistantPlan();
+			},
+			previewAssistantPlan: function () {
+				const self = this;
+				const text = (self.assistantInput || '').trim();
+				if (text === '') {
+					assistantToast('Type a question first — the planner plans that', true);
+					return;
+				}
+				const kind = self.assistantPlanKind === 'laya' ? 'laya' : 'qwen';
+				window
+					.fetch(ASSISTANT_BASE + '/plan?kind=' + kind, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ message: text })
+					})
+					.then(function (response) {
+						return response.json().then(function (payload) {
+							if (!response.ok) {
+								throw new Error((payload && payload.detail) || 'HTTP ' + response.status);
+							}
+							return payload;
+						});
+					})
+					.then(function (payload) {
+						const tools = Array.isArray(payload.tools) ? payload.tools : [];
+						self.assistantPlan = {
+							kind: kind,
+							planner: payload.planner || 'unknown',
+							plan_ms: payload.plan_ms,
+							tools: tools.map(function (entry) {
+								return {
+									tool: entry.tool,
+									// Rendered as text, so template globals stay out of the markup.
+									args_text: JSON.stringify(entry.args || {})
+								};
+							})
+						};
+						log('assistant:plan', { kind: kind, planner: payload.planner });
+					})
+					.catch(function (error) {
+						log('assistant:plan-failed', error.message);
+						self.assistantPlanError = 'planner unavailable: ' + error.message;
+					});
+			},
+			// ── Level-2 actions ──────────────────────────────────
+			// /actions lists what the assistant may do, /actions/request mints a
+			// token + preview, /actions/confirm executes. Nothing is ever
+			// executed on the user's behalf: the confirm button is the only path.
+			assistantActions: null,
+			assistantActionsError: '',
+			assistantActionArgs: {},
+			assistantActionPreview: null,
+			assistantActionResult: '',
+			toggleAssistantActions: function () {
+				const self = this;
+				if (self.assistantActions) {
+					self.assistantActions = null;
+					self.assistantActionPreview = null;
+					return;
+				}
+				window
+					.fetch(ASSISTANT_BASE + '/actions')
+					.then(function (response) {
+						if (!response.ok) {
+							throw new Error('HTTP ' + response.status);
+						}
+						return response.json();
+					})
+					.then(function (payload) {
+						self.assistantActions = {
+							enabled: Boolean(payload && payload.enabled),
+							catalog: Array.isArray(payload && payload.catalog) ? payload.catalog : [],
+							pending: Array.isArray(payload && payload.pending) ? payload.pending : []
+						};
+						self.assistantActionsError = '';
+					})
+					.catch(function (error) {
+						log('assistant:actions-failed', error.message);
+						self.assistantActionsError = 'actions unavailable: ' + error.message;
+					});
+			},
+			setAssistantActionArgs: function (name, event) {
+				const value = event && event.target ? event.target.value : '';
+				const next = Object.assign({}, this.assistantActionArgs);
+				next[name] = value;
+				this.assistantActionArgs = next;
+			},
+			requestAssistantAction: function (name) {
+				const self = this;
+				if (self.assistantActions && !self.assistantActions.enabled) {
+					assistantToast('Actions are disabled on the assistant', true);
+					return;
+				}
+				let args;
+				try {
+					args = JSON.parse(self.assistantActionArgs[name] || '{}');
+				} catch (error) {
+					assistantToast('args must be JSON: ' + error.message, true);
+					return;
+				}
+				window
+					.fetch(ASSISTANT_BASE + '/actions/request', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ tool: name, args: args })
+					})
+					.then(function (response) {
+						return response.json().then(function (payload) {
+							if (!response.ok) {
+								throw new Error((payload && payload.detail) || 'HTTP ' + response.status);
+							}
+							return payload;
+						});
+					})
+					.then(function (payload) {
+						self.assistantActionPreview = payload;
+						self.assistantActionResult = '';
+						log('assistant:action-prepared', { action: name });
+					})
+					.catch(function (error) {
+						log('assistant:action-request-failed', error.message);
+						assistantToast('Could not prepare action: ' + error.message, true);
+					});
+			},
+			confirmAssistantAction: function () {
+				const self = this;
+				const preview = self.assistantActionPreview;
+				if (!preview || !preview.token) {
+					assistantToast('Nothing to confirm', true);
+					return;
+				}
+				window
+					.fetch(ASSISTANT_BASE + '/actions/confirm', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ token: preview.token })
+					})
+					.then(function (response) {
+						return response.json().then(function (payload) {
+							if (!response.ok) {
+								throw new Error((payload && payload.detail) || 'HTTP ' + response.status);
+							}
+							return payload;
+						});
+					})
+					.then(function (payload) {
+						self.assistantActionPreview = null;
+						self.assistantActionResult = 'executed: ' + JSON.stringify(payload);
+						log('assistant:action-confirmed', { action: preview.action });
+					})
+					.catch(function (error) {
+						log('assistant:action-confirm-failed', error.message);
+						self.assistantActionResult = 'failed: ' + error.message;
+					});
+			},
+			dismissAssistantAction: function () {
+				this.assistantActionPreview = null;
+				this.assistantActionResult = '';
+			},
 			newAssistantSession: function () {
 				if (this.assistantBusy) {
 					assistantToast('Wait for the current answer first', true);

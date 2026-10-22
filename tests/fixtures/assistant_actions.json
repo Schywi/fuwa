@@ -1,0 +1,1 @@
+{"enabled":false,"catalog":[{"name":"restart_deployment","level":2,"description":"Rolling-restart a Deployment"},{"name":"scale_deployment","level":2,"description":"Scale a Deployment to a replica count"}],"pending":[{"token":"omQF1RDSSFmjJQc4TWEe8A","action":"restart_deployment","args":{"namespace":"default","name":"demo"},"age_seconds":25.0}]}

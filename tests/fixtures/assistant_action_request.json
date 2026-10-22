@@ -1,0 +1,15 @@
+{
+  "token": "<minted-token>",
+  "action": "restart_deployment",
+  "args": {
+    "namespace": "default",
+    "name": "demo"
+  },
+  "preview": {
+    "action": "restart_deployment",
+    "target": "default/demo",
+    "effect": "rolling restart (patch pod-template restartedAt)"
+  },
+  "expires_in": 120,
+  "note": "POST /actions/confirm with this token to execute"
+}

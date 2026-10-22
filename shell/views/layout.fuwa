@@ -1268,6 +1268,61 @@
 
       .assistant-metrics-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 
+      .assistant-actions {
+        padding: 8px 16px;
+        border-bottom: 1px solid #21262d;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+        color: #7d8590;
+      }
+
+      .assistant-actions.err { color: #ffb4ad; }
+
+      .assistant-actions-note { color: #d29922; }
+
+      .assistant-actions-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+      .assistant-actions-row input {
+        flex: 1;
+        min-width: 90px;
+        font: inherit;
+        font-size: 11px;
+        background: #0d1117;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 3px 6px;
+      }
+
+      .assistant-actions-row select {
+        font: inherit;
+        font-size: 11px;
+        background: #0d1117;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 3px 6px;
+      }
+
+      .assistant-actions-row button {
+        font: inherit;
+        font-size: 11px;
+        border: 1px solid #30363d;
+        background: #0d1117;
+        color: #e6edf3;
+        border-radius: 6px;
+        padding: 3px 8px;
+        cursor: pointer;
+      }
+
+      .assistant-actions-row button:disabled { opacity: 0.5; cursor: default; }
+
+      .assistant-actions-row button.confirm { border-color: #f85149; color: #f85149; }
+
+      .assistant-actions-preview { display: flex; flex-direction: column; gap: 4px; color: #e6edf3; }
+
       .assistant-thread {
         flex: 1;
         min-height: 0;

@@ -93,6 +93,8 @@
         </nav>
         <button type="button" @click="newAssistantSession()" title="Start a fresh conversation">new session</button>
         <button type="button" @click="toggleAssistantMetrics()">metrics</button>
+        <button type="button" @click="toggleAssistantActions()">actions</button>
+        <button type="button" @click="toggleAssistantPlan()">plan</button>
         <button type="button" class="assistant-close" @click="closeDrawer()">✕</button>
       </header>
       <div v-if="assistantMetrics" class="assistant-metrics" data-assistant-metrics>
@@ -114,6 +116,55 @@
         </div>
       </div>
       <div v-if="assistantMetricsError" class="assistant-metrics err" data-assistant-metrics-error v-text="assistantMetricsError"></div>
+      <div v-if="assistantPlan" class="assistant-actions" data-assistant-plan>
+        <div class="assistant-actions-row">
+          <span class="tag" v-text="assistantPlan.planner"></span>
+          <span v-text="assistantPlan.plan_ms + ' ms'"></span>
+          <select v-model="assistantPlanKind" @change="previewAssistantPlan()" aria-label="planner">
+            <option value="qwen">qwen</option>
+            <option value="laya">laya</option>
+          </select>
+          <button type="button" @click="previewAssistantPlan()">re-plan</button>
+        </div>
+        <div class="assistant-actions-row" v-for="t in assistantPlan.tools">
+          <span class="tag" v-text="t.tool"></span>
+          <span v-text="t.args_text"></span>
+        </div>
+      </div>
+      <div v-if="assistantPlanError" class="assistant-actions err" data-assistant-plan-error v-text="assistantPlanError"></div>
+      <div v-if="assistantActions" class="assistant-actions" data-assistant-actions>
+        <div v-if="!assistantActions.enabled" class="assistant-actions-note">
+          actions are disabled on the assistant — prepare is read-only until they are enabled
+        </div>
+        <div class="assistant-actions-row" v-for="a in assistantActions.catalog">
+          <span class="tag" v-text="a.name"></span>
+          <span v-text="a.description"></span>
+          <input
+            type="text"
+            :value="assistantActionArgs[a.name] || '{}'"
+            :disabled="!assistantActions.enabled"
+            @input="setAssistantActionArgs(a.name, $event)"
+            :aria-label="'args JSON for ' + a.name"
+          />
+          <button
+            type="button"
+            :disabled="!assistantActions.enabled"
+            @click="requestAssistantAction(a.name)"
+            v-text="'prepare'"
+          ></button>
+        </div>
+        <div v-if="assistantActionPreview" class="assistant-actions-preview">
+          <div v-text="assistantActionPreview.action + ' → ' + (assistantActionPreview.preview ? assistantActionPreview.preview.target : '')"></div>
+          <div v-text="assistantActionPreview.preview ? assistantActionPreview.preview.effect : ''"></div>
+          <div class="assistant-actions-row">
+            <button type="button" class="confirm" @click="confirmAssistantAction()">Confirm</button>
+            <button type="button" @click="dismissAssistantAction()">Cancel</button>
+            <span v-text="'expires in ' + assistantActionPreview.expires_in + 's'"></span>
+          </div>
+        </div>
+        <div v-if="assistantActionResult" class="assistant-actions-row" v-text="assistantActionResult"></div>
+      </div>
+      <div v-if="assistantActionsError" class="assistant-actions err" data-assistant-actions-error v-text="assistantActionsError"></div>
       <main class="assistant-thread" data-assistant-thread></main>
       <form class="assistant-composer" @submit.prevent="sendAssistant()">
         <select name="mode" v-model="assistantMode" title="investigate = multi-step tool loop; chat = one step">
