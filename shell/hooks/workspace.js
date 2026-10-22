@@ -524,6 +524,8 @@
 			assistantInput: '',
 			assistantBusy: false,
 			assistantRecording: false,
+			assistantRetryIn: 0,
+			assistantOnline: null,
 			assistantMode: 'investigate',
 			assistantSession: assistantSessionId(),
 			// ── Planner debug ────────────────────────────────────
@@ -773,24 +775,32 @@
 				this.openPanel(url);
 			},
 			sendAssistant: function () {
-				const self = this;
-				const text = (self.assistantInput || '').trim();
-				const thread = document.querySelector('[data-assistant-thread]');
-				if (text === '' || self.assistantBusy) {
+				const text = (this.assistantInput || '').trim();
+				if (text === '' || this.assistantBusy) {
 					return;
 				}
+				this.assistantInput = '';
+				this.deliverAssistantQuestion(text, 0);
+			},
+			// One question, one pending bubble, one answer. `attempt` exists only
+			// for the 429 path: the assistant's limiter answers 429 + Retry-After
+			// when it is saturated, and the question is retried once after waiting.
+			deliverAssistantQuestion: function (text, attempt) {
+				const self = this;
+				const thread = document.querySelector('[data-assistant-thread]');
 				if (!thread) {
 					log('assistant:missing-thread');
 					return;
 				}
 
-				self.assistantInput = '';
 				self.assistantBusy = true;
 
-				const user = document.createElement('div');
-				user.className = 'msg user';
-				user.textContent = text;
-				thread.appendChild(user);
+				if (attempt === 0) {
+					const user = document.createElement('div');
+					user.className = 'msg user';
+					user.textContent = text;
+					thread.appendChild(user);
+				}
 
 				const pending = document.createElement('div');
 				pending.className = 'msg bot pending';
@@ -817,6 +827,10 @@
 					thread.scrollTop = thread.scrollHeight;
 				}
 
+				function busyMessage(seconds) {
+					pending.textContent = 'assistant busy — retry in ' + seconds + 's';
+				}
+
 				window
 					.fetch(ASSISTANT_BASE + '/ui/message', {
 						method: 'POST',
@@ -824,12 +838,21 @@
 						body: body
 					})
 					.then(function (response) {
+						if (response.status === 429) {
+							const header = response.headers && typeof response.headers.get === 'function'
+								? Number(response.headers.get('Retry-After'))
+								: NaN;
+							const error = new Error('429 too many requests');
+							error.retry_after = Number.isFinite(header) && header > 0 ? Math.ceil(header) : 5;
+							throw error;
+						}
 						if (!response.ok) {
 							throw new Error('HTTP ' + response.status);
 						}
 						return response.text();
 					})
 					.then(function (fragment) {
+						window.clearInterval(tick);
 						const holder = document.createElement('div');
 						holder.innerHTML = fragment;
 						rewriteAssistantUrls(holder);
@@ -837,14 +860,48 @@
 							pending.parentNode.insertBefore(holder.firstChild, pending);
 						}
 						pending.remove();
+						settle();
+						self.assistantOnline = true;
 					})
 					.catch(function (error) {
+						if (error && error.retry_after) {
+							window.clearInterval(tick);
+							self.assistantRetryIn = error.retry_after;
+							busyMessage(self.assistantRetryIn);
+							log('assistant:busy', { retry_in: error.retry_after, attempt: attempt });
+
+							const countdown = window.setInterval(function () {
+								self.assistantRetryIn = Math.max(0, self.assistantRetryIn - 1);
+								busyMessage(self.assistantRetryIn);
+							}, 1000);
+
+							window.setTimeout(function () {
+								window.clearInterval(countdown);
+								self.assistantRetryIn = 0;
+								if (attempt === 0) {
+									pending.remove();
+									self.assistantBusy = false;
+									assistantToast('Assistant was busy — retrying');
+									self.deliverAssistantQuestion(text, 1);
+									return;
+								}
+								// Second 429: stop retrying and give the question back.
+								self.assistantInput = text;
+								pending.className = 'msg bot err';
+								pending.textContent = 'assistant still busy (429) — press Send to retry';
+								assistantToast('Assistant still busy (429) — question restored', true);
+								settle();
+							}, error.retry_after * 1000);
+							return;
+						}
+
+						window.clearInterval(tick);
 						log('assistant failed', error.message);
 						pending.className = 'msg bot err';
 						pending.textContent = 'Request failed: ' + error.message;
 						assistantToast('Request failed', true);
-					})
-					.finally(settle);
+						settle();
+					});
 			},
 			tmuxOpen: false,
 			archOpen: false,

@@ -75,6 +75,13 @@ export function loadShell({ window: windowOverrides = {}, navigator: navigatorOv
 			const node = new Element();
 			node.className = '';
 			node.textContent = '';
+			node.innerHTML = '';
+			node.firstChild = null;
+			node.parentNode = { insertBefore() {} };
+			node.querySelector = () => null;
+			node.querySelectorAll = () => [];
+			node.children = [];
+			node.childNodes = [];
 			node.remove = () => {};
 			created.push(node);
 			return node;
@@ -149,3 +156,33 @@ export function loadShell({ window: windowOverrides = {}, navigator: navigatorOv
 // Resolves once the microtask queue has drained, so `.then` chains started by
 // the shell have run before assertions.
 export const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+// Deterministic timers: nothing fires until the test runs it, so a 429 retry
+// can be exercised without sleeping for the Retry-After delay.
+export function fakeScheduler() {
+	const timeouts = [];
+	const intervals = [];
+	return {
+		timeouts,
+		intervals,
+		window: {
+			setTimeout(fn, ms) {
+				timeouts.push({ fn, ms });
+				return timeouts.length;
+			},
+			clearTimeout() {},
+			setInterval(fn, ms) {
+				intervals.push({ fn, ms });
+				return intervals.length;
+			},
+			clearInterval() {}
+		},
+		runTimeouts() {
+			const pending = timeouts.splice(0, timeouts.length);
+			for (const timer of pending) timer.fn();
+		},
+		tickIntervals() {
+			for (const timer of intervals) timer.fn();
+		}
+	};
+}

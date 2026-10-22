@@ -294,6 +294,23 @@ t.test("the planner panel renders planner, latency and planned tools", function(
 	t.not_contains(home_fuwa, "JSON.stringify(t.args", "the template must not rely on globals")
 end)
 
+t.test("429 backpressure honours Retry-After and retries once", function()
+	t.contains(workspace_js, "if (response.status === 429) {", "expected the limiter status to be handled, not rendered as a failure")
+	t.contains(workspace_js, "response.headers.get('Retry-After')", "expected the advertised delay to be read")
+	t.contains(workspace_js, "error.retry_after = Number.isFinite(header) && header > 0 ? Math.ceil(header) : 5;", "expected a sane fallback delay")
+	t.contains(workspace_js, "self.assistantRetryIn = error.retry_after;", "expected a visible countdown")
+	t.contains(workspace_js, "self.deliverAssistantQuestion(text, 1);", "expected exactly one retry")
+	t.not_contains(workspace_js, "attempt < ", "retries must not loop")
+end)
+
+t.test("a repeated 429 gives the question back instead of losing it", function()
+	t.contains(workspace_js, "self.assistantInput = text;", "expected the question restored to the composer")
+	t.contains(workspace_js, "assistant still busy (429) — press Send to retry", "expected the thread to explain the state")
+	t.contains(workspace_js, "assistantToast('Assistant still busy (429) — question restored', true);", "expected a toast")
+	t.contains(workspace_js, "log('assistant:busy', { retry_in: error.retry_after, attempt: attempt });", "expected the backpressure to be logged")
+	t.contains(home_fuwa, ':disabled="assistantBusy || assistantRetryIn > 0"', "expected Send to stay disabled while waiting")
+end)
+
 t.test("toasts from the assistant surface in the drawer", function()
 	t.contains(workspace_js, "function assistantToast(", "expected a toast helper")
 	t.contains(workspace_js, "document.querySelector('[data-assistant-toast]')", "expected the drawer toast host")

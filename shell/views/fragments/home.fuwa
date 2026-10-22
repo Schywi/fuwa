@@ -167,7 +167,7 @@
       <div v-if="assistantActionsError" class="assistant-actions err" data-assistant-actions-error v-text="assistantActionsError"></div>
       <main class="assistant-thread" data-assistant-thread></main>
       <form class="assistant-composer" @submit.prevent="sendAssistant()">
-        <select name="mode" v-model="assistantMode" title="investigate = multi-step tool loop; chat = one step">
+        <select name="mode" v-model="assistantMode" :disabled="assistantBusy" title="investigate = multi-step tool loop; chat = one step">
           <option value="investigate">investigate</option>
           <option value="chat">chat</option>
         </select>
@@ -185,7 +185,7 @@
           @click="toggleAssistantRecording()"
           v-text="assistantRecording ? '■' : '🎤'"
         ></button>
-        <button class="send" type="submit" :disabled="assistantBusy">Send</button>
+        <button class="send" type="submit" :disabled="assistantBusy || assistantRetryIn > 0">Send</button>
       </form>
       <div class="assistant-toast" data-assistant-toast></div>
     </aside>
