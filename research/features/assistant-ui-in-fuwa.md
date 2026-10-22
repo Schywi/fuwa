@@ -1,9 +1,13 @@
 # Feature: Assistant chat inside fuwa (in-panel deep links)
 
-> Status: **Implemented (fuwa side).** API surface grounded against the running
-> assistant (namespace `assistant`, `http://192.168.0.243`). The chat is native
-> now: state in `shell/hooks/workspace.js` (same scope as `openPanel`), markup in
-> the `.assistant-drawer` fragment.
+> Status: **Implemented.** Superseded the first native attempt: instead of
+> re-drawing answers in petite-vue (which lost markdown, evidence, TTS and
+> metrics), OpenResty proxies **every** assistant route under `/assistant/`
+> (see `nginx.conf`) and the drawer renders the HTML that
+> `POST /assistant/ui/message` returns, with the assistant's own stylesheet
+> ported into `shell/views/layout.fuwa`. The drawer only owns transport and the
+> fragment seams: evidence links → `openPanel`, 🔊 → `/assistant/speak`,
+> copy → clipboard. Parity is pinned by `tests/unit/assistant_ui.lua`.
 > Intended home: `experiments/research/features/`.
 
 ## Problem

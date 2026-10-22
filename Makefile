@@ -5,7 +5,7 @@
 LUA ?= lua5.4
 
 # Fast, no external deps beyond the Lua interpreter.
-UNIT_TESTS       = tests/unit/compiler.lua tests/unit/browser.lua tests/unit/db.lua tests/unit/host.lua tests/unit/trace.lua tests/unit/architecture_panel.lua tests/unit/openresty_file_watcher.lua
+UNIT_TESTS       = tests/unit/compiler.lua tests/unit/browser.lua tests/unit/db.lua tests/unit/host.lua tests/unit/trace.lua tests/unit/architecture_panel.lua tests/unit/openresty_file_watcher.lua tests/unit/assistant_ui.lua tests/unit/infra_merge.lua
 SMOKE_TESTS      = tests/compiler_smoke.lua tests/shell_smoke.lua
 ACCEPTANCE_TESTS = tests/acceptance.lua
 # Needs python3 (the sqlite_local provider shells out to a python helper).

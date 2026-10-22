@@ -13,7 +13,12 @@
 	let mounted_app = null;
 	const mounted_roots = new WeakSet();
 
-	const ASSISTANT_URL = 'http://192.168.0.243';
+	// The assistant is served by OpenResty under /assistant/ (nginx.conf), so
+	// the shell renders the Python app's own HTML fragments on its own origin
+	// instead of re-implementing them. Every assistant route is reachable:
+	// /assistant/ , /ui/message , /chat , /investigate , /speak ,
+	// /voice/transcribe , /actions* , /plan , /audio/{id} , /metrics .
+	const ASSISTANT_BASE = '/assistant';
 	const ASSISTANT_SESSION_KEY = 'fuwa-assistant-session';
 
 	function assistantSessionId() {
@@ -34,6 +39,128 @@
 			return;
 		}
 		console.info(LOG_PREFIX + ' ' + step, detail);
+	}
+
+	// ── Assistant fragment seams ──────────────────────────────────
+	// /ui/message returns the Python app's own HTML. These helpers keep that
+	// markup working on fuwa's origin: rewrite root-relative asset URLs through
+	// the proxy, play the 🔊 audio, copy reproducible commands, and route
+	// evidence links into the panel instead of a new tab.
+
+	function assistantToast(message, is_error) {
+		const host = document.querySelector('[data-assistant-toast]');
+		if (!host) {
+			return;
+		}
+		const toast = document.createElement('div');
+		toast.className = 'toast' + (is_error ? ' err' : '');
+		toast.textContent = message;
+		host.appendChild(toast);
+		window.setTimeout(function () {
+			toast.remove();
+		}, 6000);
+	}
+
+	// data-audio="/audio/{id}" targets the assistant's root, not the shell's.
+	function rewriteAssistantUrls(root) {
+		for (const node of root.querySelectorAll('[href],[src],[data-audio]')) {
+			for (const attribute of ['href', 'src', 'data-audio']) {
+				const value = node.getAttribute(attribute);
+				if (!value || value.charAt(0) !== '/' || value.charAt(1) === '/') {
+					continue;
+				}
+				node.setAttribute(attribute, ASSISTANT_BASE + value);
+			}
+		}
+	}
+
+	function playAssistantAudio(button, blob) {
+		const audio = document.createElement('audio');
+		audio.controls = true;
+		audio.autoplay = true;
+		audio.src = URL.createObjectURL(blob);
+		button.replaceWith(audio);
+	}
+
+	function speakOnDemand(button, text) {
+		const started = performance.now();
+		return window
+			.fetch(ASSISTANT_BASE + '/speak', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ message: text })
+			})
+			.then(function (response) {
+				if (!response.ok) {
+					throw new Error('HTTP ' + response.status);
+				}
+				return response.blob();
+			})
+			.then(function (blob) {
+				playAssistantAudio(button, blob);
+				assistantToast('TTS ready in ' + ((performance.now() - started) / 1000).toFixed(2) + 's');
+			});
+	}
+
+	function toggleAssistantSpeech(button) {
+		const label = button.textContent;
+		const text = button.getAttribute('data-text') || '';
+		const audio_url = button.getAttribute('data-audio');
+
+		button.disabled = true;
+		button.textContent = '…';
+
+		const pending_audio = audio_url
+			? window.fetch(audio_url).then(function (response) {
+					if (response.status === 200) {
+						return response.blob();
+					}
+					if (response.status === 202) {
+						const pending = new Error('tts pending');
+						pending.pending = true;
+						throw pending;
+					}
+					throw new Error('HTTP ' + response.status);
+				})
+			: Promise.resolve(null);
+
+		pending_audio
+			.then(function (blob) {
+				if (blob) {
+					playAssistantAudio(button, blob);
+					assistantToast('Played background TTS');
+					return null;
+				}
+				return speakOnDemand(button, text);
+			})
+			.catch(function (error) {
+				if (error && error.pending) {
+					assistantToast('TTS still generating…');
+					return speakOnDemand(button, text);
+				}
+				assistantToast('TTS failed: ' + ((error && error.message) || error), true);
+				return null;
+			})
+			.finally(function () {
+				button.disabled = false;
+				button.textContent = label;
+			});
+	}
+
+	function copyAssistantText(button) {
+		const text = button.getAttribute('data-copy') || '';
+		if (!(navigator.clipboard && navigator.clipboard.writeText)) {
+			assistantToast('Copy failed', true);
+			return;
+		}
+		navigator.clipboard.writeText(text).then(
+			function () {
+				assistantToast('Copied');
+			},
+			function () {
+				assistantToast('Copy failed', true);
+			}
+		);
 	}
 
 	function describeScope(scope) {
@@ -175,58 +302,95 @@
 			closeDrawer: function () {
 				this.drawerOpen = false;
 			},
-			// ── Assistant chat (native; shares this scope so a deep link can
-			// call openPanel directly, with no cross-scope global bridge) ──
-			assistantMessages: [],
+			// ── Assistant chat ──
+			// Markup, CSS classes and the /ui/message fragment contract are the
+			// Python UI's own; this scope only carries the drawer state and the
+			// transport, so answers render exactly as the assistant wrote them.
 			assistantInput: '',
 			assistantBusy: false,
+			assistantMode: 'investigate',
 			assistantSession: assistantSessionId(),
-			assistantLinkLabel: function (name) {
-				const text = String(name || '');
-				return text.charAt(0).toUpperCase() + text.slice(1);
+			openAssistantLink: function (url) {
+				if (!url) {
+					return;
+				}
+				// Deep links (Grafana/Hubble/Neo4j evidence) open inside the panel.
+				this.closeDrawer();
+				this.openPanel(url);
 			},
 			sendAssistant: function () {
 				const self = this;
 				const text = (self.assistantInput || '').trim();
+				const thread = document.querySelector('[data-assistant-thread]');
 				if (text === '' || self.assistantBusy) {
 					return;
 				}
+				if (!thread) {
+					log('assistant:missing-thread');
+					return;
+				}
+
 				self.assistantInput = '';
-				self.assistantMessages.push({ role: 'user', text: text });
 				self.assistantBusy = true;
 
+				const user = document.createElement('div');
+				user.className = 'msg user';
+				user.textContent = text;
+				thread.appendChild(user);
+
+				const pending = document.createElement('div');
+				pending.className = 'msg bot pending';
+				pending.innerHTML = 'thinking&hellip; <b>0.0</b>s';
+				thread.appendChild(pending);
+				thread.scrollTop = thread.scrollHeight;
+
+				const started = performance.now();
+				const tick = window.setInterval(function () {
+					const elapsed = pending.querySelector('b');
+					if (elapsed) {
+						elapsed.textContent = ((performance.now() - started) / 1000).toFixed(1);
+					}
+				}, 100);
+
+				const body = new URLSearchParams();
+				body.set('message', text);
+				body.set('mode', self.assistantMode);
+				body.set('session', self.assistantSession);
+
+				function settle() {
+					window.clearInterval(tick);
+					self.assistantBusy = false;
+					thread.scrollTop = thread.scrollHeight;
+				}
+
 				window
-					.fetch(ASSISTANT_URL + '/investigate', {
+					.fetch(ASSISTANT_BASE + '/ui/message', {
 						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ message: text, session: self.assistantSession })
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+						body: body
 					})
 					.then(function (response) {
 						if (!response.ok) {
-							throw new Error('assistant responded ' + response.status);
+							throw new Error('HTTP ' + response.status);
 						}
-						return response.json();
+						return response.text();
 					})
-					.then(function (data) {
-						self.assistantMessages.push({
-							role: 'assistant',
-							text: data.reply || data.screen_md || '',
-							facts: data.facts || [],
-							metrics: data.metrics || null
-						});
+					.then(function (fragment) {
+						const holder = document.createElement('div');
+						holder.innerHTML = fragment;
+						rewriteAssistantUrls(holder);
+						while (holder.firstChild) {
+							pending.parentNode.insertBefore(holder.firstChild, pending);
+						}
+						pending.remove();
 					})
 					.catch(function (error) {
 						log('assistant failed', error.message);
-						self.assistantMessages.push({ role: 'assistant', text: 'error: ' + error.message, error: true });
+						pending.className = 'msg bot err';
+						pending.textContent = 'Request failed: ' + error.message;
+						assistantToast('Request failed', true);
 					})
-					.then(function () {
-						self.assistantBusy = false;
-					});
-			},
-			openAssistantLink: function (url) {
-				if (url) {
-					this.openPanel(url);
-				}
+					.finally(settle);
 			},
 			tmuxOpen: false,
 			archOpen: false,
@@ -413,6 +577,32 @@
 		},
 		true
 	);
+
+	// Assistant fragments: 🔊 audio, copy buttons, and evidence deep links.
+	document.addEventListener('click', function (event) {
+		const target = event.target instanceof Element ? event.target : null;
+		if (!target) {
+			return;
+		}
+
+		const speak = target.closest('button.speak');
+		if (speak) {
+			toggleAssistantSpeech(speak);
+			return;
+		}
+
+		const copy = target.closest('button.copy');
+		if (copy) {
+			copyAssistantText(copy);
+			return;
+		}
+
+		const link = target.closest('[data-assistant-thread] a[href]');
+		if (link) {
+			event.preventDefault();
+			workspace_state?.openAssistantLink(link.getAttribute('href'));
+		}
+	});
 
 	document.addEventListener('input', function (event) {
 		const input = event.target;
