@@ -72,6 +72,14 @@
 				node.setAttribute(attribute, ASSISTANT_BASE + value);
 			}
 		}
+
+		// The assistant emits target="_blank" on evidence links. Drop it so a
+		// missed click path still cannot spawn a tab, and mark the anchors the
+		// shell routes into the panel.
+		for (const anchor of root.querySelectorAll('a[target], a[rel]')) {
+			anchor.removeAttribute('target');
+			anchor.removeAttribute('rel');
+		}
 	}
 
 	function playAssistantAudio(button, blob) {
@@ -311,10 +319,12 @@
 			assistantMode: 'investigate',
 			assistantSession: assistantSessionId(),
 			openAssistantLink: function (url) {
-				if (!url) {
+				// Deep links (Grafana/Hubble/Neo4j evidence) open inside the panel
+				// — never a new tab, and never a non-navigable scheme.
+				if (!url || !/^(https?:\/\/|\/)/i.test(url)) {
+					log('assistant:unsupported-link', { url: url });
 					return;
 				}
-				// Deep links (Grafana/Hubble/Neo4j evidence) open inside the panel.
 				this.closeDrawer();
 				this.openPanel(url);
 			},
@@ -579,6 +589,28 @@
 	);
 
 	// Assistant fragments: 🔊 audio, copy buttons, and evidence deep links.
+	// Rule: nothing in the drawer may open a browser tab. Every anchor — click,
+	// middle-click or ⌘/Ctrl-click — resolves into the fuwa panel instead.
+
+	function assistantAnchor(event) {
+		const target = event.target instanceof Element ? event.target : null;
+		if (!target || !target.closest('.assistant-drawer')) {
+			return null;
+		}
+		return target.closest('a[href]');
+	}
+
+	function openAssistantAnchor(event) {
+		const link = assistantAnchor(event);
+		if (!link) {
+			return false;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		workspace_state?.openAssistantLink(link.href || link.getAttribute('href'));
+		return true;
+	}
+
 	document.addEventListener('click', function (event) {
 		const target = event.target instanceof Element ? event.target : null;
 		if (!target) {
@@ -597,10 +629,13 @@
 			return;
 		}
 
-		const link = target.closest('[data-assistant-thread] a[href]');
-		if (link) {
-			event.preventDefault();
-			workspace_state?.openAssistantLink(link.getAttribute('href'));
+		openAssistantAnchor(event);
+	});
+
+	// Middle-click opens a new tab by default too.
+	document.addEventListener('auxclick', function (event) {
+		if (event.button === 1) {
+			openAssistantAnchor(event);
 		}
 	});
 

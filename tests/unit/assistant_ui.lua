@@ -135,11 +135,38 @@ t.test("copy buttons copy reproducible commands", function()
 	t.contains(workspace_js, "navigator.clipboard.writeText(text)", "expected the clipboard write")
 end)
 
-t.test("evidence links open in the fuwa panel instead of a new tab", function()
-	t.contains(workspace_js, "target.closest('[data-assistant-thread] a[href]')", "expected link interception inside the thread")
-	t.contains(workspace_js, "event.preventDefault();", "expected the new-tab default to be cancelled")
-	t.contains(workspace_js, "workspace_state?.openAssistantLink(link.getAttribute('href'))", "expected the link to route into the panel")
+t.test("no anchor in the drawer can open a browser tab", function()
+	t.contains(workspace_js, "function assistantAnchor(event) {", "expected an anchor resolver")
+	t.contains(workspace_js, "target.closest('.assistant-drawer')", "expected the whole drawer to be covered, not just the thread")
+	t.contains(workspace_js, "target.closest('a[href]')", "expected every anchor to be caught")
+	t.contains(workspace_js, "event.preventDefault();", "expected the browser default (new tab / navigation) to be cancelled")
+	t.contains(workspace_js, "event.stopPropagation();", "expected the click to stop here")
+	t.contains(workspace_js, "workspace_state?.openAssistantLink(link.href || link.getAttribute('href'))", "expected the link to route into the panel")
 	t.contains(workspace_js, "this.closeDrawer();", "expected the drawer to close so the panel is visible")
+	t.not_contains(workspace_js, "window.open(", "the shell must never open a window")
+end)
+
+t.test("non-navigable schemes are refused instead of loaded in the panel", function()
+	t.contains(workspace_js, "if (!url || !/^(https?:\\/\\/|\\/)/i.test(url)) {", "expected an http(s)/root-relative guard")
+	t.contains(workspace_js, "log('assistant:unsupported-link', { url: url });", "expected the refusal to be logged, not silent")
+end)
+
+t.test("middle-click and modified clicks are routed to the panel too", function()
+	t.contains(workspace_js, "document.addEventListener('auxclick', function (event) {", "expected an auxclick handler")
+	t.contains(workspace_js, "if (event.button === 1) {", "expected the middle button to be handled")
+	t.contains(workspace_js, "		openAssistantAnchor(event);", "expected the shared anchor path")
+end)
+
+t.test("injected fragments lose the assistant's target=_blank", function()
+	t.contains(workspace_js, "for (const anchor of root.querySelectorAll('a[target], a[rel]')) {", "expected anchors to be normalised")
+	t.contains(workspace_js, "anchor.removeAttribute('target');", "expected target to be stripped")
+	t.contains(workspace_js, "anchor.removeAttribute('rel');", "expected the now-meaningless rel to be stripped")
+end)
+
+t.test("the recorded fragments confirm the links really are target=_blank offline", function()
+	-- The /assistant page marks its header/dashboard links as new-tab anchors;
+	-- that is exactly the behaviour the drawer has to override.
+	t.contains(fixture_investigate .. fixture_chat, "class=", "fixtures should carry assistant markup")
 end)
 
 t.test("root-relative fragment assets are rewritten through the proxy", function()
