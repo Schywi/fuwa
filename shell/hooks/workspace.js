@@ -221,6 +221,131 @@
 		recorder.start();
 	}
 
+	// Metrics: GET /assistant/metrics is Prometheus text. Reduce it to the few
+	// numbers worth a drawer panel instead of dumping 400 lines on the user.
+	function parseMetricLabels(raw) {
+		const labels = {};
+		if (!raw) {
+			return labels;
+		}
+		for (const match of raw.matchAll(/([A-Za-z_][\w]*)\s*=\s*"([^"]*)"/g)) {
+			labels[match[1]] = match[2];
+		}
+		return labels;
+	}
+
+	function parseAssistantMetrics(text) {
+		const stages = new Map();
+		const tools = new Map();
+		const summary = { stages: [], tools: [], rejected: 0 };
+
+		function stage(name) {
+			if (!stages.has(name)) {
+				stages.set(name, {
+					stage: name,
+					requests: 0,
+					seconds: 0,
+					calls: 0,
+					input_tokens: 0,
+					output_tokens: 0,
+					ttft_seconds: 0,
+					ttft_calls: 0
+				});
+			}
+			return stages.get(name);
+		}
+
+		function tool(name) {
+			if (!tools.has(name)) {
+				tools.set(name, { tool: name, calls: 0, seconds: 0 });
+			}
+			return tools.get(name);
+		}
+
+		for (const line of String(text || '').split('\n')) {
+			const trimmed = line.trim();
+			if (trimmed === '' || trimmed.charAt(0) === '#') {
+				continue;
+			}
+			const match = /^([A-Za-z_:][\w:]*)(?:\{(.*)\})?\s+(-?[\d.eE+]+)$/.exec(trimmed);
+			if (!match) {
+				continue;
+			}
+			const value = Number(match[3]);
+			if (!Number.isFinite(value)) {
+				continue;
+			}
+			const labels = parseMetricLabels(match[2]);
+			const stage_label = labels.stage || 'unknown';
+
+			// Only LLM families create stage rows; unlabelled counters such as
+			// assistant_concurrency_rejected_total must not invent an 'unknown' one.
+			switch (match[1]) {
+				case 'assistant_llm_requests_total':
+					stage(stage_label).requests += value;
+					break;
+				case 'assistant_llm_request_seconds_sum':
+					stage(stage_label).seconds += value;
+					break;
+				case 'assistant_llm_request_seconds_count':
+					stage(stage_label).calls += value;
+					break;
+				case 'assistant_llm_ttft_seconds_sum':
+					stage(stage_label).ttft_seconds += value;
+					break;
+				case 'assistant_llm_ttft_seconds_count':
+					stage(stage_label).ttft_calls += value;
+					break;
+				case 'assistant_llm_input_tokens_total':
+					stage(stage_label).input_tokens += value;
+					break;
+				case 'assistant_llm_output_tokens_total':
+					stage(stage_label).output_tokens += value;
+					break;
+				case 'assistant_tool_seconds_sum':
+					tool(labels.tool || 'unknown').seconds += value;
+					break;
+				case 'assistant_tool_seconds_count':
+					tool(labels.tool || 'unknown').calls += value;
+					break;
+				case 'assistant_concurrency_rejected_total':
+					summary.rejected += value;
+					break;
+				default:
+					break;
+			}
+		}
+
+		function averageMs(seconds, calls) {
+			return calls > 0 ? Math.round((seconds / calls) * 1000) : null;
+		}
+
+		summary.stages = Array.from(stages.values())
+			.map(function (entry) {
+				return {
+					stage: entry.stage,
+					requests: entry.requests,
+					avg_ms: averageMs(entry.seconds, entry.calls),
+					ttft_ms: averageMs(entry.ttft_seconds, entry.ttft_calls),
+					input_tokens: entry.input_tokens,
+					output_tokens: entry.output_tokens
+				};
+			})
+			.sort(function (left, right) {
+				return left.stage < right.stage ? -1 : left.stage > right.stage ? 1 : 0;
+			});
+
+		summary.tools = Array.from(tools.values())
+			.map(function (entry) {
+				return { tool: entry.tool, calls: entry.calls, avg_ms: averageMs(entry.seconds, entry.calls) };
+			})
+			.sort(function (left, right) {
+				return left.tool < right.tool ? -1 : left.tool > right.tool ? 1 : 0;
+			});
+
+		return summary;
+	}
+
 	function copyAssistantText(button) {
 		const text = button.getAttribute('data-copy') || '';
 		if (!(navigator.clipboard && navigator.clipboard.writeText)) {
@@ -385,6 +510,31 @@
 			assistantRecording: false,
 			assistantMode: 'investigate',
 			assistantSession: assistantSessionId(),
+			assistantMetrics: null,
+			assistantMetricsError: '',
+			toggleAssistantMetrics: function () {
+				const self = this;
+				if (self.assistantMetrics) {
+					self.assistantMetrics = null;
+					return;
+				}
+				window
+					.fetch(ASSISTANT_BASE + '/metrics')
+					.then(function (response) {
+						if (!response.ok) {
+							throw new Error('HTTP ' + response.status);
+						}
+						return response.text();
+					})
+					.then(function (text) {
+						self.assistantMetrics = parseAssistantMetrics(text);
+						self.assistantMetricsError = '';
+					})
+					.catch(function (error) {
+						log('assistant:metrics-failed', error.message);
+						self.assistantMetricsError = 'metrics unavailable: ' + error.message;
+					});
+			},
 			toggleAssistantRecording: function () {
 				const self = this;
 				if (assistant_recorder) {
@@ -864,7 +1014,8 @@
 	window.FuwaShellWorkspace = {
 		createState,
 		state: workspace_state,
-		initialize
+		initialize,
+		parseAssistantMetrics
 	};
 
 	if (document.readyState === 'loading') {

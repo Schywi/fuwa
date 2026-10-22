@@ -91,8 +91,28 @@
           <button type="button" @click="openAssistantLink('http://192.168.0.241/')">Hubble UI</button>
           <button type="button" @click="openAssistantLink('http://192.168.0.246/')">VictoriaMetrics</button>
         </nav>
+        <button type="button" @click="toggleAssistantMetrics()">metrics</button>
         <button type="button" class="assistant-close" @click="closeDrawer()">✕</button>
       </header>
+      <div v-if="assistantMetrics" class="assistant-metrics" data-assistant-metrics>
+        <div class="assistant-metrics-row" v-for="s in assistantMetrics.stages">
+          <span class="tag" v-text="s.stage"></span>
+          <span v-text="s.requests + ' req'"></span>
+          <span v-text="s.avg_ms === null ? '— ms' : s.avg_ms + ' ms avg'"></span>
+          <span v-text="s.ttft_ms === null ? '' : s.ttft_ms + ' ms ttft'"></span>
+          <span v-text="s.input_tokens + '→' + s.output_tokens + ' tok'"></span>
+        </div>
+        <div class="assistant-metrics-row" v-for="t in assistantMetrics.tools">
+          <span class="tag" v-text="t.tool"></span>
+          <span v-text="t.calls + ' calls'"></span>
+          <span v-text="t.avg_ms === null ? '— ms' : t.avg_ms + ' ms avg'"></span>
+        </div>
+        <div class="assistant-metrics-row">
+          <span class="tag">429 rejected</span>
+          <span v-text="assistantMetrics.rejected"></span>
+        </div>
+      </div>
+      <div v-if="assistantMetricsError" class="assistant-metrics err" data-assistant-metrics-error v-text="assistantMetricsError"></div>
       <main class="assistant-thread" data-assistant-thread></main>
       <form class="assistant-composer" @submit.prevent="sendAssistant()">
         <select name="mode" v-model="assistantMode" title="investigate = multi-step tool loop; chat = one step">
