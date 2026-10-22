@@ -80,8 +80,16 @@ else
 	fail=$((fail + 1))
 fi
 
-# A non-/assistant path must not be swallowed by the proxy.
-expect "GET /nope (no prefix)" "404" "$BASE/nope"
+# A non-/assistant path must not be served by the assistant. fuwa answers its
+# own catch-all (200) for unknown paths, so assert on the body, not the status.
+timeout 10 curl -sS -o "$TMP/body" "$BASE/nope" >/dev/null 2>&1 || true
+if grep -qF '<title>Cluster Assistant</title>' "$TMP/body"; then
+	printf '  FAIL %-22s fuwa served the assistant page for a non-/assistant path\n' "proxy scope"
+	fail=$((fail + 1))
+else
+	printf '  ok   %-22s not the assistant\n' "proxy scope"
+	pass=$((pass + 1))
+fi
 
 printf 'assistant proxy smoke: %d passed, %d failed\n' "$pass" "$fail"
 [[ "$fail" -eq 0 ]]
