@@ -1217,7 +1217,9 @@
          /assistant/ui/message returns renders here exactly as it does there.
          Do not add bespoke styling: parity is the point. */
       .assistant-drawer {
-        font: 15px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        /* 15px is the upstream page's scale for a full-width window; at 483px the
+           80ch thread and code blocks overflow, so the drawer runs one step down. */
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
         color: #e6edf3;
       }
 
@@ -1255,6 +1257,53 @@
       .assistant-close:hover { background: #161b22; }
 
       .assistant-close { color: #e6edf3; margin-left: 4px; }
+
+      /* One disclosure, not four badges in the title bar. */
+      .assistant-dev { position: relative; }
+
+      .assistant-dev > summary {
+        list-style: none;
+        cursor: pointer;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 2px 7px;
+        font-size: 12px;
+        color: #7d8590;
+      }
+
+      .assistant-dev > summary::-webkit-details-marker { display: none; }
+
+      .assistant-dev[open] > summary { color: #e6edf3; }
+
+      .assistant-dev-menu {
+        position: absolute;
+        right: 0;
+        top: 24px;
+        z-index: 40;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 4px;
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+      }
+
+      .assistant-dev-menu button {
+        font: inherit;
+        font-size: 12px;
+        text-align: left;
+        white-space: nowrap;
+        border: 0;
+        border-radius: 5px;
+        padding: 3px 8px;
+        background: none;
+        color: #e6edf3;
+        cursor: pointer;
+      }
+
+      .assistant-dev-menu button:hover { background: #21262d; }
 
       .assistant-metrics {
         padding: 8px 16px;

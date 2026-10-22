@@ -95,10 +95,15 @@
           <button type="button" @click="openAssistantLink('http://192.168.0.241/')">Hubble UI</button>
           <button type="button" @click="openAssistantLink('http://192.168.0.246/')">VictoriaMetrics</button>
         </nav>
-        <button type="button" @click="newAssistantSession()" title="Start a fresh conversation">new session</button>
-        <button type="button" @click="toggleAssistantMetrics()">metrics</button>
-        <button type="button" @click="toggleAssistantActions()">actions</button>
-        <button type="button" @click="toggleAssistantPlan()">plan</button>
+        <details class="assistant-dev">
+          <summary title="Session, metrics, actions, planner">⚙</summary>
+          <div class="assistant-dev-menu">
+            <button type="button" @click="newAssistantSession()">new session</button>
+            <button type="button" @click="toggleAssistantMetrics()">metrics</button>
+            <button type="button" @click="toggleAssistantActions()">actions</button>
+            <button type="button" @click="toggleAssistantPlan()">plan</button>
+          </div>
+        </details>
         <button type="button" class="assistant-close" @click="closeDrawer()">✕</button>
       </header>
       <div v-if="assistantMetrics" class="assistant-metrics" data-assistant-metrics>
@@ -198,9 +203,10 @@
           @click="cancelAssistantQuestion()"
         >stop</button>
         <button
+          v-else
           class="send"
           type="submit"
-          :disabled="assistantBusy || assistantRetryIn > 0 || assistantOnline === false"
+          :disabled="assistantRetryIn > 0 || assistantOnline === false"
         >Send</button>
       </form>
       <div class="assistant-toast" data-assistant-toast></div>

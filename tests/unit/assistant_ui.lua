@@ -308,7 +308,7 @@ t.test("a repeated 429 gives the question back instead of losing it", function()
 	t.contains(workspace_js, "assistant still busy (429) — press Send to retry", "expected the thread to explain the state")
 	t.contains(workspace_js, "assistantToast('Assistant still busy (429) — question restored', true);", "expected a toast")
 	t.contains(workspace_js, "log('assistant:busy', { retry_in: error.retry_after, attempt: attempt });", "expected the backpressure to be logged")
-	t.contains(home_fuwa, ":disabled=\"assistantBusy || assistantRetryIn > 0 || assistantOnline === false\"", "expected Send to stay disabled while waiting")
+	t.contains(home_fuwa, ':disabled="assistantRetryIn > 0 || assistantOnline === false"', "expected Send to stay disabled while waiting")
 end)
 
 t.test("opening the drawer probes /assistant/healthz", function()
@@ -325,7 +325,8 @@ t.test("an unreachable assistant disables the composer with a diagnostic", funct
 	t.contains(home_fuwa, "unreachable — is the assistant up?", "expected a diagnostic message, not a silent dead box")
 	t.contains(home_fuwa, ":placeholder=\"assistantOnline === false ? 'assistant unreachable'", "expected the composer placeholder to say why")
 	t.contains(home_fuwa, ':disabled="assistantOnline === false"', "expected typing to be disabled while offline")
-	t.contains(home_fuwa, ":disabled=\"assistantBusy || assistantRetryIn > 0 || assistantOnline === false\"", "expected Send to be disabled while offline")
+	t.contains(home_fuwa, ':disabled="assistantRetryIn > 0 || assistantOnline === false"', "expected Send to be disabled while offline")
+	t.contains(home_fuwa, "v-else", "expected stop to replace Send while a turn is in flight")
 	t.contains(layout_fuwa, ".assistant-head .muted.offline {", "expected the offline colour")
 end)
 
