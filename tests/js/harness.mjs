@@ -26,6 +26,11 @@ function storedSession(seed = null) {
 export function fakeNode({ href = null, in_drawer = true, drawer = null } = {}) {
 	const node = new Element();
 	node.href = href;
+	node.id = '';
+	node.tagName = 'DIV';
+	node.hasAttribute = () => false;
+	node.matches = () => false;
+	node.querySelectorAll = () => [];
 	node.getAttribute = (name) => (name === 'href' ? href : null);
 	node.closest = (selector) => {
 		if (selector === '.assistant-drawer') return in_drawer ? drawer : null;
@@ -40,6 +45,7 @@ function fakeHost() {
 	return {
 		children,
 		appendChild(child) {
+			child.host = children; // so child.remove() can detach itself
 			children.push(child);
 			return child;
 		},
@@ -71,6 +77,7 @@ export function loadShell({ window: windowOverrides = {}, navigator: navigatorOv
 			if (selector === '[data-assistant-thread]') return thread;
 			return null;
 		},
+		querySelectorAll: () => [],
 		createElement() {
 			const node = new Element();
 			node.className = '';
@@ -82,7 +89,12 @@ export function loadShell({ window: windowOverrides = {}, navigator: navigatorOv
 			node.querySelectorAll = () => [];
 			node.children = [];
 			node.childNodes = [];
-			node.remove = () => {};
+			node.remove = () => {
+				const host = node.host;
+				if (!Array.isArray(host)) return;
+				const index = host.indexOf(node);
+				if (index >= 0) host.splice(index, 1);
+			};
 			created.push(node);
 			return node;
 		},

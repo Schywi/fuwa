@@ -98,6 +98,65 @@
 		}
 	}
 
+	// The transcript lives in the DOM, and htmx replaces the whole view on
+	// navigation. Keep a structured copy so a swap does not lose the
+	// conversation: {kind:'user', text} | {kind:'bot', html} | {kind:'error', text}.
+	let assistant_transcript = [];
+
+	function rememberAssistantQuestion(text) {
+		assistant_transcript.push({ kind: 'user', text: text });
+	}
+
+	function rememberAssistantAnswer(fragment) {
+		assistant_transcript.push({ kind: 'bot', html: fragment });
+	}
+
+	function rememberAssistantError(text) {
+		assistant_transcript.push({ kind: 'error', text: text });
+	}
+
+	function clearAssistantTranscript() {
+		assistant_transcript = [];
+	}
+
+	function renderAssistantTranscript(thread) {
+		for (const entry of assistant_transcript) {
+			if (entry.kind === 'user') {
+				const node = document.createElement('div');
+				node.className = 'msg user';
+				node.textContent = entry.text;
+				thread.appendChild(node);
+				continue;
+			}
+			if (entry.kind === 'bot') {
+				const holder = document.createElement('div');
+				holder.innerHTML = entry.html;
+				rewriteAssistantUrls(holder);
+				while (holder.firstChild) {
+					thread.appendChild(holder.firstChild);
+				}
+				continue;
+			}
+			const node = document.createElement('div');
+			node.className = 'msg bot err';
+			node.textContent = entry.text;
+			thread.appendChild(node);
+		}
+	}
+
+	function restoreAssistantTranscript() {
+		const thread = document.querySelector('[data-assistant-thread]');
+		if (!thread || assistant_transcript.length === 0) {
+			return;
+		}
+		if (thread.children && thread.children.length > 0) {
+			return; // live content wins; never clobber a mounted transcript
+		}
+		renderAssistantTranscript(thread);
+		thread.scrollTop = thread.scrollHeight;
+		log('assistant:thread-restored', { entries: assistant_transcript.length });
+	}
+
 	function playAssistantAudio(button, blob) {
 		const audio = document.createElement('audio');
 		audio.controls = true;
@@ -716,6 +775,7 @@
 				if (thread) {
 					thread.replaceChildren();
 				}
+				clearAssistantTranscript();
 				log('assistant:new-session', { session: this.assistantSession });
 				assistantToast('New session');
 			},
@@ -822,6 +882,7 @@
 					user.className = 'msg user';
 					user.textContent = text;
 					thread.appendChild(user);
+					rememberAssistantQuestion(text);
 				}
 
 				const pending = document.createElement('div');
@@ -875,6 +936,7 @@
 					})
 					.then(function (fragment) {
 						window.clearInterval(tick);
+						rememberAssistantAnswer(fragment);
 						const holder = document.createElement('div');
 						holder.innerHTML = fragment;
 						rewriteAssistantUrls(holder);
@@ -921,6 +983,7 @@
 						log('assistant failed', error.message);
 						pending.className = 'msg bot err';
 						pending.textContent = 'Request failed: ' + error.message;
+						rememberAssistantError('Request failed: ' + error.message);
 						assistantToast('Request failed', true);
 						settle();
 					});
@@ -1329,5 +1392,6 @@
 		});
 		initialize(target);
 		mount(target);
+		restoreAssistantTranscript();
 	});
 })();

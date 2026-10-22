@@ -329,6 +329,17 @@ t.test("an unreachable assistant disables the composer with a diagnostic", funct
 	t.contains(layout_fuwa, ".assistant-head .muted.offline {", "expected the offline colour")
 end)
 
+t.test("the transcript survives an htmx view swap", function()
+	t.contains(workspace_js, "let assistant_transcript = [];", "expected a structured transcript buffer")
+	t.contains(workspace_js, "function rememberAssistantQuestion(text) {", "expected questions to be remembered")
+	t.contains(workspace_js, "function rememberAssistantAnswer(fragment) {", "expected answers to be remembered")
+	t.contains(workspace_js, "function rememberAssistantError(text) {", "expected errors to be remembered")
+	t.contains(workspace_js, "function restoreAssistantTranscript() {", "expected a restore path")
+	t.contains(workspace_js, "restoreAssistantTranscript();", "expected the restore to run after a swap")
+	t.contains(workspace_js, "return; // live content wins; never clobber a mounted transcript", "expected live content to win")
+	t.contains(workspace_js, "clearAssistantTranscript();", "expected a new session to drop the buffer")
+end)
+
 t.test("toasts from the assistant surface in the drawer", function()
 	t.contains(workspace_js, "function assistantToast(", "expected a toast helper")
 	t.contains(workspace_js, "document.querySelector('[data-assistant-toast]')", "expected the drawer toast host")
