@@ -54,10 +54,11 @@ t.test("the stacked header is a column, so nothing sits beside the title", funct
 	t.contains(layout_fuwa, "flex-wrap: wrap;", "expected the links to wrap instead of overflowing")
 end)
 
-t.test("the three panel links are unchanged and stay inside the header", function()
+t.test("the panel links are unchanged and stay inside the header", function()
 	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.245/')\"", "expected Grafana")
 	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.241/')\"", "expected Cilium")
 	t.contains(home_fuwa, "@click=\"openPanel('/argocd/')\"", "expected Argo CD")
+	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.249/')\"", "expected Kargo")
 
 	-- Slice the header block out by offsets: Lua patterns do not span newlines
 	-- without a flag, and this file is one tag per line.
@@ -70,6 +71,7 @@ t.test("the three panel links are unchanged and stay inside the header", functio
 	t.contains(header, '<div class="stage-links">', "the links must live inside the header block")
 	t.contains(header, "Grafana", "Grafana must be inside the header block")
 	t.contains(header, "Argo CD", "Argo CD must be inside the header block")
+	t.contains(header, "Kargo", "Kargo must be inside the header block")
 end)
 
 t.test("other stage headers are untouched", function()
