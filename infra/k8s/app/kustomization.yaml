@@ -17,4 +17,4 @@ resources:
 
 images:
   - name: 127.0.0.1:5000/fuwa
-    newTag: local
+    newTag: sha-e2d4aa6
