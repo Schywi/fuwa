@@ -38,6 +38,9 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: loki-data
+  annotations:
+    # Holds the log store; never pruned by a sync.
+    argocd.argoproj.io/sync-options: Prune=false
   namespace: fuwa
   labels:
     app.kubernetes.io/name: loki

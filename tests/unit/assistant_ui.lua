@@ -58,7 +58,7 @@ end)
 
 t.test("the assistant upstream is per-environment, defaulting to the LAN address", function()
 	local dockerfile = read_file("infra/Dockerfile.openresty")
-	local deployment = read_file("infra/k8s/deployment.yaml")
+	local deployment = read_file("infra/k8s/app/deployment.yaml")
 	-- A pod cannot hairpin to a LoadBalancer IP, so the cluster uses Service DNS.
 	t.contains(dockerfile, "${ASSISTANT_UPSTREAM:-192.168.0.243}", "expected the LAN address as the dev default")
 	t.contains(deployment, 'value: "assistant.assistant.svc.cluster.local:8080"', "expected the Service FQDN in-cluster")

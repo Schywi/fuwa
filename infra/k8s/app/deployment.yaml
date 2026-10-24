@@ -41,6 +41,10 @@ spec:
             # inside the cluster (no hairpin), so nginx proxies to the Service.
             - name: ASSISTANT_UPSTREAM
               value: "assistant.assistant.svc.cluster.local:8080"
+            # Same story for the Argo CD panel: the 192.168.0.247 LoadBalancer
+            # is not reachable from a pod, the Service is.
+            - name: ARGOCD_UPSTREAM
+              value: "argocd-server.argocd.svc.cluster.local:80"
             - name: LUA_CODE_CACHE
               value: "on"
             - name: FUWA_DB_PATH

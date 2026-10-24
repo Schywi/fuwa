@@ -52,6 +52,7 @@
           <span class="stage-title">Observability</span>
           <button class="grafana-trigger" @click="openPanel('http://192.168.0.245/')">Grafana ↗</button>
           <button class="grafana-trigger" @click="openPanel('http://192.168.0.241/')">Cilium ↗</button>
+          <button class="grafana-trigger" @click="openPanel('/argocd/')">Argo CD ⛵</button>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
           <div v-for="request in requests" class="obs-request-group">

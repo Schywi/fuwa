@@ -46,3 +46,11 @@ spec:
         - ports:
             - port: "8080"
               protocol: TCP
+    # /argocd/* and /api/* are proxied to argocd-server for the panel.
+    - toEndpoints:
+        - matchLabels:
+            io.kubernetes.pod.namespace: argocd
+      toPorts:
+        - ports:
+            - port: "80"
+              protocol: TCP

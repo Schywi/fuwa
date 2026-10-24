@@ -15,25 +15,49 @@ the build script uploads the repo into a builder pod and builds from
 infra/k8s/build.sh local
 ```
 
-Update loop: re-run `build.sh`, then `kubectl -n fuwa rollout restart deployment/fuwa`.
+The tag defaults to `sha-<short git sha>` and is written into
+`app/kustomization.yaml`, so the manifests always point at the image that was
+actually pushed. Commit that file to deploy — see *Deploy* below.
 
 ## Deploy
 
+Two kustomizations, deliberately separate so a prune can never reach the log
+store:
+
 ```bash
-kubectl apply -f infra/k8s/namespace.yaml
-kubectl apply -f infra/k8s/rbac.yaml
-kubectl apply -f infra/k8s/deployment.yaml
-kubectl apply -f infra/k8s/service.yaml
-kubectl apply -f infra/k8s/networkpolicy.yaml
+kubectl apply -k infra/k8s/app            # runtime: namespace, rbac, deployment, service, netpol
+kubectl apply -k infra/k8s/observability  # loki, tempo, otel-collector (+ its netpol)
 ```
 
-| File | What |
+### Through Argo CD (the intended path)
+
+`infra/k8s/argocd/application.yaml` is the canonical Application. The k3s
+repository (`experiments`) holds the Argo instance and applies its Applications
+from `config/argocd/applications/`, so copy that file there as `fuwa.yaml`:
+
+```bash
+kubectl apply -f experiments/config/argocd/applications/fuwa.yaml
+```
+
+From then on deploys are commits, not `kubectl` calls:
+
+```bash
+infra/k8s/build.sh                 # pushes :sha-<sha> and pins it in app/kustomization.yaml
+git add infra/k8s/app/kustomization.yaml && git commit -m 'deploy: fuwa sha-<sha>'
+```
+
+`selfHeal` reverts hand edits, including `kubectl set image` and
+`kubectl rollout restart`; the image tag in git is the only lever.
+
+| Path | What |
 | --- | --- |
-| `namespace.yaml` | the isolated `fuwa` namespace |
-| `rbac.yaml` | ServiceAccount + namespace-scoped Role for `pods` / `pods/log` only |
-| `deployment.yaml` | the runtime pod (`replicas: 1`, `FUWA_K8S=true`, `FUWA_SSL=false`) |
-| `service.yaml` | `LoadBalancer` on the Cilium lan-pool IP `192.168.0.244` |
-| `networkpolicy.yaml` | Cilium allow-list: ingress from the LB; egress to the API server, DNS, and observability |
+| `app/namespace.yaml` | the isolated `fuwa` namespace (`Prune=false`) |
+| `app/rbac.yaml` | ServiceAccount + namespace-scoped Role for `pods` / `pods/log` only |
+| `app/deployment.yaml` | the runtime pod (`replicas: 1`, `FUWA_K8S=true`, `FUWA_SSL=false`, `ASSISTANT_UPSTREAM`, `ARGOCD_UPSTREAM`) |
+| `app/service.yaml` | `LoadBalancer` on the Cilium lan-pool IP `192.168.0.244` |
+| `app/networkpolicy.yaml` | Cilium allow-list: ingress from the LB; egress to the API server, DNS, observability, the assistant (`8080`) and argocd-server (`80`) |
+| `observability/` | loki (+ PVC, `Prune=false`), tempo, otel-collector and their netpol |
+| `argocd/application.yaml` | the Application that renders `app/` |
 
 Isolation: everything is namespaced to `fuwa`; the only cluster API access is
 read-only pod list + pod log, so the workload cannot modify other namespaces.
@@ -74,3 +98,11 @@ The shell's Observability header links to the cluster dashboards:
 `Cilium ↗` opens the Hubble UI (`http://hubble.home.arpa/`). Both names resolve
 to the shared Cilium ingress LB via the LAN resolver (see the experiments
 repo's `config/dns`).
+
+## Argo CD panel
+
+Argo refuses to be framed (`X-Frame-Options: sameorigin` plus
+`CSP frame-ancestors 'self'`) and its page hardcodes `<base href="/">`. nginx
+therefore proxies it at `/argocd/`, drops both headers, rewrites the base and
+proxies the bundle's absolute `/api/v1` calls, which is what lets the shell's
+**Argo CD ⛵** button open it in a fuwa panel instead of a tab.

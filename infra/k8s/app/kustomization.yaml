@@ -1,0 +1,20 @@
+# Rendered by Argo CD (infra/k8s/argocd/application.yaml) and applyable by hand
+# with `kubectl apply -k infra/k8s/app`.
+#
+# The tag below is what kaniko actually pushed: build.sh rewrites it after every
+# successful build so the manifests never point at a moving target.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: fuwa
+
+resources:
+  - namespace.yaml
+  - rbac.yaml
+  - deployment.yaml
+  - service.yaml
+  - networkpolicy.yaml
+
+images:
+  - name: 127.0.0.1:5000/fuwa
+    newTag: local
