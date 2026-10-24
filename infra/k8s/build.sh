@@ -12,6 +12,12 @@
 # The tag is rewritten into infra/k8s/app/kustomization.yaml, so the manifests
 # Argo CD renders never point at a moving target: commit that file to deploy.
 #
+# The base image defaults to Docker Hub, which throttles anonymous pulls hard
+# (100/6h, and every layer counts). Set BASE_IMAGE to rebuild on top of an image
+# that is already in the local registry instead:
+#
+#   BASE_IMAGE=192.168.0.28:5000/fuwa:sha-abc123 infra/k8s/build.sh
+#
 # Registry address: the registry runs hostNetwork on the node (hostPort 5000),
 # so a pod must reach it at the node IP, not 127.0.0.1 (a pod's loopback is the
 # pod itself). Override with REGISTRY_ADDR.
@@ -66,11 +72,21 @@ tar -C "${repo_root}" \
   --exclude=.git --exclude=.fuwa-dev --exclude=node_modules \
   -cf - . | kubectl -n "${ns}" exec -i "${pod}" -- tar -C /workspace -xf -
 
+# Layer cache lives in the in-cluster registry, so an unchanged layer is never
+# rebuilt and never re-pulled.
+build_args=()
+if [[ -n "${BASE_IMAGE:-}" ]]; then
+  build_args+=(--build-arg "BASE_IMAGE=${BASE_IMAGE}")
+fi
+
 # Build and push straight from the uploaded context.
 kubectl -n "${ns}" exec "${pod}" -- /kaniko/executor \
   --context=dir:///workspace \
   --dockerfile=infra/Dockerfile.openresty \
   --destination="${registry}/fuwa:${tag}" \
+  --cache=true \
+  --cache-repo="${registry}/fuwa-cache" \
+  "${build_args[@]}" \
   --insecure \
   --verbosity=info
 

@@ -1,4 +1,9 @@
-FROM openresty/openresty:latest
+# Default is Docker Hub, but the in-cluster registry holds an already-built
+# fuwa image whose layers are the openresty base plus this tree. Passing
+# BASE_IMAGE=<local>/fuwa:<tag> rebuilds without touching Docker Hub at all
+# (build.sh does that when Docker Hub's anonymous quota is exhausted).
+ARG BASE_IMAGE=openresty/openresty:latest
+FROM ${BASE_IMAGE}
 
 # Python 3 is required by the sqlite_local DB provider
 # (io.popen("python3 runtime/db/providers/sqlite_local.py")).
