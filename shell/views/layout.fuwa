@@ -913,6 +913,23 @@
         flex-shrink: 0;
       }
 
+      /* Observability: the panel links belong under the title, not beside it. */
+      .stage-header--stacked {
+        height: auto;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        padding: 8px 12px;
+        gap: 6px;
+      }
+
+      .stage-links {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
       .stage-title {
         font-size: 10px;
         text-transform: uppercase;
