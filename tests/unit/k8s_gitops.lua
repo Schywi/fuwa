@@ -56,11 +56,20 @@ t.test("the runtime and the observability stack are separate kustomizations", fu
 		end
 		t.contains(app_kustomization, "- " .. name .. ".yaml", "expected app/" .. name .. " in the kustomization")
 	end
-	for _, name in ipairs({ "loki", "tempo", "otel-collector", "netpol" }) do
+	for _, name in ipairs({ "loki", "tempo", "otel-collector" }) do
 		if not exists("infra/k8s/observability/" .. name .. ".yaml") then
 			error("observability/" .. name .. ".yaml should exist")
 		end
 		t.contains(obs_kustomization, "- " .. name .. ".yaml", "expected observability/" .. name .. " in the kustomization")
+	end
+
+	-- The cross-namespace policy must stay out of a kustomization that pins
+	-- namespace: fuwa, or it gets cloned into the wrong namespace.
+	if not exists("infra/k8s/cluster/fuwa-observability-netpol.yaml") then
+		error("the cross-namespace netpol should stay in cluster/")
+	end
+	if obs_kustomization:find("- netpol.yaml", 1, true) then
+		error("observability/ must not include the cross-namespace netpol")
 	end
 	-- The runtime app must never adopt the log store.
 	if app_kustomization:find("loki.yaml", 1, true) then
@@ -106,7 +115,9 @@ end)
 
 t.test("the runtime pod may reach argocd-server, as the panel requires", function()
 	t.contains(networkpolicy, "io.kubernetes.pod.namespace: argocd", "expected an argocd egress rule")
-	t.contains(networkpolicy, 'port: "80"', "expected argocd-server's http port")
+	-- The Service maps 80 -> 8080 and Cilium applies egress policy after DNAT,
+	-- so the pod port is the one to allow.
+	t.contains(networkpolicy, 'port: "8080"', "expected argocd-server's pod port")
 end)
 
 -- ── The panel ────────────────────────────────────────────────────────────

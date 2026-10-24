@@ -46,11 +46,13 @@ spec:
         - ports:
             - port: "8080"
               protocol: TCP
-    # /argocd/* and /api/* are proxied to argocd-server for the panel.
+    # /argocd/* and /api/* are proxied to argocd-server for the panel. The port
+    # is the pod's, not the Service's: argocd-server exposes 80 -> 8080 and
+    # Cilium evaluates egress policy after DNAT.
     - toEndpoints:
         - matchLabels:
             io.kubernetes.pod.namespace: argocd
       toPorts:
         - ports:
-            - port: "80"
+            - port: "8080"
               protocol: TCP

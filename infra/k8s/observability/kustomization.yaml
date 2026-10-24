@@ -10,4 +10,6 @@ resources:
   - loki.yaml
   - tempo.yaml
   - otel-collector.yaml
-  - netpol.yaml
+# cluster/fuwa-observability-netpol.yaml is deliberately NOT here: it selects
+# pods in the observability namespace, and this kustomization pins namespace:
+# fuwa, which would clone it into the wrong namespace (it did, once).

@@ -55,7 +55,7 @@ git add infra/k8s/app/kustomization.yaml && git commit -m 'deploy: fuwa sha-<sha
 | `app/rbac.yaml` | ServiceAccount + namespace-scoped Role for `pods` / `pods/log` only |
 | `app/deployment.yaml` | the runtime pod (`replicas: 1`, `FUWA_K8S=true`, `FUWA_SSL=false`, `ASSISTANT_UPSTREAM`, `ARGOCD_UPSTREAM`) |
 | `app/service.yaml` | `LoadBalancer` on the Cilium lan-pool IP `192.168.0.244` |
-| `app/networkpolicy.yaml` | Cilium allow-list: ingress from the LB; egress to the API server, DNS, observability, the assistant (`8080`) and argocd-server (`80`) |
+| `app/networkpolicy.yaml` | Cilium allow-list: ingress from the LB; egress to the API server, DNS, observability, the assistant (`8080`) and argocd-server (`8080`, the pod port — Cilium applies egress policy after DNAT) |
 | `observability/` | loki (+ PVC, `Prune=false`), tempo, otel-collector and their netpol |
 | `argocd/application.yaml` | the Application that renders `app/` |
 
