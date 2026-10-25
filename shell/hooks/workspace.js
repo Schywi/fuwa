@@ -19,6 +19,13 @@
 	// /assistant/ , /ui/message , /chat , /investigate , /speak ,
 	// /voice/transcribe , /actions* , /plan , /audio/{id} , /metrics .
 	const ASSISTANT_BASE = '/assistant';
+	// The CPU|GPU toggle switches this between the two proxies below.
+	const ASSISTANT_GPU_BASE = '/assistant-gpu';
+	let assistant_base = ASSISTANT_BASE;
+
+	function assistantBase() {
+		return assistant_base;
+	}
 	const ASSISTANT_SESSION_KEY = 'fuwa-assistant-session';
 
 	function createAssistantSessionId() {
@@ -101,7 +108,10 @@
 		if (value === ASSISTANT_BASE || value.indexOf(ASSISTANT_BASE + '/') === 0) {
 			return value;
 		}
-		return ASSISTANT_BASE + value;
+		if (value === ASSISTANT_GPU_BASE || value.indexOf(ASSISTANT_GPU_BASE + '/') === 0) {
+			return value;
+		}
+		return assistantBase() + value;
 	}
 
 	function rewriteAssistantUrls(root) {
@@ -133,8 +143,8 @@
 		assistant_transcript.push({ kind: 'user', text: text });
 	}
 
-	function rememberAssistantAnswer(fragment) {
-		assistant_transcript.push({ kind: 'bot', html: fragment });
+	function rememberAssistantAnswer(fragment, backend) {
+		assistant_transcript.push({ kind: 'bot', html: fragment, backend: backend || 'cpu' });
 	}
 
 	function rememberAssistantError(text) {
@@ -158,9 +168,13 @@
 				const holder = document.createElement('div');
 				holder.innerHTML = entry.html;
 				rewriteAssistantUrls(holder);
+				const turn = document.createElement('div');
+				turn.className = 'assistant-turn';
+				turn.setAttribute('data-backend', entry.backend || 'cpu');
 				while (holder.firstChild) {
-					thread.appendChild(holder.firstChild);
+					turn.appendChild(holder.firstChild);
 				}
+				thread.appendChild(turn);
 				continue;
 			}
 			const node = document.createElement('div');
@@ -194,7 +208,7 @@
 	function speakOnDemand(button, text) {
 		const started = performance.now();
 		return window
-			.fetch(ASSISTANT_BASE + '/speak', {
+			.fetch(assistantBase() + '/speak', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ message: text })
@@ -269,7 +283,7 @@
 		form.append('file', blob, 'voice.webm');
 
 		window
-			.fetch(ASSISTANT_BASE + '/voice/transcribe', { method: 'POST', body: form })
+			.fetch(assistantBase() + '/voice/transcribe', { method: 'POST', body: form })
 			.then(function (response) {
 				if (response.status === 501) {
 					throw new Error('STT not configured on the assistant (501)');
@@ -613,6 +627,15 @@
 			// Markup, CSS classes and the /ui/message fragment contract are the
 			// Python UI's own; this scope only carries the drawer state and the
 			// transport, so answers render exactly as the assistant wrote them.
+			assistantBackend: 'cpu',
+			setAssistantBackend: function (kind) {
+				const next = kind === 'gpu' ? 'gpu' : 'cpu';
+				assistant_base = next === 'gpu' ? ASSISTANT_GPU_BASE : ASSISTANT_BASE;
+				this.assistantBackend = next;
+				this.assistantOnline = null;
+				this.assistantMetrics = null;
+				log('assistant:backend', { backend: next, base: assistant_base });
+			},
 			assistantInput: '',
 			assistantBusy: false,
 			assistantRecording: false,
@@ -644,7 +667,7 @@
 				}
 				const kind = self.assistantPlanKind === 'laya' ? 'laya' : 'qwen';
 				window
-					.fetch(ASSISTANT_BASE + '/plan?kind=' + kind, {
+					.fetch(assistantBase() + '/plan?kind=' + kind, {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ message: text })
@@ -695,7 +718,7 @@
 					return;
 				}
 				window
-					.fetch(ASSISTANT_BASE + '/actions')
+					.fetch(assistantBase() + '/actions')
 					.then(function (response) {
 						if (!response.ok) {
 							throw new Error('HTTP ' + response.status);
@@ -735,7 +758,7 @@
 					return;
 				}
 				window
-					.fetch(ASSISTANT_BASE + '/actions/request', {
+					.fetch(assistantBase() + '/actions/request', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ tool: name, args: args })
@@ -766,7 +789,7 @@
 					return;
 				}
 				window
-					.fetch(ASSISTANT_BASE + '/actions/confirm', {
+					.fetch(assistantBase() + '/actions/confirm', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/json' },
 						body: JSON.stringify({ token: preview.token })
@@ -818,7 +841,7 @@
 					return;
 				}
 				window
-					.fetch(ASSISTANT_BASE + '/metrics')
+					.fetch(assistantBase() + '/metrics')
 					.then(function (response) {
 						if (!response.ok) {
 							throw new Error('HTTP ' + response.status);
@@ -884,7 +907,7 @@
 			probeAssistantHealth: function () {
 				const self = this;
 				window
-					.fetch(ASSISTANT_BASE + '/healthz')
+					.fetch(assistantBase() + '/healthz')
 					.then(function (response) {
 						if (!response.ok) {
 							throw new Error('HTTP ' + response.status);
@@ -1004,7 +1027,7 @@
 				assistant_abort = typeof window.AbortController === 'function' ? new window.AbortController() : null;
 
 				window
-					.fetch(ASSISTANT_BASE + '/ui/message', {
+					.fetch(assistantBase() + '/ui/message', {
 						method: 'POST',
 						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
 						body: body,
@@ -1026,13 +1049,17 @@
 					})
 					.then(function (fragment) {
 						window.clearInterval(tick);
-						rememberAssistantAnswer(fragment);
+						rememberAssistantAnswer(fragment, self.assistantBackend);
 						const holder = document.createElement('div');
 						holder.innerHTML = fragment;
 						rewriteAssistantUrls(holder);
+						const turn = document.createElement('div');
+						turn.className = 'assistant-turn';
+						turn.setAttribute('data-backend', self.assistantBackend);
 						while (holder.firstChild) {
-							pending.parentNode.insertBefore(holder.firstChild, pending);
+							turn.appendChild(holder.firstChild);
 						}
+						pending.parentNode.insertBefore(turn, pending);
 						pending.remove();
 						settle();
 						self.assistantOnline = true;

@@ -189,6 +189,22 @@
         @load="bindAssistantFrame()"
       ></iframe>
       <form v-show="!assistantFallback" class="assistant-composer" @submit.prevent="sendAssistant()">
+        <div class="assistant-backend" role="group" aria-label="inference backend">
+          <button
+            type="button"
+            data-backend="cpu"
+            :class="{ active: assistantBackend === 'cpu' }"
+            @click="setAssistantBackend('cpu')"
+            title="Ask the CPU assistant"
+          >CPU</button>
+          <button
+            type="button"
+            data-backend="gpu"
+            :class="{ active: assistantBackend === 'gpu' }"
+            @click="setAssistantBackend('gpu')"
+            title="Ask the GPU assistant"
+          >GPU</button>
+        </div>
         <select name="mode" v-model="assistantMode" :disabled="assistantBusy" title="investigate = multi-step tool loop; chat = one step">
           <option value="investigate">investigate</option>
           <option value="chat">chat</option>

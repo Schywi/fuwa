@@ -1515,6 +1515,38 @@
         border-top: 1px solid #21262d;
       }
 
+      /* CPU|GPU: the button colour matches the timing colour of the answers. */
+      .assistant-backend {
+        display: flex;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .assistant-backend button {
+        font: inherit;
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 6px 9px;
+        border: 0;
+        background: #0d1117;
+        color: #7d8590;
+        cursor: pointer;
+      }
+
+      .assistant-backend button[data-backend="cpu"].active { background: rgba(210, 153, 34, 0.18); color: #d29922; }
+      .assistant-backend button[data-backend="gpu"].active { background: rgba(34, 184, 207, 0.18); color: #22b8cf; }
+
+      .assistant-drawer .assistant-turn[data-backend="cpu"] { border-left: 2px solid #d29922; padding-left: 8px; }
+      .assistant-drawer .assistant-turn[data-backend="gpu"] { border-left: 2px solid #22b8cf; padding-left: 8px; }
+
+      .assistant-drawer .assistant-turn[data-backend="cpu"] .meta,
+      .assistant-drawer .assistant-turn[data-backend="cpu"] .meta .tag { color: #d29922; }
+
+      .assistant-drawer .assistant-turn[data-backend="gpu"] .meta,
+      .assistant-drawer .assistant-turn[data-backend="gpu"] .meta .tag { color: #22b8cf; }
+
       .assistant-composer select,
       .assistant-composer input,
       .assistant-composer button {

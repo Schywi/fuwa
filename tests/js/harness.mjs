@@ -46,8 +46,20 @@ function fakeHost() {
 		children,
 		appendChild(child) {
 			child.host = children; // so child.remove() can detach itself
+			child.parentNode = this; // so insertBefore can place siblings
 			children.push(child);
 			return child;
+		},
+		insertBefore(node, ref) {
+			node.host = children;
+			node.parentNode = this;
+			const index = children.indexOf(ref);
+			if (index < 0) {
+				children.push(node);
+			} else {
+				children.splice(index, 0, node);
+			}
+			return node;
 		},
 		replaceChildren() {
 			children.length = 0;
@@ -90,6 +102,16 @@ export function loadShell({
 			node.innerHTML = '';
 			node.firstChild = null;
 			node.parentNode = { insertBefore() {} };
+			node.attributes = {};
+			node.setAttribute = function (name, value) {
+				this.attributes[name] = String(value);
+			};
+			node.getAttribute = function (name) {
+				return Object.prototype.hasOwnProperty.call(this.attributes, name) ? this.attributes[name] : null;
+			};
+			node.removeAttribute = function (name) {
+				delete this.attributes[name];
+			};
 			node.querySelector = () => null;
 			node.querySelectorAll = () => [];
 			node.children = [];

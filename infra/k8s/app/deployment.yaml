@@ -45,6 +45,9 @@ spec:
             # is not reachable from a pod, the Service is.
             - name: ARGOCD_UPSTREAM
               value: "argocd-server.argocd.svc.cluster.local:80"
+            # The GPU assistant (Vulkan) that the drawer's CPU|GPU toggle selects.
+            - name: ASSISTANT_GPU_UPSTREAM
+              value: "assistant-e4-gpu.assistant.svc.cluster.local:8080"
             - name: LUA_CODE_CACHE
               value: "on"
             - name: FUWA_DB_PATH

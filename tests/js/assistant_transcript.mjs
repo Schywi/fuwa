@@ -34,12 +34,15 @@ function swap(shell) {
 	shell.state.assistantInput = 'why are pods failing?';
 	shell.state.sendAssistant();
 	await settle();
-	assert.equal(shell.thread.children.length, 1, 'the question is on screen');
+	// question + the (now wrapped) answer
+	assert.equal(shell.thread.children.length, 2, 'the question is on screen');
+	assert.equal(shell.thread.children[0].textContent, 'why are pods failing?', 'the question is first');
 
 	swap(shell);
 
-	assert.equal(shell.thread.children.length, 1, 'the question is replayed');
+	assert.equal(shell.thread.children.length, 2, 'the question and its answer are replayed');
 	assert.equal(shell.thread.children[0].textContent, 'why are pods failing?', 'with the same text');
+	assert.equal(shell.thread.children[1].className, 'assistant-turn', 'the answer keeps its turn wrapper');
 	assert.ok(shell.logs.some((line) => line.includes('assistant:thread-restored')), 'the restore is logged');
 }
 
@@ -71,7 +74,7 @@ function swap(shell) {
 
 	// A swap that did not destroy the drawer (e.g. a different view region).
 	shell.fire('htmx:afterSwap', { detail: { target: shell.node() }, target: shell.node() });
-	assert.equal(shell.thread.children.length, 1, 'nothing is duplicated into a live thread');
+	assert.equal(shell.thread.children.length, 2, 'nothing is duplicated into a live thread');
 }
 
 // ── 4. a new session drops the buffer ───────────────────────────────────
