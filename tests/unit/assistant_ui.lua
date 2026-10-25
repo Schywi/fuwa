@@ -152,7 +152,12 @@ t.test("no anchor in the drawer can open a browser tab", function()
 	t.contains(workspace_js, "event.preventDefault();", "expected the browser default (new tab / navigation) to be cancelled")
 	t.contains(workspace_js, "event.stopPropagation();", "expected the click to stop here")
 	t.contains(workspace_js, "workspace_state?.openAssistantLink(link.href || link.getAttribute('href'))", "expected the link to route into the panel")
-	t.contains(workspace_js, "this.closeDrawer();", "expected the drawer to close so the panel is visible")
+	t.contains(workspace_js, "state.closeDrawer();", "expected the drawer to close so the panel is visible")
+	-- petite-vue proxies the state; a module-level handler must not mutate the raw
+	-- object or the panel never re-renders (deep links looked like dead clicks).
+	t.contains(workspace_js, "let assistant_scope = null;", "expected the reactive scope to be captured")
+	t.contains(workspace_js, "function assistantState(candidate) {", "expected a single accessor for it")
+	t.contains(workspace_js, "const state = assistantState(this);", "expected links to drive that scope")
 	t.not_contains(workspace_js, "window.open(", "the shell must never open a window")
 end)
 

@@ -57,6 +57,21 @@
 		console.info(LOG_PREFIX + ' ' + step, detail);
 	}
 
+	// petite-vue wraps the initial data in its own reactive proxy
+	// (createApp → reactive(scope)). The object kept in this module is the raw
+	// target: writing to it updates data but notifies no effect, so the UI never
+	// re-renders. Template-invoked handlers get the proxy as `this`, so capture
+	// it there and drive module-level actions (deep links, frame clicks) through
+	// it — otherwise a clicked evidence link changes state silently.
+	let assistant_scope = null;
+
+	function assistantState(candidate) {
+		if (candidate && candidate !== workspace_state) {
+			assistant_scope = candidate;
+		}
+		return assistant_scope || workspace_state;
+	}
+
 	// ── Assistant fragment seams ──────────────────────────────────
 	// /ui/message returns the Python app's own HTML. These helpers keep that
 	// markup working on fuwa's origin: rewrite root-relative asset URLs through
@@ -585,6 +600,7 @@
 			},
 			drawerOpen: false,
 			openDrawer: function () {
+				assistantState(this);
 				this.drawerOpen = true;
 				// Cheap liveness check so the composer can say "unreachable"
 				// instead of letting the user type into a dead socket.
@@ -914,8 +930,9 @@
 					log('assistant:unsupported-link', { url: url });
 					return;
 				}
-				this.closeDrawer();
-				this.openPanel(url);
+				const state = assistantState(this);
+				state.closeDrawer();
+				state.openPanel(url);
 			},
 			cancelAssistantQuestion: function () {
 				if (!assistant_abort) {
@@ -925,6 +942,7 @@
 				assistantToast('Stopped waiting — the assistant may still finish server-side');
 			},
 			sendAssistant: function () {
+				assistantState(this);
 				const text = (this.assistantInput || '').trim();
 				if (text === '' || this.assistantBusy) {
 					return;
