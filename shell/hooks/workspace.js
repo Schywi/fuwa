@@ -137,6 +137,10 @@
 	// The transcript lives in the DOM, and htmx replaces the whole view on
 	// navigation. Keep a structured copy so a swap does not lose the
 	// conversation: {kind:'user', text} | {kind:'bot', html} | {kind:'error', text}.
+	// The assistant has no cancel route; aborting the fetch only stops waiting on
+	// this side (the server finishes its work regardless).
+	let assistant_abort = null;
+
 	let assistant_transcript = [];
 
 	function rememberAssistantQuestion(text) {
@@ -268,75 +272,6 @@
 				button.disabled = false;
 				button.textContent = label;
 			});
-	}
-
-	// Voice: MediaRecorder → POST /assistant/voice/transcribe (multipart).
-	// The assistant answers 501 until STT_URL is configured; that is surfaced
-	// as a diagnostic, never swallowed.
-	let assistant_recorder = null;
-	// The assistant has no cancel route; aborting the fetch only stops waiting on
-	// this side (the server finishes its work regardless).
-	let assistant_abort = null;
-
-	function uploadAssistantVoice(blob, apply_transcript) {
-		const form = new window.FormData();
-		form.append('file', blob, 'voice.webm');
-
-		window
-			.fetch(assistantBase() + '/voice/transcribe', { method: 'POST', body: form })
-			.then(function (response) {
-				if (response.status === 501) {
-					throw new Error('STT not configured on the assistant (501)');
-				}
-				if (!response.ok) {
-					throw new Error('HTTP ' + response.status);
-				}
-				return response.json();
-			})
-			.then(function (payload) {
-				const text = String((payload && payload.text) || '').trim();
-				if (text === '') {
-					throw new Error('empty transcript');
-				}
-				apply_transcript(text);
-				assistantToast('Transcript ready');
-			})
-			.catch(function (error) {
-				log('assistant:transcribe-failed', error.message);
-				assistantToast('Transcription failed: ' + error.message, true);
-			});
-	}
-
-	function startAssistantRecorder(stream, state) {
-		const chunks = [];
-		const recorder = new window.MediaRecorder(stream);
-		assistant_recorder = recorder;
-		state.assistantRecording = true;
-		log('assistant:recording-start', { mime: recorder.mimeType || 'audio/webm' });
-
-		recorder.addEventListener('dataavailable', function (event) {
-			if (event.data && event.data.size > 0) {
-				chunks.push(event.data);
-			}
-		});
-
-		recorder.addEventListener('stop', function () {
-			for (const track of stream.getTracks()) {
-				track.stop();
-			}
-			assistant_recorder = null;
-			state.assistantRecording = false;
-			log('assistant:recording-stop', { chunks: chunks.length });
-			if (chunks.length === 0) {
-				assistantToast('Nothing recorded', true);
-				return;
-			}
-			uploadAssistantVoice(new window.Blob(chunks, { type: recorder.mimeType || 'audio/webm' }), function (text) {
-				state.assistantInput = text;
-			});
-		});
-
-		recorder.start();
 	}
 
 	// Metrics: GET /assistant/metrics is Prometheus text. Reduce it to the few
@@ -628,6 +563,9 @@
 			// Python UI's own; this scope only carries the drawer state and the
 			// transport, so answers render exactly as the assistant wrote them.
 			assistantBackend: 'cpu',
+			setAssistantMode: function (mode) {
+				this.assistantMode = mode === 'chat' ? 'chat' : 'investigate';
+			},
 			setAssistantBackend: function (kind) {
 				const next = kind === 'gpu' ? 'gpu' : 'cpu';
 				assistant_base = next === 'gpu' ? ASSISTANT_GPU_BASE : ASSISTANT_BASE;
@@ -638,7 +576,6 @@
 			},
 			assistantInput: '',
 			assistantBusy: false,
-			assistantRecording: false,
 			assistantRetryIn: 0,
 			assistantOnline: null,
 			assistantMode: 'investigate',
@@ -921,29 +858,6 @@
 					.catch(function (error) {
 						self.assistantOnline = false;
 						log('assistant:health-failed', error && error.message);
-					});
-			},
-			toggleAssistantRecording: function () {
-				const self = this;
-				if (assistant_recorder) {
-					assistant_recorder.stop();
-					return;
-				}
-
-				const media = navigator.mediaDevices;
-				if (!media || typeof window.MediaRecorder !== 'function') {
-					assistantToast('Recording is not available in this browser', true);
-					return;
-				}
-
-				media
-					.getUserMedia({ audio: true })
-					.then(function (stream) {
-						startAssistantRecorder(stream, self);
-					})
-					.catch(function (error) {
-						log('assistant:mic-failed', error && error.message);
-						assistantToast('Microphone unavailable: ' + ((error && error.message) || error), true);
 					});
 			},
 			openAssistantLink: function (url) {

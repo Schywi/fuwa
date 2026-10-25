@@ -89,19 +89,33 @@
     <aside class="assistant-drawer" v-show="drawerOpen">
       <header class="assistant-head">
         <h1>Cluster Assistant</h1>
+        <div class="assistant-backend" role="group" aria-label="inference backend">
+          <button
+            type="button"
+            data-backend="cpu"
+            :class="{ active: assistantBackend === 'cpu' }"
+            @click="setAssistantBackend('cpu')"
+            title="Answers from the CPU assistant"
+          >cpu</button>
+          <button
+            type="button"
+            data-backend="gpu"
+            :class="{ active: assistantBackend === 'gpu' }"
+            @click="setAssistantBackend('gpu')"
+            title="Answers from the GPU assistant"
+          >gpu</button>
+        </div>
         <span
           class="muted"
           :class="{ offline: assistantOnline === false }"
-          v-text="assistantOnline === null ? 'read-only · local LLM' : (assistantOnline ? 'online · read-only · local LLM' : 'unreachable — is the assistant up?')"
+          v-text="assistantOnline === null ? 'read-only · local LLM' : (assistantOnline ? 'online' : 'unreachable — is the assistant up?')"
         ></span>
-        <nav class="assistant-links">
-          <button type="button" @click="openAssistantLink('http://192.168.0.245/')">Grafana</button>
-          <button type="button" @click="openAssistantLink('http://192.168.0.241/')">Hubble UI</button>
-          <button type="button" @click="openAssistantLink('http://192.168.0.246/')">VictoriaMetrics</button>
-        </nav>
         <details class="assistant-dev">
-          <summary title="Session, metrics, actions, planner">⚙</summary>
+          <summary title="Links, session, metrics, actions, planner"><iconify-icon icon="ph:gear-six"></iconify-icon></summary>
           <div class="assistant-dev-menu">
+            <button type="button" @click="openAssistantLink('http://192.168.0.245/')">Grafana</button>
+            <button type="button" @click="openAssistantLink('http://192.168.0.241/')">Hubble UI</button>
+            <button type="button" @click="openAssistantLink('http://192.168.0.246/')">VictoriaMetrics</button>
             <button type="button" @click="newAssistantSession()">new session</button>
             <button type="button" @click="toggleAssistantMetrics()">metrics</button>
             <button type="button" @click="toggleAssistantActions()">actions</button>
@@ -109,7 +123,7 @@
             <button type="button" @click="useAssistantFallback()">python ui</button>
           </div>
         </details>
-        <button type="button" class="assistant-close" @click="closeDrawer()">✕</button>
+        <button type="button" class="assistant-close" @click="closeDrawer()"><iconify-icon icon="ph:x"></iconify-icon></button>
       </header>
       <div v-if="assistantMetrics" class="assistant-metrics" data-assistant-metrics>
         <div class="assistant-metrics-row" v-for="s in assistantMetrics.stages">
@@ -189,26 +203,6 @@
         @load="bindAssistantFrame()"
       ></iframe>
       <form v-show="!assistantFallback" class="assistant-composer" @submit.prevent="sendAssistant()">
-        <div class="assistant-backend" role="group" aria-label="inference backend">
-          <button
-            type="button"
-            data-backend="cpu"
-            :class="{ active: assistantBackend === 'cpu' }"
-            @click="setAssistantBackend('cpu')"
-            title="Ask the CPU assistant"
-          >CPU</button>
-          <button
-            type="button"
-            data-backend="gpu"
-            :class="{ active: assistantBackend === 'gpu' }"
-            @click="setAssistantBackend('gpu')"
-            title="Ask the GPU assistant"
-          >GPU</button>
-        </div>
-        <select name="mode" v-model="assistantMode" :disabled="assistantBusy" title="investigate = multi-step tool loop; chat = one step">
-          <option value="investigate">investigate</option>
-          <option value="chat">chat</option>
-        </select>
         <input
           name="message"
           v-model="assistantInput"
@@ -216,27 +210,38 @@
           :disabled="assistantOnline === false"
           autocomplete="off"
         />
-        <button
-          type="button"
-          class="assistant-mic"
-          :class="{ recording: assistantRecording }"
-          :title="assistantRecording ? 'Stop and transcribe' : 'Speak instead of typing'"
-          :disabled="assistantOnline === false"
-          @click="toggleAssistantRecording()"
-          v-text="assistantRecording ? '■' : '🎤'"
-        ></button>
-        <button
-          v-if="assistantBusy"
-          type="button"
-          class="assistant-stop"
-          @click="cancelAssistantQuestion()"
-        >stop</button>
-        <button
-          v-else
-          class="send"
-          type="submit"
-          :disabled="assistantRetryIn > 0 || assistantOnline === false"
-        >Send</button>
+        <div class="assistant-composer-row">
+          <div class="assistant-mode" role="group" aria-label="mode">
+            <button
+              type="button"
+              :class="{ active: assistantMode === 'investigate' }"
+              :disabled="assistantBusy"
+              title="investigate = multi-step tool loop"
+              @click="setAssistantMode('investigate')"
+            >investigate</button>
+            <button
+              type="button"
+              :class="{ active: assistantMode === 'chat' }"
+              :disabled="assistantBusy"
+              title="chat = one step"
+              @click="setAssistantMode('chat')"
+            >chat</button>
+          </div>
+          <button
+            v-if="assistantBusy"
+            type="button"
+            class="assistant-stop"
+            title="Stop waiting"
+            @click="cancelAssistantQuestion()"
+          ><iconify-icon icon="ph:stop-fill"></iconify-icon></button>
+          <button
+            v-else
+            class="send"
+            type="submit"
+            title="Send"
+            :disabled="assistantRetryIn > 0 || assistantOnline === false"
+          ><iconify-icon icon="ph:paper-plane-right-fill"></iconify-icon></button>
+        </div>
       </form>
       <div class="assistant-toast" data-assistant-toast></div>
     </aside>

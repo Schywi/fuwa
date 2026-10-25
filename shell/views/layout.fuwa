@@ -1241,12 +1241,21 @@
       }
 
       .assistant-head {
-        padding: 10px 16px;
+        padding: 8px 14px;
         border-bottom: 1px solid #21262d;
         display: flex;
         align-items: center;
-        gap: 12px;
-        flex-wrap: wrap;
+        gap: 8px;
+        flex-wrap: nowrap;
+      }
+
+      /* The status text is the only elastic item; everything else stays whole. */
+      .assistant-head .muted {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .assistant-head h1 { font-size: 15px; margin: 0; font-weight: 600; }
@@ -1510,10 +1519,52 @@
 
       .assistant-composer {
         display: flex;
+        flex-direction: column;
         gap: 8px;
-        padding: 12px 16px;
+        padding: 10px 14px;
         border-top: 1px solid #21262d;
       }
+
+      .assistant-composer-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* mode as a segmented pair, not a dropdown */
+      .assistant-mode {
+        display: flex;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .assistant-mode button {
+        font: inherit;
+        font-size: 11px;
+        padding: 4px 10px;
+        border: 0;
+        border-radius: 0;
+        background: #0d1117;
+        color: #7d8590;
+        cursor: pointer;
+      }
+
+      .assistant-mode button.active { background: #21262d; color: #e6edf3; }
+
+      .assistant-composer-row .send,
+      .assistant-composer-row .assistant-stop {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 34px;
+        height: 26px;
+        padding: 0 9px;
+      }
+
+      .assistant-composer iconify-icon,
+      .assistant-head iconify-icon { font-size: 14px; line-height: 1; }
 
       /* CPU|GPU: the button colour matches the timing colour of the answers. */
       .assistant-backend {
@@ -1525,10 +1576,10 @@
 
       .assistant-backend button {
         font: inherit;
-        font-size: 11px;
+        font-size: 10px;
         font-weight: 700;
         letter-spacing: 0.04em;
-        padding: 6px 9px;
+        padding: 2px 7px;
         border: 0;
         background: #0d1117;
         color: #7d8590;
@@ -1547,7 +1598,6 @@
       .assistant-drawer .assistant-turn[data-backend="gpu"] .meta,
       .assistant-drawer .assistant-turn[data-backend="gpu"] .meta .tag { color: #22b8cf; }
 
-      .assistant-composer select,
       .assistant-composer input,
       .assistant-composer button {
         font: inherit;
@@ -1558,7 +1608,7 @@
         padding: 8px 10px;
       }
 
-      .assistant-composer input[name="message"] { flex: 1; min-width: 0; }
+      .assistant-composer input[name="message"] { width: 100%; min-width: 0; }
 
       .assistant-composer button.send {
         background: #238636;
@@ -1574,19 +1624,6 @@
         background: #0d1117;
         color: #f85149;
         cursor: pointer;
-      }
-
-      .assistant-composer button.assistant-mic {
-        border-color: #30363d;
-        background: #0d1117;
-        color: #e6edf3;
-        cursor: pointer;
-        line-height: 1;
-      }
-
-      .assistant-composer button.assistant-mic.recording {
-        border-color: #f85149;
-        color: #f85149;
       }
 
       .assistant-toast {
