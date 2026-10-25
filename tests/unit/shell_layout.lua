@@ -58,7 +58,9 @@ t.test("the panel links are unchanged and stay inside the header", function()
 	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.245/')\"", "expected Grafana")
 	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.241/')\"", "expected Cilium")
 	t.contains(home_fuwa, "@click=\"openPanel('/argocd/')\"", "expected Argo CD")
-	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.249/')\"", "expected Kargo")
+	t.contains(home_fuwa, "@click=\"openPanel('/kargo/')\"", "expected Kargo through its proxy")
+	t.contains(home_fuwa, '@click="toggleTmux()"', "expected the tmux control in this row")
+	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.250/')\"", "expected sandboxes")
 
 	-- Slice the header block out by offsets: Lua patterns do not span newlines
 	-- without a flag, and this file is one tag per line.

@@ -184,6 +184,17 @@ t.test("the recorded fragments confirm the links really are target=_blank offlin
 	t.contains(fixture_investigate .. fixture_chat, "class=", "fixtures should carry assistant markup")
 end)
 
+t.test("absolute LoadBalancer links are routed onto fuwa's own proxies", function()
+	t.contains(workspace_js, "const ASSISTANT_LB_ROUTES = [", "expected a routing table")
+	t.contains(workspace_js, "{ host: '192.168.0.247', route: '/argocd/', keep_path: false }", "argocd collapses to its SPA root")
+	t.contains(workspace_js, "{ host: '192.168.0.249', route: '/kargo/', keep_path: true }", "kargo keeps its path")
+	t.contains(workspace_js, "const target = assistantRoutedUrl(url);", "expected clicks to be routed")
+	t.contains(workspace_js, "state.openPanel(target);", "expected the routed URL in the panel")
+	t.contains(nginx, "location /kargo/ {", "expected the kargo proxy")
+	t.contains(nginx, "location /v1beta1/ {", "expected kargo's absolute API proxied")
+	t.contains(nginx, 'set $kargo_upstream "${KARGO_UPSTREAM}";', "expected a substitutable upstream")
+end)
+
 t.test("root-relative fragment assets are rewritten through the proxy", function()
 	t.contains(workspace_js, "function rewriteAssistantUrls(", "expected a URL rewriter")
 	t.contains(workspace_js, "'data-audio'", "expected data-audio to be rewritten too")

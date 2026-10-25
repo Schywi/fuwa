@@ -72,6 +72,31 @@
 	// it — otherwise a clicked evidence link changes state silently.
 	let assistant_scope = null;
 
+	// The assistant emits absolute LoadBalancer URLs. Two of them cannot be
+	// framed as-is (Argo refuses framing and only serves its SPA at "/"), so a
+	// click is routed onto fuwa's own same-origin proxies instead.
+	const ASSISTANT_LB_ROUTES = [
+		{ host: '192.168.0.247', route: '/argocd/', keep_path: false },
+		{ host: '192.168.0.249', route: '/kargo/', keep_path: true }
+	];
+
+	function assistantRoutedUrl(url) {
+		let parsed;
+		try {
+			parsed = new window.URL(url, window.location.origin);
+		} catch (error) {
+			return url;
+		}
+		for (const entry of ASSISTANT_LB_ROUTES) {
+			if (parsed.hostname === entry.host) {
+				const path = entry.keep_path ? parsed.pathname.replace(/^\/+/, '') : '';
+				const search = entry.keep_path ? parsed.search : '';
+				return entry.route + path + search;
+			}
+		}
+		return url;
+	}
+
 	function assistantState(candidate) {
 		if (candidate && candidate !== workspace_state) {
 			assistant_scope = candidate;
@@ -868,8 +893,12 @@
 					return;
 				}
 				const state = assistantState(this);
+				const target = assistantRoutedUrl(url);
+				if (target !== url) {
+					log('assistant:routed', { from: url, to: target });
+				}
 				state.closeDrawer();
-				state.openPanel(url);
+				state.openPanel(target);
 			},
 			cancelAssistantQuestion: function () {
 				if (!assistant_abort) {
@@ -1406,7 +1435,8 @@
 		state: workspace_state,
 		initialize,
 		parseAssistantMetrics,
-		assistantProxyUrl
+		assistantProxyUrl,
+		assistantRoutedUrl
 	};
 
 	if (document.readyState === 'loading') {

@@ -129,6 +129,8 @@ export function loadShell({
 	};
 
 	const window = {
+		URL,
+		location: { origin: 'http://192.168.0.244' },
 		localStorage: storedSession(),
 		setTimeout: () => 0,
 		clearTimeout: () => {},

@@ -48,6 +48,9 @@ spec:
             # The GPU assistant (Vulkan) that the drawer's CPU|GPU toggle selects.
             - name: ASSISTANT_GPU_UPSTREAM
               value: "assistant-e4-gpu.assistant.svc.cluster.local:8080"
+            # Kargo's gateway, for the /kargo/ panel proxy.
+            - name: KARGO_UPSTREAM
+              value: "kargo-gateway.kargo.svc.cluster.local:80"
             - name: LUA_CODE_CACHE
               value: "on"
             - name: FUWA_DB_PATH

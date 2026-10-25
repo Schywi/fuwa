@@ -54,7 +54,9 @@
             <button class="grafana-trigger" @click="openPanel('http://192.168.0.245/')">Grafana ↗</button>
             <button class="grafana-trigger" @click="openPanel('http://192.168.0.241/')">Cilium ↗</button>
             <button class="grafana-trigger" @click="openPanel('/argocd/')">Argo CD ⛵</button>
-            <button class="grafana-trigger" @click="openPanel('http://192.168.0.249/')">Kargo ⚓</button>
+            <button class="grafana-trigger" @click="openPanel('/kargo/')">Kargo ⚓</button>
+            <button class="grafana-trigger" @click="toggleTmux()">tmux</button>
+            <button class="grafana-trigger" @click="openPanel('http://192.168.0.250/')">sandboxes</button>
           </div>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
