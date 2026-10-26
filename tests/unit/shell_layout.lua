@@ -29,6 +29,12 @@ function t.contains(haystack, needle, label)
 	end
 end
 
+function t.not_contains(haystack, needle, label)
+	if tostring(haystack):find(needle, 1, true) then
+		error(label or string.format("did not expect %q", needle), 2)
+	end
+end
+
 local home_fuwa = read_file("shell/views/fragments/home.fuwa")
 local layout_fuwa = read_file("shell/views/layout.fuwa")
 
@@ -59,21 +65,22 @@ t.test("the panel links are unchanged and stay inside the header", function()
 	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.241/')\"", "expected Cilium")
 	t.contains(home_fuwa, "@click=\"openPanel('/argocd/')\"", "expected Argo CD")
 	t.contains(home_fuwa, "@click=\"openPanel('/kargo/')\"", "expected Kargo through its proxy")
-	t.contains(home_fuwa, '@click="toggleTmux()"', "expected the tmux control in this row")
-	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.250/')\"", "expected sandboxes")
+	-- tmux and sandboxes belong in the top ide header, next to the other panel
+	-- controls — not in the observability row.
+	t.not_contains(home_fuwa, '@click="toggleTmux()">tmux</button>', "tmux must not sit in the observability row")
+	t.not_contains(home_fuwa, "@click=\"openPanel('http://192.168.0.250/')\">sandboxes</button>", "sandboxes must not sit there either")
+end)
 
-	-- Slice the header block out by offsets: Lua patterns do not span newlines
-	-- without a flag, and this file is one tag per line.
-	local start_at = home_fuwa:find('<div class="stage-header stage-header--stacked">', 1, true)
-	local end_at = home_fuwa:find('<div class="obs-activity-list"', 1, true)
-	if not (start_at and end_at and end_at > start_at) then
-		error("could not isolate the observability header")
+t.test("Sandboxes sits in the terminal header, beside the tmux control", function()
+	local head_at = home_fuwa:find('<div class="ide-preview-block ide-preview-block--terminal">', 1, true)
+	local head_end = home_fuwa:find('data-terminal-root', head_at, true)
+	if not (head_at and head_end) then
+		error("expected the terminal block")
 	end
-	local header = home_fuwa:sub(start_at, end_at - 1)
-	t.contains(header, '<div class="stage-links">', "the links must live inside the header block")
-	t.contains(header, "Grafana", "Grafana must be inside the header block")
-	t.contains(header, "Argo CD", "Argo CD must be inside the header block")
-	t.contains(header, "Kargo", "Kargo must be inside the header block")
+	local header = home_fuwa:sub(head_at, head_end)
+	t.contains(header, '@click="toggleTmux()">tmux|debug ↗</button>', "the tmux control stays here")
+	t.contains(header, "@click=\"openPanel('http://192.168.0.250/')\">Sandboxes</button>", "Sandboxes joins it")
+	t.not_contains(header, '>tmux ↗</button>', "no duplicate tmux button")
 end)
 
 t.test("other stage headers are untouched", function()

@@ -34,6 +34,7 @@
           <span class="stage-title">Terminal</span>
           <span class="stage-subtitle">compile + run output</span>
           <button class="grafana-trigger" @click="toggleTmux()">tmux|debug ↗</button>
+          <button class="grafana-trigger" @click="openPanel('http://192.168.0.250/')">Sandboxes</button>
         </div>
         <div
           class="shell-widget-shell"
@@ -55,8 +56,6 @@
             <button class="grafana-trigger" @click="openPanel('http://192.168.0.241/')">Cilium ↗</button>
             <button class="grafana-trigger" @click="openPanel('/argocd/')">Argo CD ⛵</button>
             <button class="grafana-trigger" @click="openPanel('/kargo/')">Kargo ⚓</button>
-            <button class="grafana-trigger" @click="toggleTmux()">tmux</button>
-            <button class="grafana-trigger" @click="openPanel('http://192.168.0.250/')">sandboxes</button>
           </div>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
