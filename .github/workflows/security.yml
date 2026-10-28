@@ -11,6 +11,7 @@ on:
 permissions:
   actions: read
   contents: read
+  pull-requests: read
   security-events: write
 
 concurrency:
@@ -27,6 +28,10 @@ jobs:
 
       - name: Scan for secrets with Gitleaks
         uses: gitleaks/gitleaks-action@v2
+        env:
+          # gitleaks-action v2 requires a token to scan pull requests; without
+          # it the job fails on every PR instead of scanning.
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   trivy:
     runs-on: ubuntu-latest
@@ -36,7 +41,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Scan filesystem with Trivy
-        uses: aquasecurity/trivy-action@0.24.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
