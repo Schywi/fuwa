@@ -152,3 +152,15 @@ This repo now includes GitHub Actions for:
   `package.json` exists, and diff-format validation
 - **Security**: Gitleaks secret scanning, Trivy filesystem scanning,
   dependency review on pull requests, and CodeQL analysis
+
+## Roadmap and design
+
+- [`docs/roadmap.md`](docs/roadmap.md) — what has shipped, what is next, and
+  what is knowingly unfinished.
+- [`docs/ui/shell-and-assistant-drawer-rfc.md`](docs/ui/shell-and-assistant-drawer-rfc.md)
+  — the shell UI and the assistant drawer: the contract, how it is built, how it
+  is configured, and its limits.
+
+## License
+
+[MIT](LICENSE) © 2026 Lucas Miranda Oliveira.

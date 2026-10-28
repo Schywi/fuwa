@@ -10,9 +10,10 @@
 > copy → clipboard. Parity is pinned by `tests/unit/assistant_ui.lua` and the
 > behaviour checks in `tests/js/` (`make test-js`).
 > Two decisions taken after implementation: the transcript is buffered in JS so
-> an htmx view swap does not lose the conversation, and the upstream address
-> stays hardcoded as `192.168.0.243` in `nginx.conf` (same convention as the
-> dashboard IPs in the shell) instead of gaining an env token.
+> an htmx view swap does not lose the conversation, and the panel/upstream
+> addresses are environment-driven rather than literals — see
+> `runtime/host/shell_config.lua` and the configuration table in
+> [`docs/ui/shell-and-assistant-drawer-rfc.md`](../../docs/ui/shell-and-assistant-drawer-rfc.md).
 > Intended home: `experiments/research/features/`.
 
 ## Problem

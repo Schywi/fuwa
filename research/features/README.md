@@ -9,4 +9,4 @@ contract → how it is implemented → configuration → how to verify → limit
 
 | Feature | File | Summary |
 |---|---|---|
-| Assistant chat inside fuwa | [`assistant-ui-in-fuwa.md`](assistant-ui-in-fuwa.md) | **Proposed.** Render the cluster assistant's chat as a native fuwa drawer so its evidence deep links open in the fuwa panel instead of a new tab. |
+| Assistant chat inside fuwa | [`assistant-ui-in-fuwa.md`](assistant-ui-in-fuwa.md) | **Implemented.** Render the cluster assistant's chat as a native fuwa drawer so its evidence deep links open in the fuwa panel instead of a new tab. Design is written up in [`docs/ui/shell-and-assistant-drawer-rfc.md`](../../docs/ui/shell-and-assistant-drawer-rfc.md). |
