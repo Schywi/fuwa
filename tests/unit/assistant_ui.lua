@@ -193,6 +193,10 @@ t.test("absolute LoadBalancer links are routed onto fuwa's own proxies", functio
 	t.contains(nginx, "location /kargo/ {", "expected the kargo proxy")
 	t.contains(nginx, "location /v1beta1/ {", "expected kargo's absolute API proxied")
 	t.contains(nginx, 'set $kargo_upstream "${KARGO_UPSTREAM}";', "expected a substitutable upstream")
+	-- Kargo's router reads this global, not the <base> tag: rewriting one without
+	-- the other leaves the SPA navigating to fuwa's root (blank panel).
+	t.contains(nginx, "window.__KARGO_BASE_PATH__ = '/kargo';", "expected the base-path global rewritten")
+	t.contains(nginx, '<base href="/kargo/" />', "expected the base tag rewritten")
 end)
 
 t.test("root-relative fragment assets are rewritten through the proxy", function()
