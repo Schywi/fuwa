@@ -82,6 +82,21 @@ export function loadShell({
 	const thread = fakeHost();
 	const created = [];
 
+	// What home.fuwa renders from runtime/host/shell_config.lua: the two
+	// LoadBalancer hosts the assistant emits that must be remapped onto fuwa's
+	// same-origin proxies.
+	const shellRoot = {
+		attributes: {
+			'data-panel-argocd-host': '192.168.0.247',
+			'data-panel-kargo-host': '192.168.0.249'
+		},
+		getAttribute(name) {
+			return Object.prototype.hasOwnProperty.call(this.attributes, name)
+				? this.attributes[name]
+				: null;
+		}
+	};
+
 	const document = {
 		readyState: 'loading',
 		body: null,
@@ -92,6 +107,7 @@ export function loadShell({
 			if (selector === '[data-assistant-toast]') return toasts;
 			if (selector === '[data-assistant-thread]') return thread;
 			if (selector === '[data-assistant-frame]') return frameOverride;
+			if (selector === '#shell-content') return shellRoot;
 			return null;
 		},
 		querySelectorAll: () => [],

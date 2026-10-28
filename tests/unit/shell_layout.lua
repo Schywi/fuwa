@@ -61,14 +61,22 @@ t.test("the stacked header is a column, so nothing sits beside the title", funct
 end)
 
 t.test("the panel links are unchanged and stay inside the header", function()
-	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.245/')\"", "expected Grafana")
-	t.contains(home_fuwa, "@click=\"openPanel('http://192.168.0.241/')\"", "expected Cilium")
+	t.contains(home_fuwa, "@click=\"openPanel('&dashboard.panels.grafana')\"", "expected Grafana")
+	t.contains(home_fuwa, "@click=\"openPanel('&dashboard.panels.cilium')\"", "expected Cilium")
 	t.contains(home_fuwa, "@click=\"openPanel('/argocd/')\"", "expected Argo CD")
 	t.contains(home_fuwa, "@click=\"openPanel('/kargo/')\"", "expected Kargo through its proxy")
-	-- tmux and sandboxes belong in the top ide header, next to the other panel
+	-- tmux and sandboxes belong in the terminal header, next to the other panel
 	-- controls — not in the observability row.
-	t.not_contains(home_fuwa, '@click="toggleTmux()">tmux</button>', "tmux must not sit in the observability row")
-	t.not_contains(home_fuwa, "@click=\"openPanel('http://192.168.0.250/')\">sandboxes</button>", "sandboxes must not sit there either")
+	local obs_at = home_fuwa:find('<div class="ide-preview-block ide-preview-block--obs">', 1, true)
+	if not obs_at then
+		error("expected the observability block")
+	end
+	-- Bound the slice at the full-screen tmux panel that follows the drawer,
+	-- so this only inspects the observability block itself.
+	local obs_end = home_fuwa:find('<div class="tmux-panel">', obs_at, true) or (#home_fuwa + 1)
+	local obs = home_fuwa:sub(obs_at, obs_end - 1)
+	t.not_contains(obs, "toggleTmux()", "tmux must not sit in the observability row")
+	t.not_contains(obs, "dashboard.panels.sandboxes", "sandboxes must not sit there either")
 end)
 
 t.test("Sandboxes sits in the terminal header, beside the tmux control", function()
@@ -79,7 +87,7 @@ t.test("Sandboxes sits in the terminal header, beside the tmux control", functio
 	end
 	local header = home_fuwa:sub(head_at, head_end)
 	t.contains(header, '@click="toggleTmux()">tmux|debug ↗</button>', "the tmux control stays here")
-	t.contains(header, "@click=\"openPanel('http://192.168.0.250/')\">Sandboxes</button>", "Sandboxes joins it")
+	t.contains(header, "@click=\"openPanel('&dashboard.panels.sandboxes')\">Sandboxes</button>", "Sandboxes joins it")
 	t.not_contains(header, '>tmux ↗</button>', "no duplicate tmux button")
 end)
 

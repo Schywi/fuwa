@@ -1,4 +1,9 @@
-<section id="shell-content" class="shell-content">
+<section
+  id="shell-content"
+  class="shell-content"
+  data-panel-argocd-host="&dashboard.panels.argocd_host"
+  data-panel-kargo-host="&dashboard.panels.kargo_host"
+>
   <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()" :class="{ 'is-dash': panelOpen }">
     <section class="ide-island ide-preview-island">
       <div
@@ -20,7 +25,7 @@
         <button class="grafana-trigger" @click="toggleArch()">architecture ↗</button>
         <button type="button" class="grafana-trigger" data-deploy-trigger style="margin-left:4px">Deploy</button>
         <button class="grafana-trigger" style="margin-left:4px" @click="openDrawer()">Assistant ⌘</button>
-        <button class="grafana-trigger" style="margin-left:4px" @click="openPanel('http://192.168.0.242/browser/?dbms=bolt%3A%2F%2F192.168.0.242%3A7687&amp;db=neo4j&amp;preselectAuthMethod=NO_AUTH')">Neo4j ◈</button>
+        <button class="grafana-trigger" style="margin-left:4px" @click="openPanel('&dashboard.panels.neo4j')">Neo4j ◈</button>
       </header>
 
       <include src="views/fragments/workspace.fuwa" />
@@ -34,7 +39,7 @@
           <span class="stage-title">Terminal</span>
           <span class="stage-subtitle">compile + run output</span>
           <button class="grafana-trigger" @click="toggleTmux()">tmux|debug ↗</button>
-          <button class="grafana-trigger" @click="openPanel('http://192.168.0.250/')">Sandboxes</button>
+          <button class="grafana-trigger" @click="openPanel('&dashboard.panels.sandboxes')">Sandboxes</button>
         </div>
         <div
           class="shell-widget-shell"
@@ -52,8 +57,8 @@
         <div class="stage-header stage-header--stacked">
           <span class="stage-title">Observability</span>
           <div class="stage-links">
-            <button class="grafana-trigger" @click="openPanel('http://192.168.0.245/')">Grafana ↗</button>
-            <button class="grafana-trigger" @click="openPanel('http://192.168.0.241/')">Cilium ↗</button>
+            <button class="grafana-trigger" @click="openPanel('&dashboard.panels.grafana')">Grafana ↗</button>
+            <button class="grafana-trigger" @click="openPanel('&dashboard.panels.cilium')">Cilium ↗</button>
             <button class="grafana-trigger" @click="openPanel('/argocd/')">Argo CD ⛵</button>
             <button class="grafana-trigger" @click="openPanel('/kargo/')">Kargo ⚓</button>
           </div>
@@ -114,9 +119,9 @@
         <details class="assistant-dev">
           <summary title="Links, session, metrics, actions, planner"><iconify-icon icon="ph:gear-six"></iconify-icon></summary>
           <div class="assistant-dev-menu">
-            <button type="button" @click="openAssistantLink('http://192.168.0.245/')">Grafana</button>
-            <button type="button" @click="openAssistantLink('http://192.168.0.241/')">Hubble UI</button>
-            <button type="button" @click="openAssistantLink('http://192.168.0.246/')">VictoriaMetrics</button>
+            <button type="button" @click="openAssistantLink('&dashboard.panels.grafana')">Grafana</button>
+            <button type="button" @click="openAssistantLink('&dashboard.panels.cilium')">Hubble UI</button>
+            <button type="button" @click="openAssistantLink('&dashboard.panels.victoriametrics')">VictoriaMetrics</button>
             <button type="button" @click="newAssistantSession()">new session</button>
             <button type="button" @click="toggleAssistantMetrics()">metrics</button>
             <button type="button" @click="toggleAssistantActions()">actions</button>

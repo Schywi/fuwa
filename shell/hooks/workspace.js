@@ -74,11 +74,25 @@
 
 	// The assistant emits absolute LoadBalancer URLs. Two of them cannot be
 	// framed as-is (Argo refuses framing and only serves its SPA at "/"), so a
-	// click is routed onto fuwa's own same-origin proxies instead.
-	const ASSISTANT_LB_ROUTES = [
-		{ host: '192.168.0.247', route: '/argocd/', keep_path: false },
-		{ host: '192.168.0.249', route: '/kargo/', keep_path: true }
-	];
+	// click is routed onto fuwa's own same-origin proxies instead. The hosts are
+	// deployment specific, so the shell renders them as data attributes (see
+	// runtime/host/shell_config.lua). No attribute, no remap: the raw URL opens.
+	function assistantLbRoutes() {
+		const root = document.querySelector('#shell-content');
+		if (!root) {
+			return [];
+		}
+		const argocd = root.getAttribute('data-panel-argocd-host');
+		const kargo = root.getAttribute('data-panel-kargo-host');
+		const routes = [];
+		if (argocd) {
+			routes.push({ host: argocd, route: '/argocd/', keep_path: false });
+		}
+		if (kargo) {
+			routes.push({ host: kargo, route: '/kargo/', keep_path: true });
+		}
+		return routes;
+	}
 
 	function assistantRoutedUrl(url) {
 		let parsed;
@@ -87,7 +101,7 @@
 		} catch (error) {
 			return url;
 		}
-		for (const entry of ASSISTANT_LB_ROUTES) {
+		for (const entry of assistantLbRoutes()) {
 			if (parsed.hostname === entry.host) {
 				const path = entry.keep_path ? parsed.pathname.replace(/^\/+/, '') : '';
 				const search = entry.keep_path ? parsed.search : '';

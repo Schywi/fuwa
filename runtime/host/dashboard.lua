@@ -1,3 +1,5 @@
+local ShellConfig = require("runtime.host.shell_config")
+
 local M = {}
 
 local function humanize_payload_id(payload_id)
@@ -246,6 +248,7 @@ function M.build(host, payload_id, requested_file, run_result)
 		preview_note = "In-memory live session",
 		runtime_tenant_url = "/runtime/tenant.html",
 		runtime_worker_url = "/shell/hooks/runtime-worker.js",
+		panels = ShellConfig.panels(),
 		payloads = payloads,
 		active = active,
 		preview_html = "",
