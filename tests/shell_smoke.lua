@@ -72,11 +72,11 @@ assert_true(observability_js:find("htmx:afterSwap", 1, true) ~= nil, "observabil
 assert_true(observability_js:find("data-widget-state', 'mounted'", 1, true) ~= nil, "observability should mark mounted widget state")
 assert_true(observability_js:find("EventSource('/__dev/traces/live')", 1, true) ~= nil, "observability should tail trace events over SSE")
 
--- Verify tmux.js uses multiplexed container log stream
+-- Verify tmux.js uses the multiplexed pod-log stream
 local tmux_js = files["hooks/tmux.js"]
 assert_true(tmux_js ~= nil, "tmux.js should be present in the package")
-assert_true(tmux_js:find("/__dev/containers/live", 1, true) ~= nil, "tmux should use single multiplexed SSE endpoint")
-assert_true(tmux_js:find("connectMux", 1, true) ~= nil, "tmux should route by container name")
+assert_true(tmux_js:find("/__dev/pods/live", 1, true) ~= nil, "tmux should use single multiplexed pod-log SSE endpoint")
+assert_true(tmux_js:find("connectMux", 1, true) ~= nil, "tmux should route by slot and label selector")
 assert_true(tmux_js:find("EventSource('/__dev/containers/", 1, true) == nil, "tmux should not create per-pane EventSources")
 assert_true(tmux_js:find("errors_only=1", 1, true) ~= nil, "tmux should request server-side error-only filtering")
 assert_true(tmux_js:find("fontSize: 9", 1, true) ~= nil, "tmux should reduce the terminal font size")
