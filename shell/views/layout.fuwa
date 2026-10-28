@@ -170,6 +170,7 @@
         gap: 5px;
         align-items: stretch;
         height: 100%;
+        position: relative;
       }
 
       .ide-island {
@@ -912,6 +913,23 @@
         flex-shrink: 0;
       }
 
+      /* Observability: the panel links belong under the title, not beside it. */
+      .stage-header--stacked {
+        height: auto;
+        flex-direction: column;
+        align-items: flex-start;
+        justify-content: flex-start;
+        padding: 8px 12px;
+        gap: 6px;
+      }
+
+      .stage-links {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        flex-wrap: wrap;
+      }
+
       .stage-title {
         font-size: 10px;
         text-transform: uppercase;
@@ -1174,7 +1192,7 @@
         50%      { box-shadow: 0 0 32px rgba(180, 140, 255, 0.3); }
       }
 
-      /* ── Grafana panel ─────────────────────────────────────────── */
+      /* ── Dashboard panel ───────────────────────────────────────── */
       .grafana-panel {
         display: none;
         flex: 1;
@@ -1183,7 +1201,7 @@
         position: relative;
       }
 
-      .ide-shell.is-signoz .signoz-panel {
+      .ide-shell.is-dash .dash-panel {
         display: flex;
       }
 
@@ -1193,6 +1211,461 @@
         border: 0;
         background: #0b0f14;
       }
+
+      /* ── Assistant drawer (right-docked chat) ──────────────────── */
+      .assistant-drawer {
+        position: absolute;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        width: 483px; /* 420px + 15% */
+        max-width: 82vw;
+        display: flex;
+        flex-direction: column;
+        background: #0b0f14;
+        border-left: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: -10px 0 28px rgba(0, 0, 0, 0.45);
+        z-index: 30;
+        overflow: hidden;
+      }
+
+      /* ── Assistant chat ─────────────────────────────────────────
+         CSS ported 1:1 from the assistant's own stylesheet so the HTML that
+         /assistant/ui/message returns renders here exactly as it does there.
+         Do not add bespoke styling: parity is the point. */
+      .assistant-drawer {
+        /* 15px is the upstream page's scale for a full-width window; at 483px the
+           80ch thread and code blocks overflow, so the drawer runs one step down. */
+        font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: #e6edf3;
+      }
+
+      .assistant-head {
+        padding: 8px 14px;
+        border-bottom: 1px solid #21262d;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: nowrap;
+      }
+
+      /* The status text is the only elastic item; everything else stays whole. */
+      .assistant-head .muted {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .assistant-head h1 { font-size: 15px; margin: 0; font-weight: 600; }
+
+      .assistant-head .muted { color: #7d8590; font-size: 12px; }
+
+      .assistant-head .muted.offline { color: #f85149; }
+
+      .assistant-links { margin-left: auto; display: flex; gap: 8px; flex-wrap: wrap; }
+
+      .assistant-links button,
+      .assistant-close {
+        color: #58a6ff;
+        text-decoration: none;
+        font: inherit;
+        font-size: 12px;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 3px 8px;
+        background: none;
+        cursor: pointer;
+      }
+
+      .assistant-links button:hover,
+      .assistant-close:hover { background: #161b22; }
+
+      .assistant-close { color: #e6edf3; margin-left: 4px; }
+
+      /* One disclosure, not four badges in the title bar. */
+      .assistant-dev { position: relative; }
+
+      .assistant-dev > summary {
+        list-style: none;
+        cursor: pointer;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 2px 7px;
+        font-size: 12px;
+        color: #7d8590;
+      }
+
+      .assistant-dev > summary::-webkit-details-marker { display: none; }
+
+      .assistant-dev[open] > summary { color: #e6edf3; }
+
+      .assistant-dev-menu {
+        position: absolute;
+        right: 0;
+        top: 24px;
+        z-index: 40;
+        display: flex;
+        flex-direction: column;
+        gap: 2px;
+        padding: 4px;
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+      }
+
+      .assistant-dev-menu button {
+        font: inherit;
+        font-size: 12px;
+        text-align: left;
+        white-space: nowrap;
+        border: 0;
+        border-radius: 5px;
+        padding: 3px 8px;
+        background: none;
+        color: #e6edf3;
+        cursor: pointer;
+      }
+
+      .assistant-dev-menu button:hover { background: #21262d; }
+
+      .assistant-metrics {
+        padding: 8px 16px;
+        border-bottom: 1px solid #21262d;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        font-size: 12px;
+        color: #7d8590;
+      }
+
+      .assistant-metrics.err { color: #ffb4ad; }
+
+      .assistant-metrics-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+      .assistant-actions {
+        padding: 8px 16px;
+        border-bottom: 1px solid #21262d;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        font-size: 12px;
+        color: #7d8590;
+      }
+
+      .assistant-actions.err { color: #ffb4ad; }
+
+      .assistant-actions-note { color: #d29922; }
+
+      .assistant-actions-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+      .assistant-actions-row input {
+        flex: 1;
+        min-width: 90px;
+        font: inherit;
+        font-size: 11px;
+        background: #0d1117;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 3px 6px;
+      }
+
+      .assistant-actions-row select {
+        font: inherit;
+        font-size: 11px;
+        background: #0d1117;
+        color: #e6edf3;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 3px 6px;
+      }
+
+      .assistant-actions-row button {
+        font: inherit;
+        font-size: 11px;
+        border: 1px solid #30363d;
+        background: #0d1117;
+        color: #e6edf3;
+        border-radius: 6px;
+        padding: 3px 8px;
+        cursor: pointer;
+      }
+
+      .assistant-actions-row button:disabled { opacity: 0.5; cursor: default; }
+
+      .assistant-actions-row button.confirm { border-color: #f85149; color: #f85149; }
+
+      .assistant-actions-preview { display: flex; flex-direction: column; gap: 4px; color: #e6edf3; }
+
+      .assistant-frame {
+        flex: 1;
+        min-height: 0;
+        width: 100%;
+        border: 0;
+        background: #0d1117;
+      }
+
+      .assistant-thread {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+      }
+
+      .assistant-drawer .msg {
+        max-width: 80ch;
+        padding: 8px 12px;
+        border-radius: 10px;
+        white-space: pre-wrap;
+        word-wrap: break-word;
+      }
+
+      .assistant-drawer .user { align-self: flex-end; background: #1f6feb; color: #fff; }
+
+      .assistant-drawer .bot { align-self: flex-start; background: #161b22; border: 1px solid #21262d; }
+
+      .assistant-drawer .bot.err { border-color: #f85149; color: #ffb4ad; }
+
+      .assistant-drawer .bot.md { white-space: normal; }
+
+      .assistant-drawer .md h1,
+      .assistant-drawer .md h2,
+      .assistant-drawer .md h3 { margin: 6px 0 4px; }
+
+      .assistant-drawer .md h1 { font-size: 16px; }
+      .assistant-drawer .md h2 { font-size: 15px; }
+      .assistant-drawer .md h3 { font-size: 14px; }
+      .assistant-drawer .md p { margin: 5px 0; }
+      .assistant-drawer .md ul { margin: 5px 0; padding-left: 20px; }
+      .assistant-drawer .md li { margin: 2px 0; }
+
+      .assistant-drawer .md pre {
+        background: #0d1117;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 8px;
+        overflow-x: auto;
+      }
+
+      .assistant-drawer .md code { background: #21262d; border-radius: 4px; padding: 0 4px; }
+
+      .assistant-drawer .md pre code { background: none; padding: 0; }
+
+      .assistant-drawer .md a { color: #58a6ff; }
+
+      /* The one addition to the upstream stylesheet: the drawer is narrower
+         than a browser window, so markdown tables need borders to stay legible. */
+      .assistant-drawer .md table { border-collapse: collapse; margin: 6px 0; font-size: 13px; }
+
+      .assistant-drawer .md th,
+      .assistant-drawer .md td { border: 1px solid #30363d; padding: 2px 6px; text-align: left; }
+
+      .assistant-drawer .bot.pending { color: #7d8590; }
+
+      .assistant-drawer .meta { margin-top: 6px; font-size: 11px; color: #7d8590; }
+
+      .assistant-drawer .tag {
+        display: inline-block;
+        margin-right: 6px;
+        padding: 1px 6px;
+        border-radius: 6px;
+        background: #21262d;
+      }
+
+      .assistant-drawer .evidence { margin-top: 6px; font-size: 12px; }
+
+      .assistant-drawer .evidence > summary { cursor: pointer; color: #7d8590; }
+
+      .assistant-drawer .evidence ul { margin: 4px 0; padding-left: 16px; }
+
+      .assistant-drawer .evidence li { margin: 3px 0; }
+
+      .assistant-drawer .evidence code { background: #21262d; border-radius: 4px; padding: 0 4px; }
+
+      .assistant-drawer .evidence a { color: #58a6ff; text-decoration: none; }
+
+      .assistant-drawer .copy {
+        margin-left: 6px;
+        font-size: 11px;
+        border: 1px solid #30363d;
+        background: #0d1117;
+        color: #7d8590;
+        border-radius: 5px;
+        padding: 0 6px;
+        cursor: pointer;
+      }
+
+      .assistant-drawer .speak {
+        margin-left: 8px;
+        padding: 0 7px;
+        font-size: 13px;
+        line-height: 1.6;
+        border: 1px solid #30363d;
+        background: #0d1117;
+        color: #e6edf3;
+        border-radius: 6px;
+        cursor: pointer;
+      }
+
+      .assistant-drawer .speak:disabled { opacity: 0.5; cursor: default; }
+
+      .assistant-drawer audio { display: block; margin-top: 6px; width: 100%; height: 32px; }
+
+      .assistant-composer {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 10px 14px;
+        border-top: 1px solid #21262d;
+      }
+
+      .assistant-composer-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      /* mode as a segmented pair, not a dropdown */
+      .assistant-mode {
+        display: flex;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .assistant-mode button {
+        font: inherit;
+        font-size: 11px;
+        padding: 4px 10px;
+        border: 0;
+        border-radius: 0;
+        background: #0d1117;
+        color: #7d8590;
+        cursor: pointer;
+      }
+
+      .assistant-mode button.active { background: #21262d; color: #e6edf3; }
+
+      .assistant-composer-row .send,
+      .assistant-composer-row .assistant-stop {
+        margin-left: auto;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 34px;
+        height: 26px;
+        padding: 0 9px;
+      }
+
+      .assistant-composer iconify-icon,
+      .assistant-head iconify-icon { font-size: 14px; line-height: 1; }
+
+      /* CPU|GPU: the button colour matches the timing colour of the answers. */
+      .assistant-backend {
+        display: flex;
+        border: 1px solid #30363d;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .assistant-backend button {
+        font: inherit;
+        font-size: 10px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        padding: 2px 7px;
+        border: 0;
+        background: #0d1117;
+        color: #7d8590;
+        cursor: pointer;
+      }
+
+      .assistant-backend button[data-backend="cpu"].active { background: rgba(210, 153, 34, 0.18); color: #d29922; }
+      .assistant-backend button[data-backend="gpu"].active { background: rgba(34, 184, 207, 0.18); color: #22b8cf; }
+
+      .assistant-drawer .assistant-turn[data-backend="cpu"] { border-left: 2px solid #d29922; padding-left: 8px; }
+      .assistant-drawer .assistant-turn[data-backend="gpu"] { border-left: 2px solid #22b8cf; padding-left: 8px; }
+
+      .assistant-drawer .assistant-turn[data-backend="cpu"] .meta,
+      .assistant-drawer .assistant-turn[data-backend="cpu"] .meta .tag { color: #d29922; }
+
+      .assistant-drawer .assistant-turn[data-backend="gpu"] .meta,
+      .assistant-drawer .assistant-turn[data-backend="gpu"] .meta .tag { color: #22b8cf; }
+
+      .assistant-composer input,
+      .assistant-composer button {
+        font: inherit;
+        border-radius: 8px;
+        border: 1px solid #30363d;
+        background: #0d1117;
+        color: #e6edf3;
+        padding: 8px 10px;
+      }
+
+      .assistant-composer input[name="message"] { width: 100%; min-width: 0; }
+
+      .assistant-composer button.send {
+        background: #238636;
+        border-color: #2ea043;
+        color: #fff;
+        cursor: pointer;
+      }
+
+      .assistant-composer button.send:disabled { opacity: 0.6; cursor: default; }
+
+      .assistant-composer button.assistant-stop {
+        border-color: #f85149;
+        background: #0d1117;
+        color: #f85149;
+        cursor: pointer;
+      }
+
+      .assistant-toast {
+        position: absolute;
+        right: 16px;
+        bottom: 72px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 10;
+      }
+
+      .assistant-drawer .toast {
+        background: #161b22;
+        border: 1px solid #30363d;
+        border-left: 3px solid #58a6ff;
+        border-radius: 8px;
+        padding: 8px 12px;
+        font-size: 12px;
+        max-width: 44ch;
+        animation: assistant-fade 0.2s ease;
+      }
+
+      .assistant-drawer .toast.err { border-left-color: #f85149; }
+
+      @keyframes assistant-fade {
+        from { opacity: 0; transform: translateY(6px); }
+      }
+
+      /* ── Scrollbars (thin, themed) ─────────────────────────────── */
+      * {
+        scrollbar-width: thin;
+        scrollbar-color: rgba(180, 140, 255, 0.35) transparent;
+      }
+
+      ::-webkit-scrollbar { width: 8px; height: 8px; }
+      ::-webkit-scrollbar-track { background: transparent; }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(180, 140, 255, 0.35);
+        border-radius: 8px;
+      }
+      ::-webkit-scrollbar-thumb:hover { background: rgba(180, 140, 255, 0.6); }
 
       .grafana-back-btn {
         position: absolute;
@@ -1247,8 +1720,8 @@
 
       .ide-shell.is-grafana .ide-panel,
       .ide-shell.is-grafana .ide-preview-island--right,
-      .ide-shell.is-signoz .ide-panel,
-      .ide-shell.is-signoz .ide-preview-island--right,
+      .ide-shell.is-dash .ide-panel,
+      .ide-shell.is-dash .ide-preview-island--right,
       .ide-shell.is-tmux .ide-panel,
       .ide-shell.is-tmux .ide-preview-island--right,
       .ide-shell.is-arch .ide-panel,

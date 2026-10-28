@@ -1,0 +1,46 @@
+# Fuwa under Argo CD.
+#
+# This is the canonical copy, kept next to the manifests it points at. The Argo
+# instance reads its Applications from the k3s repository (`experiments`), so
+# the file that actually gets applied is a copy of this one:
+#
+#   experiments/config/argocd/applications/fuwa.yaml
+#
+# Apply once, then Argo owns the rendered state:
+#   kubectl apply -f experiments/config/argocd/applications/fuwa.yaml
+#
+# Conventions mirrored from that repository's other Applications: `project:
+# default`, automated prune + selfHeal, the resources finalizer, and the
+# `app.kubernetes.io/managed-by` label.
+#
+# Deliberate differences from those Applications:
+#   - the source is the fuwa repository, not experiments: the manifests live
+#     next to the code they describe, so there is one source of truth;
+#   - `path` is a kustomization directory, so there is no `helm:` block;
+#   - `CreateNamespace=true` is unnecessary: app/namespace.yaml is in the path
+#     and carries `Prune=false`.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: fuwa
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: fuwa-lab
+    app.kubernetes.io/managed-by: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Schwyi/fuwa.git
+    targetRevision: k3s-integration
+    path: infra/k8s/app
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: fuwa
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true

@@ -94,6 +94,92 @@ local function request_log_payload(event, service_name)
 	}
 end
 
+local function request_metric_payload(event, service_name)
+	if type(event) ~= "table" or event.kind ~= "request" then
+		return nil
+	end
+
+	local status = tonumber(event.status) or (event.failed and 500 or 200)
+	local now_ns = math.floor((event._ts or ngx.now()) * 1000000000)
+	local time_unix_nano = string.format("%.0f", now_ns)
+	local duration_ms = tonumber(event.duration_ms) or 0
+
+	local attributes = {
+		{ key = "http.method", value = { stringValue = event.method or "GET" } },
+		{ key = "http.route", value = { stringValue = event.path or "/" } },
+		{ key = "http.status_code", value = { intValue = tostring(status) } },
+	}
+
+	return {
+		resourceMetrics = {{
+			resource = {
+				attributes = {
+					{ key = "service.name", value = { stringValue = service_name } },
+				},
+			},
+			scopeMetrics = {{
+				metrics = {
+					{
+						name = "http_requests_total",
+						unit = "1",
+						sum = {
+							aggregationTemporality = 2, -- cumulative
+							isMonotonic = true,
+							dataPoints = {{
+								asInt = "1",
+								timeUnixNano = time_unix_nano,
+								attributes = attributes,
+							}},
+						},
+					},
+					{
+						name = "http_request_errors_total",
+						unit = "1",
+						sum = {
+							aggregationTemporality = 2,
+							isMonotonic = true,
+							dataPoints = {{
+								asInt = status >= 400 and "1" or "0",
+								timeUnixNano = time_unix_nano,
+								attributes = attributes,
+							}},
+						},
+					},
+					{
+						name = "http_request_duration_ms",
+						unit = "ms",
+						gauge = {
+							dataPoints = {{
+								asDouble = duration_ms,
+								timeUnixNano = time_unix_nano,
+								attributes = attributes,
+							}},
+						},
+					},
+				},
+			}},
+		}},
+	}
+end
+
+function M:emit_metric(event)
+	if not self.target then
+		return false, "otlp target not configured"
+	end
+
+	local payload = request_metric_payload(event, self.service_name)
+	if not payload then
+		return false, "event does not produce otlp metrics"
+	end
+
+	local ok, payload_json = pcall(cjson.encode, payload)
+	if not ok then
+		return false, "failed to encode otlp metrics payload"
+	end
+
+	return http.schedule_json(self.target, payload_json, self.label)
+end
+
 function M:emit_trace(event)
 	if not self.target then
 		return false, "otlp target not configured"

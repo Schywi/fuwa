@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fuwa
+  annotations:
+    # Deleting this would take every fuwa resource with it.
+    argocd.argoproj.io/sync-options: Prune=false
+  labels:
+    app.kubernetes.io/name: fuwa
+    app.kubernetes.io/part-of: fuwa-lab

@@ -1,6 +1,9 @@
 (function () {
 	'use strict';
 
+	// Streams Kubernetes pod logs into the tmux panel. Each slot declares a
+	// label selector; the backend (/__dev/pods/live) resolves it to a pod and
+	// tails that pod's log through the cluster API.
 	var terminals = {};
 	var eventSource = null;
 	var mounted = false;
@@ -18,34 +21,24 @@
 		slot.setAttribute('data-tmux-status', status);
 	}
 
-	function isErrorLine(line) {
-		var lower = line.toLowerCase();
-		return lower.indexOf('error') !== -1
-			|| lower.indexOf('warn') !== -1
-			|| lower.indexOf('fail') !== -1
-			|| lower.indexOf('fatal') !== -1
-			|| lower.indexOf('panic') !== -1
-			|| lower.indexOf('exception') !== -1
-			|| lower.indexOf('traceback') !== -1;
-	}
-
-	function connectMux(containersByName) {
+	function connectMux(slotsById) {
 		if (typeof EventSource !== 'function') {
-			Object.values(containersByName).forEach(function (t) {
+			Object.values(slotsById).forEach(function (t) {
 				t.term.writeln('\x1b[1;31mSSE not supported\x1b[0m');
 				setSlotStatus(t.slot, 'error');
 			});
 			return;
 		}
 
-		var names = Object.keys(containersByName);
-		var params = names.map(function (n) {
-			return 'name=' + encodeURIComponent(n);
+		var params = [];
+		Object.keys(slotsById).forEach(function (id) {
+			params.push('slot=' + encodeURIComponent(id));
+			params.push('selector=' + encodeURIComponent(slotsById[id].selector || ''));
 		});
 		if (filterErrorsOnly) {
 			params.push('errors_only=1');
 		}
-		var url = '/__dev/containers/live?' + params.join('&');
+		var url = '/__dev/pods/live?' + params.join('&');
 
 		eventSource = new EventSource(url);
 
@@ -56,18 +49,18 @@
 		eventSource.addEventListener('status', function (e) {
 			try {
 				var msg = JSON.parse(e.data);
-				var name = msg.container;
-				if (!name || !containersByName[name]) return;
-				var t = containersByName[name];
+				var t = msg.slot && slotsById[msg.slot];
+				if (!t) return;
 				var status = msg.status || '';
 				if (status === 'connecting') {
 					setSlotStatus(t.slot, 'connecting');
-					t.term.writeln('\x1b[1;33mconnecting...\x1b[0m');
+					t.term.writeln('\x1b[1;33mwaiting for pod…\x1b[0m');
 				} else if (status === 'connected') {
 					setSlotStatus(t.slot, 'connected');
-					t.term.writeln('\x1b[1;32mconnected\x1b[0m');
+					t.term.writeln('\x1b[1;32mconnected: ' + (msg.pod || '') + '\x1b[0m');
 				} else if (status === 'closed' || status === 'done') {
 					setSlotStatus(t.slot, 'disconnected');
+					t.term.writeln('\x1b[1;33mpod log closed; reconnecting…\x1b[0m');
 				}
 			} catch (_) {}
 		});
@@ -75,26 +68,25 @@
 		eventSource.addEventListener('log', function (e) {
 			try {
 				var msg = JSON.parse(e.data);
-				var name = msg.container;
-				if (!name || !containersByName[name]) return;
-				var line = msg.line || '';
-				containersByName[name].term.writeln(line);
+				var t = msg.slot && slotsById[msg.slot];
+				if (!t) return;
+				t.term.writeln(msg.line || '');
 			} catch (_) {}
 		});
 
 		eventSource.addEventListener('error', function (e) {
+			if (!e || !e.data) return;
 			try {
 				var msg = JSON.parse(e.data);
-				var name = msg.container;
-				if (!name || !containersByName[name]) return;
-				var t = containersByName[name];
+				var t = msg.slot && slotsById[msg.slot];
+				if (!t) return;
 				setSlotStatus(t.slot, 'error');
 				t.term.writeln('\x1b[1;31m' + (msg.message || 'error') + '\x1b[0m');
 			} catch (_) {}
 		});
 
 		eventSource.onerror = function () {
-			Object.values(containersByName).forEach(function (t) {
+			Object.values(slotsById).forEach(function (t) {
 				setSlotStatus(t.slot, 'disconnected');
 			});
 		};
@@ -107,12 +99,13 @@
 
 		import('/vendor/xterm/xterm-6.0.0.mjs').then(function (mod) {
 			var Terminal = mod.Terminal;
-			var containersByName = {};
+			var slotsById = {};
 
 			for (var i = 0; i < slots.length; i++) {
 				var slot = slots[i];
 				var label = slot.getAttribute('data-tmux-label') || 'term';
-				var container = slot.getAttribute('data-tmux-container') || label;
+				var id = slot.getAttribute('data-tmux-slot') || label;
+				var selector = slot.getAttribute('data-tmux-selector') || '';
 				slot.textContent = '';
 
 				var term = new Terminal({
@@ -129,14 +122,14 @@
 				});
 
 				term.open(slot);
-				containersByName[container] = { term: term, label: label, slot: slot };
+				slotsById[id] = { term: term, label: label, slot: slot, selector: selector };
 			}
 
-			terminals = containersByName;
+			terminals = slotsById;
 			mounted = true;
 
-			connectMux(containersByName);
-			log('mounted ' + Object.keys(containersByName).length + ' terminals');
+			connectMux(slotsById);
+			log('mounted ' + Object.keys(slotsById).length + ' terminals');
 		}).catch(function (err) {
 			console.error('[shell:tmux] failed to load xterm', err);
 		});

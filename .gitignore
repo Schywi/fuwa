@@ -9,7 +9,9 @@ docs/refactoring/*
 .fuwa-dev/
 .env
 .agent
-docs/
+# The blanket `docs/` rule was removed: it left the 43 already-tracked docs
+# files alone but silently hid every *new* doc. The genuinely local subdirs are
+# excluded individually above and below.
 # Blog field notes and content drafts — local only, never committed
 docs/blog/
 docs/content/

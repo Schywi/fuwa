@@ -1,0 +1,15 @@
+# The in-namespace observability stack (loki, tempo, otel-collector) that the
+# fuwa runtime ships its traces to. Kept separate from app/ so pruning the
+# runtime can never touch the Loki PVC.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: fuwa
+
+resources:
+  - loki.yaml
+  - tempo.yaml
+  - otel-collector.yaml
+# cluster/fuwa-observability-netpol.yaml is deliberately NOT here: it selects
+# pods in the observability namespace, and this kustomization pins namespace:
+# fuwa, which would clone it into the wrong namespace (it did, once).

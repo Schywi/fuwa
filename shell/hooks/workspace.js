@@ -13,12 +13,445 @@
 	let mounted_app = null;
 	const mounted_roots = new WeakSet();
 
+	// The assistant is served by OpenResty under /assistant/ (nginx.conf), so
+	// the shell renders the Python app's own HTML fragments on its own origin
+	// instead of re-implementing them. Every assistant route is reachable:
+	// /assistant/ , /ui/message , /chat , /investigate , /speak ,
+	// /voice/transcribe , /actions* , /plan , /audio/{id} , /metrics .
+	const ASSISTANT_BASE = '/assistant';
+	// The CPU|GPU toggle switches this between the two proxies below.
+	const ASSISTANT_GPU_BASE = '/assistant-gpu';
+	let assistant_base = ASSISTANT_BASE;
+
+	function assistantBase() {
+		return assistant_base;
+	}
+	const ASSISTANT_SESSION_KEY = 'fuwa-assistant-session';
+
+	function createAssistantSessionId() {
+		return 'fuwa-' + Math.random().toString(36).slice(2, 10);
+	}
+
+	function assistantSessionId() {
+		try {
+			const existing = window.localStorage.getItem(ASSISTANT_SESSION_KEY);
+			if (existing) return existing;
+			const created = createAssistantSessionId();
+			window.localStorage.setItem(ASSISTANT_SESSION_KEY, created);
+			return created;
+		} catch (err) {
+			return 'fuwa-anon';
+		}
+	}
+
+	// Rotate the id the assistant threads conversations under, and remember it
+	// so a reload keeps the same (fresh) conversation.
+	function rotateAssistantSessionId() {
+		const created = createAssistantSessionId();
+		try {
+			window.localStorage.setItem(ASSISTANT_SESSION_KEY, created);
+		} catch (err) {
+			log('assistant:session-persist-failed', err && err.message);
+		}
+		return created;
+	}
+
 	function log(step, detail) {
 		if (detail === undefined) {
 			console.info(LOG_PREFIX + ' ' + step);
 			return;
 		}
 		console.info(LOG_PREFIX + ' ' + step, detail);
+	}
+
+	// petite-vue wraps the initial data in its own reactive proxy
+	// (createApp → reactive(scope)). The object kept in this module is the raw
+	// target: writing to it updates data but notifies no effect, so the UI never
+	// re-renders. Template-invoked handlers get the proxy as `this`, so capture
+	// it there and drive module-level actions (deep links, frame clicks) through
+	// it — otherwise a clicked evidence link changes state silently.
+	let assistant_scope = null;
+
+	// The assistant emits absolute LoadBalancer URLs. Two of them cannot be
+	// framed as-is (Argo refuses framing and only serves its SPA at "/"), so a
+	// click is routed onto fuwa's own same-origin proxies instead. The hosts are
+	// deployment specific, so the shell renders them as data attributes (see
+	// runtime/host/shell_config.lua). No attribute, no remap: the raw URL opens.
+	function assistantLbRoutes() {
+		const root = document.querySelector('#shell-content');
+		if (!root) {
+			return [];
+		}
+		const argocd = root.getAttribute('data-panel-argocd-host');
+		const kargo = root.getAttribute('data-panel-kargo-host');
+		const routes = [];
+		if (argocd) {
+			routes.push({ host: argocd, route: '/argocd/', keep_path: false });
+		}
+		if (kargo) {
+			routes.push({ host: kargo, route: '/kargo/', keep_path: true });
+		}
+		return routes;
+	}
+
+	function assistantRoutedUrl(url) {
+		let parsed;
+		try {
+			parsed = new window.URL(url, window.location.origin);
+		} catch (error) {
+			return url;
+		}
+		for (const entry of assistantLbRoutes()) {
+			if (parsed.hostname === entry.host) {
+				const path = entry.keep_path ? parsed.pathname.replace(/^\/+/, '') : '';
+				const search = entry.keep_path ? parsed.search : '';
+				return entry.route + path + search;
+			}
+		}
+		return url;
+	}
+
+	function assistantState(candidate) {
+		if (candidate && candidate !== workspace_state) {
+			assistant_scope = candidate;
+		}
+		return assistant_scope || workspace_state;
+	}
+
+	// ── Assistant fragment seams ──────────────────────────────────
+	// /ui/message returns the Python app's own HTML. These helpers keep that
+	// markup working on fuwa's origin: rewrite root-relative asset URLs through
+	// the proxy, play the 🔊 audio, copy reproducible commands, and route
+	// evidence links into the panel instead of a new tab.
+
+	function assistantToast(message, is_error) {
+		const host = document.querySelector('[data-assistant-toast]');
+		if (!host) {
+			return;
+		}
+		const toast = document.createElement('div');
+		toast.className = 'toast' + (is_error ? ' err' : '');
+		toast.textContent = message;
+		host.appendChild(toast);
+		window.setTimeout(function () {
+			toast.remove();
+		}, 6000);
+	}
+
+	// data-audio="/audio/{id}" targets the assistant's root, not the shell's.
+	// nginx's sub_filter may have prefixed it already; never prefix twice.
+	function assistantProxyUrl(value) {
+		if (!value || value.charAt(0) !== '/' || value.charAt(1) === '/') {
+			return value;
+		}
+		if (value === ASSISTANT_BASE || value.indexOf(ASSISTANT_BASE + '/') === 0) {
+			return value;
+		}
+		if (value === ASSISTANT_GPU_BASE || value.indexOf(ASSISTANT_GPU_BASE + '/') === 0) {
+			return value;
+		}
+		return assistantBase() + value;
+	}
+
+	function rewriteAssistantUrls(root) {
+		for (const node of root.querySelectorAll('[href],[src],[data-audio]')) {
+			for (const attribute of ['href', 'src', 'data-audio']) {
+				const value = node.getAttribute(attribute);
+				const proxied = assistantProxyUrl(value);
+				if (proxied !== value) {
+					node.setAttribute(attribute, proxied);
+				}
+			}
+		}
+
+		// The assistant emits target="_blank" on evidence links. Drop it so a
+		// missed click path still cannot spawn a tab, and mark the anchors the
+		// shell routes into the panel.
+		for (const anchor of root.querySelectorAll('a[target], a[rel]')) {
+			anchor.removeAttribute('target');
+			anchor.removeAttribute('rel');
+		}
+	}
+
+	// The transcript lives in the DOM, and htmx replaces the whole view on
+	// navigation. Keep a structured copy so a swap does not lose the
+	// conversation: {kind:'user', text} | {kind:'bot', html} | {kind:'error', text}.
+	// The assistant has no cancel route; aborting the fetch only stops waiting on
+	// this side (the server finishes its work regardless).
+	let assistant_abort = null;
+
+	let assistant_transcript = [];
+
+	function rememberAssistantQuestion(text) {
+		assistant_transcript.push({ kind: 'user', text: text });
+	}
+
+	function rememberAssistantAnswer(fragment, backend) {
+		assistant_transcript.push({ kind: 'bot', html: fragment, backend: backend || 'cpu' });
+	}
+
+	function rememberAssistantError(text) {
+		assistant_transcript.push({ kind: 'error', text: text });
+	}
+
+	function clearAssistantTranscript() {
+		assistant_transcript = [];
+	}
+
+	function renderAssistantTranscript(thread) {
+		for (const entry of assistant_transcript) {
+			if (entry.kind === 'user') {
+				const node = document.createElement('div');
+				node.className = 'msg user';
+				node.textContent = entry.text;
+				thread.appendChild(node);
+				continue;
+			}
+			if (entry.kind === 'bot') {
+				const holder = document.createElement('div');
+				holder.innerHTML = entry.html;
+				rewriteAssistantUrls(holder);
+				const turn = document.createElement('div');
+				turn.className = 'assistant-turn';
+				turn.setAttribute('data-backend', entry.backend || 'cpu');
+				while (holder.firstChild) {
+					turn.appendChild(holder.firstChild);
+				}
+				thread.appendChild(turn);
+				continue;
+			}
+			const node = document.createElement('div');
+			node.className = 'msg bot err';
+			node.textContent = entry.text;
+			thread.appendChild(node);
+		}
+	}
+
+	function restoreAssistantTranscript() {
+		const thread = document.querySelector('[data-assistant-thread]');
+		if (!thread || assistant_transcript.length === 0) {
+			return;
+		}
+		if (thread.children && thread.children.length > 0) {
+			return; // live content wins; never clobber a mounted transcript
+		}
+		renderAssistantTranscript(thread);
+		thread.scrollTop = thread.scrollHeight;
+		log('assistant:thread-restored', { entries: assistant_transcript.length });
+	}
+
+	function playAssistantAudio(button, blob) {
+		const audio = document.createElement('audio');
+		audio.controls = true;
+		audio.autoplay = true;
+		audio.src = URL.createObjectURL(blob);
+		button.replaceWith(audio);
+	}
+
+	function speakOnDemand(button, text) {
+		const started = performance.now();
+		return window
+			.fetch(assistantBase() + '/speak', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ message: text })
+			})
+			.then(function (response) {
+				if (!response.ok) {
+					throw new Error('HTTP ' + response.status);
+				}
+				return response.blob();
+			})
+			.then(function (blob) {
+				playAssistantAudio(button, blob);
+				assistantToast('TTS ready in ' + ((performance.now() - started) / 1000).toFixed(2) + 's');
+			});
+	}
+
+	function toggleAssistantSpeech(button) {
+		const label = button.textContent;
+		const text = button.getAttribute('data-text') || '';
+		const audio_url = button.getAttribute('data-audio');
+
+		button.disabled = true;
+		button.textContent = '…';
+
+		const pending_audio = audio_url
+			? window.fetch(audio_url).then(function (response) {
+					if (response.status === 200) {
+						return response.blob();
+					}
+					if (response.status === 202) {
+						const pending = new Error('tts pending');
+						pending.pending = true;
+						throw pending;
+					}
+					throw new Error('HTTP ' + response.status);
+				})
+			: Promise.resolve(null);
+
+		pending_audio
+			.then(function (blob) {
+				if (blob) {
+					playAssistantAudio(button, blob);
+					assistantToast('Played background TTS');
+					return null;
+				}
+				return speakOnDemand(button, text);
+			})
+			.catch(function (error) {
+				if (error && error.pending) {
+					assistantToast('TTS still generating…');
+					return speakOnDemand(button, text);
+				}
+				assistantToast('TTS failed: ' + ((error && error.message) || error), true);
+				return null;
+			})
+			.finally(function () {
+				button.disabled = false;
+				button.textContent = label;
+			});
+	}
+
+	// Metrics: GET /assistant/metrics is Prometheus text. Reduce it to the few
+	// numbers worth a drawer panel instead of dumping 400 lines on the user.
+	function parseMetricLabels(raw) {
+		const labels = {};
+		if (!raw) {
+			return labels;
+		}
+		for (const match of raw.matchAll(/([A-Za-z_][\w]*)\s*=\s*"([^"]*)"/g)) {
+			labels[match[1]] = match[2];
+		}
+		return labels;
+	}
+
+	function parseAssistantMetrics(text) {
+		const stages = new Map();
+		const tools = new Map();
+		const summary = { stages: [], tools: [], rejected: 0 };
+
+		function stage(name) {
+			if (!stages.has(name)) {
+				stages.set(name, {
+					stage: name,
+					requests: 0,
+					seconds: 0,
+					calls: 0,
+					input_tokens: 0,
+					output_tokens: 0,
+					ttft_seconds: 0,
+					ttft_calls: 0
+				});
+			}
+			return stages.get(name);
+		}
+
+		function tool(name) {
+			if (!tools.has(name)) {
+				tools.set(name, { tool: name, calls: 0, seconds: 0 });
+			}
+			return tools.get(name);
+		}
+
+		for (const line of String(text || '').split('\n')) {
+			const trimmed = line.trim();
+			if (trimmed === '' || trimmed.charAt(0) === '#') {
+				continue;
+			}
+			const match = /^([A-Za-z_:][\w:]*)(?:\{(.*)\})?\s+(-?[\d.eE+]+)$/.exec(trimmed);
+			if (!match) {
+				continue;
+			}
+			const value = Number(match[3]);
+			if (!Number.isFinite(value)) {
+				continue;
+			}
+			const labels = parseMetricLabels(match[2]);
+			const stage_label = labels.stage || 'unknown';
+
+			// Only LLM families create stage rows; unlabelled counters such as
+			// assistant_concurrency_rejected_total must not invent an 'unknown' one.
+			switch (match[1]) {
+				case 'assistant_llm_requests_total':
+					stage(stage_label).requests += value;
+					break;
+				case 'assistant_llm_request_seconds_sum':
+					stage(stage_label).seconds += value;
+					break;
+				case 'assistant_llm_request_seconds_count':
+					stage(stage_label).calls += value;
+					break;
+				case 'assistant_llm_ttft_seconds_sum':
+					stage(stage_label).ttft_seconds += value;
+					break;
+				case 'assistant_llm_ttft_seconds_count':
+					stage(stage_label).ttft_calls += value;
+					break;
+				case 'assistant_llm_input_tokens_total':
+					stage(stage_label).input_tokens += value;
+					break;
+				case 'assistant_llm_output_tokens_total':
+					stage(stage_label).output_tokens += value;
+					break;
+				case 'assistant_tool_seconds_sum':
+					tool(labels.tool || 'unknown').seconds += value;
+					break;
+				case 'assistant_tool_seconds_count':
+					tool(labels.tool || 'unknown').calls += value;
+					break;
+				case 'assistant_concurrency_rejected_total':
+					summary.rejected += value;
+					break;
+				default:
+					break;
+			}
+		}
+
+		function averageMs(seconds, calls) {
+			return calls > 0 ? Math.round((seconds / calls) * 1000) : null;
+		}
+
+		summary.stages = Array.from(stages.values())
+			.map(function (entry) {
+				return {
+					stage: entry.stage,
+					requests: entry.requests,
+					avg_ms: averageMs(entry.seconds, entry.calls),
+					ttft_ms: averageMs(entry.ttft_seconds, entry.ttft_calls),
+					input_tokens: entry.input_tokens,
+					output_tokens: entry.output_tokens
+				};
+			})
+			.sort(function (left, right) {
+				return left.stage < right.stage ? -1 : left.stage > right.stage ? 1 : 0;
+			});
+
+		summary.tools = Array.from(tools.values())
+			.map(function (entry) {
+				return { tool: entry.tool, calls: entry.calls, avg_ms: averageMs(entry.seconds, entry.calls) };
+			})
+			.sort(function (left, right) {
+				return left.tool < right.tool ? -1 : left.tool > right.tool ? 1 : 0;
+			});
+
+		return summary;
+	}
+
+	function copyAssistantText(button) {
+		const text = button.getAttribute('data-copy') || '';
+		if (!(navigator.clipboard && navigator.clipboard.writeText)) {
+			assistantToast('Copy failed', true);
+			return;
+		}
+		navigator.clipboard.writeText(text).then(
+			function () {
+				assistantToast('Copied');
+			},
+			function () {
+				assistantToast('Copy failed', true);
+			}
+		);
 	}
 
 	function describeScope(scope) {
@@ -143,7 +576,505 @@
 		workspace_state = {
 			open_popover: null,
 			root: null,
-			signozOpen: false,
+			panelOpen: false,
+			panelUrl: '',
+			openPanel: function (url) {
+				this.panelUrl = url;
+				this.panelOpen = true;
+			},
+			closePanel: function () {
+				this.panelUrl = '';
+				this.panelOpen = false;
+			},
+			drawerOpen: false,
+			openDrawer: function () {
+				assistantState(this);
+				this.drawerOpen = true;
+				// Cheap liveness check so the composer can say "unreachable"
+				// instead of letting the user type into a dead socket.
+				this.probeAssistantHealth();
+			},
+			closeDrawer: function () {
+				this.drawerOpen = false;
+			},
+			// ── Assistant chat ──
+			// Markup, CSS classes and the /ui/message fragment contract are the
+			// Python UI's own; this scope only carries the drawer state and the
+			// transport, so answers render exactly as the assistant wrote them.
+			assistantBackend: 'cpu',
+			setAssistantMode: function (mode) {
+				this.assistantMode = mode === 'chat' ? 'chat' : 'investigate';
+			},
+			setAssistantBackend: function (kind) {
+				const next = kind === 'gpu' ? 'gpu' : 'cpu';
+				assistant_base = next === 'gpu' ? ASSISTANT_GPU_BASE : ASSISTANT_BASE;
+				this.assistantBackend = next;
+				this.assistantOnline = null;
+				this.assistantMetrics = null;
+				log('assistant:backend', { backend: next, base: assistant_base });
+			},
+			assistantInput: '',
+			assistantBusy: false,
+			assistantRetryIn: 0,
+			assistantOnline: null,
+			assistantMode: 'investigate',
+			assistantSession: assistantSessionId(),
+			// ── Planner debug ────────────────────────────────────
+			// POST /plan?kind=qwen|laya answers {planner, plan_ms, tools[]} without
+			// running anything. Debug only: it shows what the planner would call.
+			assistantPlan: null,
+			assistantPlanError: '',
+			assistantPlanKind: 'qwen',
+			toggleAssistantPlan: function () {
+				const self = this;
+				if (self.assistantPlan) {
+					self.assistantPlan = null;
+					return;
+				}
+				self.assistantPlanError = '';
+				self.previewAssistantPlan();
+			},
+			previewAssistantPlan: function () {
+				const self = this;
+				const text = (self.assistantInput || '').trim();
+				if (text === '') {
+					assistantToast('Type a question first — the planner plans that', true);
+					return;
+				}
+				const kind = self.assistantPlanKind === 'laya' ? 'laya' : 'qwen';
+				window
+					.fetch(assistantBase() + '/plan?kind=' + kind, {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ message: text })
+					})
+					.then(function (response) {
+						return response.json().then(function (payload) {
+							if (!response.ok) {
+								throw new Error((payload && payload.detail) || 'HTTP ' + response.status);
+							}
+							return payload;
+						});
+					})
+					.then(function (payload) {
+						const tools = Array.isArray(payload.tools) ? payload.tools : [];
+						self.assistantPlan = {
+							kind: kind,
+							planner: payload.planner || 'unknown',
+							plan_ms: payload.plan_ms,
+							tools: tools.map(function (entry) {
+								return {
+									tool: entry.tool,
+									// Rendered as text, so template globals stay out of the markup.
+									args_text: JSON.stringify(entry.args || {})
+								};
+							})
+						};
+						log('assistant:plan', { kind: kind, planner: payload.planner });
+					})
+					.catch(function (error) {
+						log('assistant:plan-failed', error.message);
+						self.assistantPlanError = 'planner unavailable: ' + error.message;
+					});
+			},
+			// ── Level-2 actions ──────────────────────────────────
+			// /actions lists what the assistant may do, /actions/request mints a
+			// token + preview, /actions/confirm executes. Nothing is ever
+			// executed on the user's behalf: the confirm button is the only path.
+			assistantActions: null,
+			assistantActionsError: '',
+			assistantActionArgs: {},
+			assistantActionPreview: null,
+			assistantActionResult: '',
+			toggleAssistantActions: function () {
+				const self = this;
+				if (self.assistantActions) {
+					self.assistantActions = null;
+					self.assistantActionPreview = null;
+					return;
+				}
+				window
+					.fetch(assistantBase() + '/actions')
+					.then(function (response) {
+						if (!response.ok) {
+							throw new Error('HTTP ' + response.status);
+						}
+						return response.json();
+					})
+					.then(function (payload) {
+						self.assistantActions = {
+							enabled: Boolean(payload && payload.enabled),
+							catalog: Array.isArray(payload && payload.catalog) ? payload.catalog : [],
+							pending: Array.isArray(payload && payload.pending) ? payload.pending : []
+						};
+						self.assistantActionsError = '';
+					})
+					.catch(function (error) {
+						log('assistant:actions-failed', error.message);
+						self.assistantActionsError = 'actions unavailable: ' + error.message;
+					});
+			},
+			setAssistantActionArgs: function (name, event) {
+				const value = event && event.target ? event.target.value : '';
+				const next = Object.assign({}, this.assistantActionArgs);
+				next[name] = value;
+				this.assistantActionArgs = next;
+			},
+			requestAssistantAction: function (name) {
+				const self = this;
+				if (self.assistantActions && !self.assistantActions.enabled) {
+					assistantToast('Actions are disabled on the assistant', true);
+					return;
+				}
+				let args;
+				try {
+					args = JSON.parse(self.assistantActionArgs[name] || '{}');
+				} catch (error) {
+					assistantToast('args must be JSON: ' + error.message, true);
+					return;
+				}
+				window
+					.fetch(assistantBase() + '/actions/request', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ tool: name, args: args })
+					})
+					.then(function (response) {
+						return response.json().then(function (payload) {
+							if (!response.ok) {
+								throw new Error((payload && payload.detail) || 'HTTP ' + response.status);
+							}
+							return payload;
+						});
+					})
+					.then(function (payload) {
+						self.assistantActionPreview = payload;
+						self.assistantActionResult = '';
+						log('assistant:action-prepared', { action: name });
+					})
+					.catch(function (error) {
+						log('assistant:action-request-failed', error.message);
+						assistantToast('Could not prepare action: ' + error.message, true);
+					});
+			},
+			confirmAssistantAction: function () {
+				const self = this;
+				const preview = self.assistantActionPreview;
+				if (!preview || !preview.token) {
+					assistantToast('Nothing to confirm', true);
+					return;
+				}
+				window
+					.fetch(assistantBase() + '/actions/confirm', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ token: preview.token })
+					})
+					.then(function (response) {
+						return response.json().then(function (payload) {
+							if (!response.ok) {
+								throw new Error((payload && payload.detail) || 'HTTP ' + response.status);
+							}
+							return payload;
+						});
+					})
+					.then(function (payload) {
+						self.assistantActionPreview = null;
+						self.assistantActionResult = 'executed: ' + JSON.stringify(payload);
+						log('assistant:action-confirmed', { action: preview.action });
+					})
+					.catch(function (error) {
+						log('assistant:action-confirm-failed', error.message);
+						self.assistantActionResult = 'failed: ' + error.message;
+					});
+			},
+			dismissAssistantAction: function () {
+				this.assistantActionPreview = null;
+				this.assistantActionResult = '';
+			},
+			newAssistantSession: function () {
+				if (this.assistantBusy) {
+					assistantToast('Wait for the current answer first', true);
+					return;
+				}
+				this.assistantSession = rotateAssistantSessionId();
+				this.assistantMetrics = null;
+				this.assistantMetricsError = '';
+				const thread = document.querySelector('[data-assistant-thread]');
+				if (thread) {
+					thread.replaceChildren();
+				}
+				clearAssistantTranscript();
+				log('assistant:new-session', { session: this.assistantSession });
+				assistantToast('New session');
+			},
+			assistantMetrics: null,
+			assistantMetricsError: '',
+			toggleAssistantMetrics: function () {
+				const self = this;
+				if (self.assistantMetrics) {
+					self.assistantMetrics = null;
+					return;
+				}
+				window
+					.fetch(assistantBase() + '/metrics')
+					.then(function (response) {
+						if (!response.ok) {
+							throw new Error('HTTP ' + response.status);
+						}
+						return response.text();
+					})
+					.then(function (text) {
+						self.assistantMetrics = parseAssistantMetrics(text);
+						self.assistantMetricsError = '';
+					})
+					.catch(function (error) {
+						log('assistant:metrics-failed', error.message);
+						self.assistantMetricsError = 'metrics unavailable: ' + error.message;
+					});
+			},
+			// ── Simple fallback ──────────────────────────────────
+			// Embed the assistant's own page same-origin and steal its links into
+			// the panel. No re-drawing at all: this is the Python UI itself.
+			assistantFallback: false,
+			assistantFallbackReason: '',
+			enableAssistantFallback: function (reason) {
+				if (this.assistantFallback) {
+					return;
+				}
+				this.assistantFallback = true;
+				this.assistantFallbackReason = reason || '';
+				log('assistant:fallback-on', { reason: reason });
+				assistantToast('Showing the assistant’s own page (' + (reason || 'manual') + ')');
+			},
+			useAssistantFallback: function () {
+				this.enableAssistantFallback('manual');
+			},
+			bindAssistantFrame: function () {
+				const frame = document.querySelector('[data-assistant-frame]');
+				const doc = frame && frame.contentDocument;
+				if (!doc) {
+					log('assistant:frame-cross-origin');
+					assistantToast('Embedded assistant is not same-origin — links will open tabs', true);
+					return;
+				}
+
+				for (const anchor of doc.querySelectorAll('a[target]')) {
+					anchor.removeAttribute('target');
+				}
+
+				doc.addEventListener(
+					'click',
+					function (event) {
+						const target = event.target instanceof Element ? event.target : null;
+						const link = target ? target.closest('a[href]') : null;
+						if (!link) {
+							return;
+						}
+						event.preventDefault();
+						event.stopPropagation();
+						workspace_state?.openAssistantLink(link.href || link.getAttribute('href'));
+					},
+					true
+				);
+
+				log('assistant:frame-bound');
+			},
+			probeAssistantHealth: function () {
+				const self = this;
+				window
+					.fetch(assistantBase() + '/healthz')
+					.then(function (response) {
+						if (!response.ok) {
+							throw new Error('HTTP ' + response.status);
+						}
+						return response.json();
+					})
+					.then(function (payload) {
+						self.assistantOnline = true;
+						log('assistant:health-ok', payload && payload.status);
+					})
+					.catch(function (error) {
+						self.assistantOnline = false;
+						log('assistant:health-failed', error && error.message);
+					});
+			},
+			openAssistantLink: function (url) {
+				// Deep links (Grafana/Hubble/Neo4j evidence) open inside the panel
+				// — never a new tab, and never a non-navigable scheme.
+				if (!url || !/^(https?:\/\/|\/)/i.test(url)) {
+					log('assistant:unsupported-link', { url: url });
+					return;
+				}
+				const state = assistantState(this);
+				const target = assistantRoutedUrl(url);
+				if (target !== url) {
+					log('assistant:routed', { from: url, to: target });
+				}
+				state.closeDrawer();
+				state.openPanel(target);
+			},
+			cancelAssistantQuestion: function () {
+				if (!assistant_abort) {
+					return;
+				}
+				assistant_abort.abort();
+				assistantToast('Stopped waiting — the assistant may still finish server-side');
+			},
+			sendAssistant: function () {
+				assistantState(this);
+				const text = (this.assistantInput || '').trim();
+				if (text === '' || this.assistantBusy) {
+					return;
+				}
+				this.assistantInput = '';
+				this.deliverAssistantQuestion(text, 0);
+			},
+			// One question, one pending bubble, one answer. `attempt` exists only
+			// for the 429 path: the assistant's limiter answers 429 + Retry-After
+			// when it is saturated, and the question is retried once after waiting.
+			deliverAssistantQuestion: function (text, attempt) {
+				const self = this;
+				const thread = document.querySelector('[data-assistant-thread]');
+				if (!thread) {
+					log('assistant:missing-thread');
+					return;
+				}
+
+				self.assistantBusy = true;
+
+				if (attempt === 0) {
+					const user = document.createElement('div');
+					user.className = 'msg user';
+					user.textContent = text;
+					thread.appendChild(user);
+					rememberAssistantQuestion(text);
+				}
+
+				const pending = document.createElement('div');
+				pending.className = 'msg bot pending';
+				pending.innerHTML = 'thinking&hellip; <b>0.0</b>s';
+				thread.appendChild(pending);
+				thread.scrollTop = thread.scrollHeight;
+
+				const started = performance.now();
+				const tick = window.setInterval(function () {
+					const elapsed = pending.querySelector('b');
+					if (elapsed) {
+						elapsed.textContent = ((performance.now() - started) / 1000).toFixed(1);
+					}
+				}, 100);
+
+				const body = new URLSearchParams();
+				body.set('message', text);
+				body.set('mode', self.assistantMode);
+				body.set('session', self.assistantSession);
+
+				function settle() {
+					window.clearInterval(tick);
+					assistant_abort = null;
+					self.assistantBusy = false;
+					thread.scrollTop = thread.scrollHeight;
+				}
+
+				function busyMessage(seconds) {
+					pending.textContent = 'assistant busy — retry in ' + seconds + 's';
+				}
+
+				assistant_abort = typeof window.AbortController === 'function' ? new window.AbortController() : null;
+
+				window
+					.fetch(assistantBase() + '/ui/message', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+						body: body,
+						signal: assistant_abort ? assistant_abort.signal : undefined
+					})
+					.then(function (response) {
+						if (response.status === 429) {
+							const header = response.headers && typeof response.headers.get === 'function'
+								? Number(response.headers.get('Retry-After'))
+								: NaN;
+							const error = new Error('429 too many requests');
+							error.retry_after = Number.isFinite(header) && header > 0 ? Math.ceil(header) : 5;
+							throw error;
+						}
+						if (!response.ok) {
+							throw new Error('HTTP ' + response.status);
+						}
+						return response.text();
+					})
+					.then(function (fragment) {
+						window.clearInterval(tick);
+						rememberAssistantAnswer(fragment, self.assistantBackend);
+						const holder = document.createElement('div');
+						holder.innerHTML = fragment;
+						rewriteAssistantUrls(holder);
+						const turn = document.createElement('div');
+						turn.className = 'assistant-turn';
+						turn.setAttribute('data-backend', self.assistantBackend);
+						while (holder.firstChild) {
+							turn.appendChild(holder.firstChild);
+						}
+						pending.parentNode.insertBefore(turn, pending);
+						pending.remove();
+						settle();
+						self.assistantOnline = true;
+					})
+					.catch(function (error) {
+						if (error && error.name === 'AbortError') {
+							window.clearInterval(tick);
+							log('assistant:cancelled');
+							pending.className = 'msg bot pending';
+							pending.textContent = 'cancelled';
+							rememberAssistantError('cancelled');
+							settle();
+							return;
+						}
+						if (error && error.retry_after) {
+							window.clearInterval(tick);
+							self.assistantRetryIn = error.retry_after;
+							busyMessage(self.assistantRetryIn);
+							log('assistant:busy', { retry_in: error.retry_after, attempt: attempt });
+
+							const countdown = window.setInterval(function () {
+								self.assistantRetryIn = Math.max(0, self.assistantRetryIn - 1);
+								busyMessage(self.assistantRetryIn);
+							}, 1000);
+
+							window.setTimeout(function () {
+								window.clearInterval(countdown);
+								self.assistantRetryIn = 0;
+								if (attempt === 0) {
+									pending.remove();
+									self.assistantBusy = false;
+									assistantToast('Assistant was busy — retrying');
+									self.deliverAssistantQuestion(text, 1);
+									return;
+								}
+								// Second 429: stop retrying and give the question back.
+								self.assistantInput = text;
+								pending.className = 'msg bot err';
+								pending.textContent = 'assistant still busy (429) — press Send to retry';
+								assistantToast('Assistant still busy (429) — question restored', true);
+								settle();
+							}, error.retry_after * 1000);
+							return;
+						}
+
+						window.clearInterval(tick);
+						log('assistant failed', error.message);
+						const status = /^HTTP (\d+)$/.exec(error.message);
+						if (status && ['404', '405', '501'].includes(status[1])) {
+							self.enableAssistantFallback('fragment endpoint unusable: ' + error.message);
+						}
+						pending.className = 'msg bot err';
+						pending.textContent = 'Request failed: ' + error.message;
+						rememberAssistantError('Request failed: ' + error.message);
+						assistantToast('Request failed', true);
+						settle();
+					});
+			},
 			tmuxOpen: false,
 			archOpen: false,
 			toggleArch: function () {
@@ -234,62 +1165,6 @@
 					}
 				} else {
 					self.tmuxOpen = !self.tmuxOpen;
-				}
-			},
-			openSignoz: function () {
-				var self = this;
-				var panel = document.querySelector('.ide-panel');
-				var right = document.querySelector('.ide-preview-island--right');
-				var signoz = document.querySelector('.signoz-panel');
-				var shell = document.querySelector('.ide-shell');
-
-				if (!panel || !right || !signoz || !shell) {
-					self.signozOpen = true;
-					return;
-				}
-
-				var opening = !self.signozOpen;
-				self.signozOpen = true;
-				shell.classList.add('is-signoz');
-
-				if (window.gsap) {
-					var tl = window.gsap.timeline({ onComplete: function () {} });
-
-					if (opening) {
-						tl.to([panel, right], { opacity: 0, x: -20, duration: 0.25, ease: 'power2.in', stagger: 0.04 }, 0);
-						tl.fromTo(signoz, { opacity: 0, scale: 0.97 }, { opacity: 1, scale: 1, duration: 0.3, ease: 'power2.out' }, 0.08);
-					}
-				}
-			},
-			closeSignoz: function () {
-				var self = this;
-				var panel = document.querySelector('.ide-panel');
-				var right = document.querySelector('.ide-preview-island--right');
-				var signoz = document.querySelector('.signoz-panel');
-				var shell = document.querySelector('.ide-shell');
-
-				if (!self.signozOpen) {
-					return;
-				}
-
-				if (!panel || !right || !signoz || !shell) {
-					self.signozOpen = false;
-					return;
-				}
-
-				if (window.gsap) {
-					var tl = window.gsap.timeline({
-						onComplete: function () {
-							self.signozOpen = false;
-							shell.classList.remove('is-signoz');
-						}
-					});
-
-					tl.to(signoz, { opacity: 0, scale: 0.97, duration: 0.2, ease: 'power2.in' }, 0);
-					tl.fromTo([panel, right], { opacity: 0, x: -20 }, { opacity: 1, x: 0, duration: 0.28, ease: 'power2.out', stagger: 0.04 }, 0.06);
-				} else {
-					self.signozOpen = false;
-					shell.classList.remove('is-signoz');
 				}
 			},
 			openPalette: function () {
@@ -385,6 +1260,57 @@
 		},
 		true
 	);
+
+	// Assistant fragments: 🔊 audio, copy buttons, and evidence deep links.
+	// Rule: nothing in the drawer may open a browser tab. Every anchor — click,
+	// middle-click or ⌘/Ctrl-click — resolves into the fuwa panel instead.
+
+	function assistantAnchor(event) {
+		const target = event.target instanceof Element ? event.target : null;
+		if (!target || !target.closest('.assistant-drawer')) {
+			return null;
+		}
+		return target.closest('a[href]');
+	}
+
+	function openAssistantAnchor(event) {
+		const link = assistantAnchor(event);
+		if (!link) {
+			return false;
+		}
+		event.preventDefault();
+		event.stopPropagation();
+		workspace_state?.openAssistantLink(link.href || link.getAttribute('href'));
+		return true;
+	}
+
+	document.addEventListener('click', function (event) {
+		const target = event.target instanceof Element ? event.target : null;
+		if (!target) {
+			return;
+		}
+
+		const speak = target.closest('button.speak');
+		if (speak) {
+			toggleAssistantSpeech(speak);
+			return;
+		}
+
+		const copy = target.closest('button.copy');
+		if (copy) {
+			copyAssistantText(copy);
+			return;
+		}
+
+		openAssistantAnchor(event);
+	});
+
+	// Middle-click opens a new tab by default too.
+	document.addEventListener('auxclick', function (event) {
+		if (event.button === 1) {
+			openAssistantAnchor(event);
+		}
+	});
 
 	document.addEventListener('input', function (event) {
 		const input = event.target;
@@ -521,7 +1447,10 @@
 	window.FuwaShellWorkspace = {
 		createState,
 		state: workspace_state,
-		initialize
+		initialize,
+		parseAssistantMetrics,
+		assistantProxyUrl,
+		assistantRoutedUrl
 	};
 
 	if (document.readyState === 'loading') {
@@ -552,5 +1481,6 @@
 		});
 		initialize(target);
 		mount(target);
+		restoreAssistantTranscript();
 	});
 })();

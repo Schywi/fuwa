@@ -1,5 +1,10 @@
-<section id="shell-content" class="shell-content">
-  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()" :class="{ 'is-signoz': signozOpen }">
+<section
+  id="shell-content"
+  class="shell-content"
+  data-panel-argocd-host="&dashboard.panels.argocd_host"
+  data-panel-kargo-host="&dashboard.panels.kargo_host"
+>
+  <div class="ide-shell" v-scope="FuwaShellWorkspace.createState()" :class="{ 'is-dash': panelOpen }">
     <section class="ide-island ide-preview-island">
       <div
         class="ide-preview-stage"
@@ -19,6 +24,8 @@
         <div class="owner-sub typewriter-line"></div>
         <button class="grafana-trigger" @click="toggleArch()">architecture ↗</button>
         <button type="button" class="grafana-trigger" data-deploy-trigger style="margin-left:4px">Deploy</button>
+        <button class="grafana-trigger" style="margin-left:4px" @click="openDrawer()">Assistant ⌘</button>
+        <button class="grafana-trigger" style="margin-left:4px" @click="openPanel('&dashboard.panels.neo4j')">Neo4j ◈</button>
       </header>
 
       <include src="views/fragments/workspace.fuwa" />
@@ -32,6 +39,7 @@
           <span class="stage-title">Terminal</span>
           <span class="stage-subtitle">compile + run output</span>
           <button class="grafana-trigger" @click="toggleTmux()">tmux|debug ↗</button>
+          <button class="grafana-trigger" @click="openPanel('&dashboard.panels.sandboxes')">Sandboxes</button>
         </div>
         <div
           class="shell-widget-shell"
@@ -46,9 +54,14 @@
         <pre id="ide-terminal-seed" hidden data-terminal-seed>&dashboard.active.terminal_output</pre>
       </div>
       <div class="ide-preview-block ide-preview-block--obs">
-        <div class="stage-header">
+        <div class="stage-header stage-header--stacked">
           <span class="stage-title">Observability</span>
-          <button class="grafana-trigger" @click="openSignoz()">Grafana ↗</button>
+          <div class="stage-links">
+            <button class="grafana-trigger" @click="openPanel('&dashboard.panels.grafana')">Grafana ↗</button>
+            <button class="grafana-trigger" @click="openPanel('&dashboard.panels.cilium')">Cilium ↗</button>
+            <button class="grafana-trigger" @click="openPanel('/argocd/')">Argo CD ⛵</button>
+            <button class="grafana-trigger" @click="openPanel('/kargo/')">Kargo ⚓</button>
+          </div>
         </div>
         <div class="obs-activity-list" data-obs-root v-pre>
           <div v-for="request in requests" class="obs-request-group">
@@ -74,23 +87,182 @@
       </div>
     </section>
 
-    <div class="grafana-panel signoz-panel">
-      <iframe class="grafana-frame" src="/dash/signoz/dashboard" sandbox="allow-scripts allow-same-origin allow-forms" title="SigNoz dashboard"></iframe>
-      <button class="grafana-back-btn" @click="closeSignoz()">← Back to code</button>
+    <div class="grafana-panel dash-panel">
+      <iframe class="grafana-frame" :src="panelUrl" sandbox="allow-scripts allow-same-origin allow-forms" title="dashboard"></iframe>
+      <button class="grafana-back-btn" @click="closePanel()">← Back to code</button>
     </div>
 
+    <aside class="assistant-drawer" v-show="drawerOpen">
+      <header class="assistant-head">
+        <h1>Cluster Assistant</h1>
+        <div class="assistant-backend" role="group" aria-label="inference backend">
+          <button
+            type="button"
+            data-backend="cpu"
+            :class="{ active: assistantBackend === 'cpu' }"
+            @click="setAssistantBackend('cpu')"
+            title="Answers from the CPU assistant"
+          >cpu</button>
+          <button
+            type="button"
+            data-backend="gpu"
+            :class="{ active: assistantBackend === 'gpu' }"
+            @click="setAssistantBackend('gpu')"
+            title="Answers from the GPU assistant"
+          >gpu</button>
+        </div>
+        <span
+          class="muted"
+          :class="{ offline: assistantOnline === false }"
+          v-text="assistantOnline === null ? 'read-only · local LLM' : (assistantOnline ? 'online' : 'unreachable — is the assistant up?')"
+        ></span>
+        <details class="assistant-dev">
+          <summary title="Links, session, metrics, actions, planner"><iconify-icon icon="ph:gear-six"></iconify-icon></summary>
+          <div class="assistant-dev-menu">
+            <button type="button" @click="openAssistantLink('&dashboard.panels.grafana')">Grafana</button>
+            <button type="button" @click="openAssistantLink('&dashboard.panels.cilium')">Hubble UI</button>
+            <button type="button" @click="openAssistantLink('&dashboard.panels.victoriametrics')">VictoriaMetrics</button>
+            <button type="button" @click="newAssistantSession()">new session</button>
+            <button type="button" @click="toggleAssistantMetrics()">metrics</button>
+            <button type="button" @click="toggleAssistantActions()">actions</button>
+            <button type="button" @click="toggleAssistantPlan()">plan</button>
+            <button type="button" @click="useAssistantFallback()">python ui</button>
+          </div>
+        </details>
+        <button type="button" class="assistant-close" @click="closeDrawer()"><iconify-icon icon="ph:x"></iconify-icon></button>
+      </header>
+      <div v-if="assistantMetrics" class="assistant-metrics" data-assistant-metrics>
+        <div class="assistant-metrics-row" v-for="s in assistantMetrics.stages">
+          <span class="tag" v-text="s.stage"></span>
+          <span v-text="s.requests + ' req'"></span>
+          <span v-text="s.avg_ms === null ? '— ms' : s.avg_ms + ' ms avg'"></span>
+          <span v-text="s.ttft_ms === null ? '' : s.ttft_ms + ' ms ttft'"></span>
+          <span v-text="s.input_tokens + '→' + s.output_tokens + ' tok'"></span>
+        </div>
+        <div class="assistant-metrics-row" v-for="t in assistantMetrics.tools">
+          <span class="tag" v-text="t.tool"></span>
+          <span v-text="t.calls + ' calls'"></span>
+          <span v-text="t.avg_ms === null ? '— ms' : t.avg_ms + ' ms avg'"></span>
+        </div>
+        <div class="assistant-metrics-row">
+          <span class="tag">429 rejected</span>
+          <span v-text="assistantMetrics.rejected"></span>
+        </div>
+      </div>
+      <div v-if="assistantMetricsError" class="assistant-metrics err" data-assistant-metrics-error v-text="assistantMetricsError"></div>
+      <div v-if="assistantPlan" class="assistant-actions" data-assistant-plan>
+        <div class="assistant-actions-row">
+          <span class="tag" v-text="assistantPlan.planner"></span>
+          <span v-text="assistantPlan.plan_ms + ' ms'"></span>
+          <select v-model="assistantPlanKind" @change="previewAssistantPlan()" aria-label="planner">
+            <option value="qwen">qwen</option>
+            <option value="laya">laya</option>
+          </select>
+          <button type="button" @click="previewAssistantPlan()">re-plan</button>
+        </div>
+        <div class="assistant-actions-row" v-for="t in assistantPlan.tools">
+          <span class="tag" v-text="t.tool"></span>
+          <span v-text="t.args_text"></span>
+        </div>
+      </div>
+      <div v-if="assistantPlanError" class="assistant-actions err" data-assistant-plan-error v-text="assistantPlanError"></div>
+      <div v-if="assistantActions" class="assistant-actions" data-assistant-actions>
+        <div v-if="!assistantActions.enabled" class="assistant-actions-note">
+          actions are disabled on the assistant — prepare is read-only until they are enabled
+        </div>
+        <div class="assistant-actions-row" v-for="a in assistantActions.catalog">
+          <span class="tag" v-text="a.name"></span>
+          <span v-text="a.description"></span>
+          <input
+            type="text"
+            :value="assistantActionArgs[a.name] || '{}'"
+            :disabled="!assistantActions.enabled"
+            @input="setAssistantActionArgs(a.name, $event)"
+            :aria-label="'args JSON for ' + a.name"
+          />
+          <button
+            type="button"
+            :disabled="!assistantActions.enabled"
+            @click="requestAssistantAction(a.name)"
+            v-text="'prepare'"
+          ></button>
+        </div>
+        <div v-if="assistantActionPreview" class="assistant-actions-preview">
+          <div v-text="assistantActionPreview.action + ' → ' + (assistantActionPreview.preview ? assistantActionPreview.preview.target : '')"></div>
+          <div v-text="assistantActionPreview.preview ? assistantActionPreview.preview.effect : ''"></div>
+          <div class="assistant-actions-row">
+            <button type="button" class="confirm" @click="confirmAssistantAction()">Confirm</button>
+            <button type="button" @click="dismissAssistantAction()">Cancel</button>
+            <span v-text="'expires in ' + assistantActionPreview.expires_in + 's'"></span>
+          </div>
+        </div>
+        <div v-if="assistantActionResult" class="assistant-actions-row" v-text="assistantActionResult"></div>
+      </div>
+      <div v-if="assistantActionsError" class="assistant-actions err" data-assistant-actions-error v-text="assistantActionsError"></div>
+      <main v-show="!assistantFallback" class="assistant-thread" data-assistant-thread></main>
+      <iframe
+        v-if="assistantFallback"
+        class="assistant-frame"
+        src="/assistant/"
+        title="Cluster Assistant"
+        data-assistant-frame
+        @load="bindAssistantFrame()"
+      ></iframe>
+      <form v-show="!assistantFallback" class="assistant-composer" @submit.prevent="sendAssistant()">
+        <input
+          name="message"
+          v-model="assistantInput"
+          :placeholder="assistantOnline === false ? 'assistant unreachable' : 'Ask about the cluster…'"
+          :disabled="assistantOnline === false"
+          autocomplete="off"
+        />
+        <div class="assistant-composer-row">
+          <div class="assistant-mode" role="group" aria-label="mode">
+            <button
+              type="button"
+              :class="{ active: assistantMode === 'investigate' }"
+              :disabled="assistantBusy"
+              title="investigate = multi-step tool loop"
+              @click="setAssistantMode('investigate')"
+            >investigate</button>
+            <button
+              type="button"
+              :class="{ active: assistantMode === 'chat' }"
+              :disabled="assistantBusy"
+              title="chat = one step"
+              @click="setAssistantMode('chat')"
+            >chat</button>
+          </div>
+          <button
+            v-if="assistantBusy"
+            type="button"
+            class="assistant-stop"
+            title="Stop waiting"
+            @click="cancelAssistantQuestion()"
+          ><iconify-icon icon="ph:stop-fill"></iconify-icon></button>
+          <button
+            v-else
+            class="send"
+            type="submit"
+            title="Send"
+            :disabled="assistantRetryIn > 0 || assistantOnline === false"
+          ><iconify-icon icon="ph:paper-plane-right-fill"></iconify-icon></button>
+        </div>
+      </form>
+      <div class="assistant-toast" data-assistant-toast></div>
+    </aside>
 
     <div class="tmux-panel">
       <button class="grafana-back-btn" @click="toggleTmux()">← Back to code</button>
       <button class="grafana-back-btn tmux-filter-btn" data-tmux-filter-btn style="right: auto; left: 14px;">Errors only</button>
       <div class="tmux-grid">
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-openresty-1" data-tmux-label="openresty"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-1" data-tmux-label="signoz"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-ingester-1" data-tmux-label="ingester"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-clickhouse-1" data-tmux-label="clickhouse"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-signoz-keeper-1" data-tmux-label="keeper"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-vector-router-1" data-tmux-label="vector"></div>
-        <div class="tmux-slot" data-tmux-root data-tmux-container="docker-compose-victoriametrics-1" data-tmux-label="victoria"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="fuwa" data-tmux-selector="app.kubernetes.io/name=fuwa" data-tmux-label="fuwa"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="grafana" data-tmux-selector="app.kubernetes.io/name=grafana" data-tmux-label="grafana"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="victoriametrics" data-tmux-selector="app.kubernetes.io/name=victoriametrics" data-tmux-label="victoria"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="otel" data-tmux-selector="app.kubernetes.io/name=otel-collector" data-tmux-label="otel"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="tempo" data-tmux-selector="app.kubernetes.io/name=tempo" data-tmux-label="tempo"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="hubble" data-tmux-selector="k8s-app=hubble-relay" data-tmux-label="hubble"></div>
+        <div class="tmux-slot" data-tmux-root data-tmux-slot="cilium" data-tmux-selector="k8s-app=cilium" data-tmux-label="cilium"></div>
       </div>
     </div>
 

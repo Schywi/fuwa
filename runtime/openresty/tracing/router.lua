@@ -1,14 +1,15 @@
 local otlp_adapter = require("runtime.openresty.tracing.adapters.otlp")
-local vector_adapter = require("runtime.openresty.tracing.adapters.vector")
 
 local M = {}
 
-local base_url = "http://signoz-ingester:4318"
+-- OTLP endpoint for traces, logs, and metrics. nginx's resolver does not apply
+-- Kubernetes search domains, so the service must be addressed by FQDN.
+local otlp_base = os.getenv("FUWA_OTLP_URL") or "http://otel-collector.fuwa.svc.cluster.local:4318"
 
 local adapters = {
-	metrics = vector_adapter.new("http://vector-router:8687/"),
-	traces  = otlp_adapter.new(base_url .. "/v1/traces", "fuwa", "otlp traces"),
-	logs    = otlp_adapter.new(base_url .. "/v1/logs",   "fuwa", "otlp logs"),
+	metrics = otlp_adapter.new(otlp_base .. "/v1/metrics", "fuwa", "otlp metrics"),
+	traces  = otlp_adapter.new(otlp_base .. "/v1/traces", "fuwa", "otlp traces"),
+	logs    = otlp_adapter.new(otlp_base .. "/v1/logs",   "fuwa", "otlp logs"),
 }
 
 function M.emit_trace(event)

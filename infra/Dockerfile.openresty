@@ -1,14 +1,24 @@
-FROM openresty/openresty:latest
+# Default is Docker Hub, but the in-cluster registry holds an already-built
+# fuwa image whose layers are the openresty base plus this tree. Passing
+# BASE_IMAGE=<local>/fuwa:<tag> rebuilds without touching Docker Hub at all
+# (build.sh does that when Docker Hub's anonymous quota is exhausted).
+ARG BASE_IMAGE=openresty/openresty:latest
+FROM ${BASE_IMAGE}
 
-# Python 3 needed by sqlite_local DB provider (io.popen("python3 runtime/sqlite_local.py"))
-RUN apt-get update && apt-get install -y --no-install-recommends python3 docker.io wget && \
+# Python 3 is required by the sqlite_local DB provider
+# (io.popen("python3 runtime/db/providers/sqlite_local.py")).
+RUN apt-get update && apt-get install -y --no-install-recommends python3 wget && \
     rm -rf /var/lib/apt/lists/*
 
-# nginx.conf is copied at build time; code is volume-mounted
+# Self-contained image: the source tree is baked into /app, so no bind mount is
+# required (k8s). nginx.conf is copied to the OpenResty conf dir and is also
+# read from /app by the entrypoint, which strips the TLS / cluster blocks based
+# on FUWA_SSL and FUWA_K8S.
+COPY . /app
 COPY nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
 
 WORKDIR /app
 
 EXPOSE 8080
 
-CMD ["/bin/sh", "-c", "sed \"s/\\${PORT}/$PORT/g; s/\\${LUA_CODE_CACHE}/${LUA_CODE_CACHE:-on}/g\" /app/nginx.conf > /usr/local/openresty/nginx/conf/nginx.conf && if [ \"${FUWA_SSL:-false}\" != \"true\" ]; then sed -i '/# --ssl-start/,/# --ssl-end/d' /usr/local/openresty/nginx/conf/nginx.conf; fi && exec /usr/local/openresty/bin/openresty -g 'daemon off;'"]
+CMD ["/bin/sh", "-c", "sed \"s/\\${PORT}/$PORT/g; s/\\${LUA_CODE_CACHE}/${LUA_CODE_CACHE:-on}/g; s/\\${FUWA_K8S_DNS}/${FUWA_K8S_DNS:-10.43.0.10}/g; s/\\${ASSISTANT_UPSTREAM}/${ASSISTANT_UPSTREAM:-192.168.0.243}/g; s/\\${ARGOCD_UPSTREAM}/${ARGOCD_UPSTREAM:-192.168.0.247}/g; s/\\${ASSISTANT_GPU_UPSTREAM}/${ASSISTANT_GPU_UPSTREAM:-192.168.0.243}/g; s/\\${KARGO_UPSTREAM}/${KARGO_UPSTREAM:-192.168.0.249}/g\" /app/nginx.conf > /usr/local/openresty/nginx/conf/nginx.conf && if [ \"${FUWA_SSL:-false}\" != \"true\" ]; then sed -i '/# --ssl-start/,/# --ssl-end/d' /usr/local/openresty/nginx/conf/nginx.conf; fi && if [ \"${FUWA_K8S:-false}\" != \"true\" ]; then sed -i '/# --k8s-start/,/# --k8s-end/d' /usr/local/openresty/nginx/conf/nginx.conf; fi && exec /usr/local/openresty/bin/openresty -g 'daemon off;'"]
